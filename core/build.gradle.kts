@@ -27,9 +27,7 @@ kotlin {
 
 dependencies {
     // libxposed API for hook implementations (compile-only)
-    compileOnly("io.github.libxposed:api:101.0.0")
+    compileOnly(libs.libxposed.api)
     // AndroidX annotations if needed by moved classes
-    compileOnly("androidx.annotation:annotation:1.9.1")
-    // Xposed legacy API: resolve via local stub jar if present
-    compileOnly(files("libs/xposed-stub.jar"))
+    compileOnly(libs.androidx.annotation)
 }
