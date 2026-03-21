@@ -14,6 +14,7 @@ import android.os.Process
 import android.os.SystemClock
 import android.view.InputEvent
 import android.view.KeyCharacterMap
+import android.widget.Toast
 import io.github.magisk317.smscode.core.utils.XLog
 import io.github.magisk317.smscode.core.runtime.CoreHookPolicyHolder
 import io.github.magisk317.smscode.core.helper.XposedWrapper
@@ -212,7 +213,7 @@ class SystemInputInjectorHook : BaseHook() {
                             val record = param.args.firstOrNull() ?: return
                             val intent = extractBroadcastIntent(record) ?: return
                             val action = intent.action ?: return
-                            if (action != resolveActionAutoInput()) return
+                            if (action != resolveActionAutoInput() && action != resolveActionShowToast()) return
                             val (uid, pkg) = extractCallerInfo(record)
                             if (uid >= 0) {
                                 lastAutoInputCallerUid = uid
@@ -285,6 +286,22 @@ class SystemInputInjectorHook : BaseHook() {
                         XLog.w("SystemServer input request rejected from uid=%d", sendingUid)
                         return
                     }
+                    if (intent.action == resolveActionShowToast()) {
+                        val text = intent.getStringExtra("text")
+                        val duration = intent.getIntExtra("duration", Toast.LENGTH_LONG)
+                        XLog.w(
+                            "Diag system toast request: uid=%d text_len=%d duration=%d",
+                            sendingUid,
+                            text?.length ?: 0,
+                            duration,
+                        )
+                        if (text.isNullOrEmpty()) {
+                            XLog.w("SystemServer toast request ignored: empty text")
+                            return
+                        }
+                        showToast(context, text, duration)
+                        return
+                    }
                     val code = intent.getStringExtra("code")
                     val autoEnter = intent.getBooleanExtra("autoEnter", false)
                     val inputIntervalMs = intent.getLongExtra("inputIntervalMs", 0L).coerceAtLeast(0L)
@@ -311,6 +328,7 @@ class SystemInputInjectorHook : BaseHook() {
                 }
             }
             val filter = IntentFilter(resolveActionAutoInput())
+            filter.addAction(resolveActionShowToast())
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
             } else {
@@ -327,6 +345,31 @@ class SystemInputInjectorHook : BaseHook() {
                 scheduleRegister(context)
             } else {
                 HookBridge.log("XSmsCode: registerReceiver give up after $registerAttempts attempts")
+            }
+        }
+    }
+
+    private fun showToast(context: Context, text: String, duration: Int) {
+        getMainHandler().post {
+            try {
+                val toast = Toast.makeText(context, text, duration)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    toast.addCallback(
+                        object : Toast.Callback() {
+                            override fun onToastShown() {
+                                XLog.w("Diag system toast shown: text_len=%d", text.length)
+                            }
+
+                            override fun onToastHidden() {
+                                XLog.w("Diag system toast hidden: text_len=%d", text.length)
+                            }
+                        },
+                    )
+                }
+                toast.show()
+                XLog.w("SystemServer toast show invoked: text_len=%d duration=%d", text.length, duration)
+            } catch (t: Throwable) {
+                XLog.e("Failed to show toast from System Server", t)
             }
         }
     }
@@ -640,6 +683,9 @@ class SystemInputInjectorHook : BaseHook() {
 
         @Suppress("unused")
         fun resolveActionAutoInput(): String = "${io.github.magisk317.smscode.core.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT"
+
+        fun resolveActionShowToast(): String =
+            "${io.github.magisk317.smscode.core.runtime.CoreRuntime.access.actionNamespace}.ACTION_SHOW_TOAST"
 
         fun resolveActionAutoInputResult(): String =
             "${io.github.magisk317.smscode.core.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT_RESULT"
