@@ -1,4 +1,3 @@
 plugins {
-    id("com.android.library") apply false
-    id("org.jetbrains.kotlin.android") apply false
+    id("com.android.library") version "9.2.0-alpha05" apply false
 }
