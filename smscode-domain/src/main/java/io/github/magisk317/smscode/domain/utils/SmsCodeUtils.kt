@@ -1,0 +1,183 @@
+package io.github.magisk317.smscode.domain.utils
+
+import io.github.magisk317.smscode.domain.model.AppLabelResolver
+import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
+import java.util.Locale
+import java.util.regex.Pattern
+
+object SmsCodeUtils {
+    private const val LEVEL_DIGITAL_6 = 4
+    private const val LEVEL_DIGITAL_4 = 3
+    private const val LEVEL_DIGITAL_OTHERS = 2
+    private const val LEVEL_TEXT = 1
+    private const val LEVEL_CHARACTER = 0
+    private const val LEVEL_NONE = -1
+    private const val KEYWORD_DISTANCE_THRESHOLD = 30
+    private val urlSchemeTokens = setOf("http", "https", "www")
+
+    suspend fun parseSmsCodeIfExists(
+        content: String,
+        keywordsRegex: String,
+        rules: List<SmsCodeRuleSpec> = emptyList(),
+    ): String {
+        val customResult = parseByCustomRules(content, rules)
+        val defaultResult = parseByDefaultRule(content, keywordsRegex)
+        return pickBetterCode(customResult, defaultResult)
+    }
+
+    @JvmStatic
+    fun parseCompany(content: String): String {
+        val possibleCompanies = parseCompanyCandidates(content)
+        if (possibleCompanies.isEmpty()) return ""
+        return possibleCompanies.joinToString(" ")
+    }
+
+    @JvmStatic
+    fun parseCompanyCandidates(content: String): List<String> {
+        val regex = "((?<=【)(.*?)(?=】))|((?<=\\[)(.*?)(?=\\]))"
+        val pattern = Pattern.compile(regex)
+        val matcher = pattern.matcher(content)
+        val possibleCompanies = mutableListOf<String>()
+        while (matcher.find()) {
+            possibleCompanies.add(matcher.group())
+        }
+        return possibleCompanies
+    }
+
+    @JvmStatic
+    fun findPackageNameByLabel(label: String?, resolver: AppLabelResolver): String? {
+        if (label.isNullOrBlank()) return null
+        return resolver.findPackageNameByLabel(label)
+    }
+
+    private fun containsChinese(text: String): Boolean {
+        val regex = "[\u4e00-\u9fa5]|。"
+        val pattern = Pattern.compile(regex)
+        val matcher = pattern.matcher(text)
+        return matcher.find()
+    }
+
+    private fun parseKeyword(keywordsRegex: String, content: String): String {
+        if (keywordsRegex.isBlank()) return ""
+        val pattern = Pattern.compile(keywordsRegex)
+        val matcher = pattern.matcher(content)
+        return if (matcher.find()) matcher.group() else ""
+    }
+
+    private fun parseByDefaultRule(content: String, keywordsRegex: String): String {
+        val keyword = parseKeyword(keywordsRegex, content)
+        if (keyword.isEmpty()) return ""
+        val cnCode = if (containsChinese(content)) getSmsCodeCN(keyword, content) else ""
+        val enCode = getSmsCodeEN(keyword, content)
+        return pickBetterCode(cnCode, enCode)
+    }
+
+    private fun getSmsCodeCN(keyword: String, content: String): String {
+        val codeRegex = "(?<![a-zA-Z0-9])[a-zA-Z0-9]{4,8}(?![a-zA-Z0-9])"
+        val handledContent = removeAllWhiteSpaces(content)
+        var smsCode = getSmsCode(codeRegex, keyword, handledContent)
+        if (smsCode.isEmpty()) {
+            smsCode = getSmsCode(codeRegex, keyword, content)
+        }
+        return smsCode
+    }
+
+    private fun getSmsCodeEN(keyword: String, content: String): String {
+        val codeRegex = "(?<![0-9])[0-9]{4,8}(?![0-9])"
+        var smsCode = getSmsCode(codeRegex, keyword, content)
+        if (smsCode.isEmpty()) {
+            val handledContent = removeAllWhiteSpaces(content)
+            smsCode = getSmsCode(codeRegex, keyword, handledContent)
+        }
+        return smsCode
+    }
+
+    private fun removeAllWhiteSpaces(content: String): String = content.replace("\\s*".toRegex(), "")
+
+    private fun getSmsCode(codeRegex: String, keyword: String, content: String): String {
+        val matcher = Pattern.compile(codeRegex).matcher(content)
+        val possibleCodes = mutableListOf<String>()
+        while (matcher.find()) {
+            val candidate = matcher.group()
+            if (candidate.lowercase(Locale.ROOT) in urlSchemeTokens) continue
+            possibleCodes.add(candidate)
+        }
+        if (possibleCodes.isEmpty()) return ""
+
+        var filteredCodes = possibleCodes.filter { isNearToKeyword(keyword, it, content) }
+        if (filteredCodes.isEmpty()) {
+            filteredCodes = possibleCodes
+        }
+
+        var maxMatchLevel = LEVEL_NONE
+        var minDistance = content.length
+        var smsCode = ""
+        for (filteredCode in filteredCodes) {
+            val curLevel = getMatchLevel(filteredCode)
+            if (curLevel > maxMatchLevel) {
+                maxMatchLevel = curLevel
+                minDistance = distanceToKeyword(keyword, filteredCode, content)
+                smsCode = filteredCode
+            } else if (curLevel == maxMatchLevel) {
+                val curDistance = distanceToKeyword(keyword, filteredCode, content)
+                if (curDistance < minDistance) {
+                    minDistance = curDistance
+                    smsCode = filteredCode
+                }
+            }
+        }
+        return smsCode
+    }
+
+    private fun getMatchLevel(matchedStr: String): Int = when {
+        matchedStr.matches("^[0-9]{6}$".toRegex()) -> LEVEL_DIGITAL_6
+        matchedStr.matches("^[0-9]{4}$".toRegex()) -> LEVEL_DIGITAL_4
+        matchedStr.matches("^[0-9]*$".toRegex()) -> LEVEL_DIGITAL_OTHERS
+        matchedStr.matches("^[a-zA-Z]*$".toRegex()) -> LEVEL_CHARACTER
+        else -> LEVEL_TEXT
+    }
+
+    private fun pickBetterCode(first: String, second: String): String {
+        if (first.isEmpty()) return second
+        if (second.isEmpty()) return first
+        val firstLevel = getMatchLevel(first)
+        val secondLevel = getMatchLevel(second)
+        return if (secondLevel > firstLevel) second else first
+    }
+
+    private fun isNearToKeyword(keyword: String, possibleCode: String, content: String): Boolean =
+        distanceToKeyword(keyword, possibleCode, content) <= KEYWORD_DISTANCE_THRESHOLD
+
+    private fun distanceToKeyword(keyword: String, possibleCode: String, content: String): Int {
+        val possibleCodeIdx = content.indexOf(possibleCode)
+        if (possibleCodeIdx < 0) return content.length
+
+        var minDistance = content.length
+        var searchStart = 0
+        while (searchStart < content.length) {
+            val keywordIdx = content.indexOf(keyword, startIndex = searchStart)
+            if (keywordIdx < 0) break
+            val distance = kotlin.math.abs(keywordIdx - possibleCodeIdx)
+            if (distance < minDistance) {
+                minDistance = distance
+            }
+            searchStart = keywordIdx + keyword.length
+        }
+        return minDistance
+    }
+
+    private fun parseByCustomRules(content: String, rules: List<SmsCodeRuleSpec>): String {
+        val lowerContent = content.lowercase()
+        for (rule in rules) {
+            if (lowerContent.contains(rule.company?.lowercase() ?: "") &&
+                lowerContent.contains(rule.codeKeyword.lowercase())
+            ) {
+                val matcher = Pattern.compile(rule.codeRegex).matcher(content)
+                if (matcher.find()) {
+                    return matcher.group()
+                }
+            }
+        }
+        return ""
+    }
+}

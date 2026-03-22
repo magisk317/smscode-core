@@ -1,4 +1,14 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+val sharedProjectPrefix = project.parent?.path?.takeIf { it.isNotBlank() } ?: ""
+val xposedProjectPath = if (sharedProjectPrefix.isBlank()) {
+    ":smscode-xposed-core"
+} else {
+    "$sharedProjectPrefix:smscode-xposed-core"
+}
+val domainProjectPath = if (sharedProjectPrefix.isBlank()) {
+    ":smscode-domain"
+} else {
+    "$sharedProjectPrefix:smscode-domain"
+}
 
 plugins {
     id("com.android.library")
@@ -16,18 +26,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
-    }
 }
 
 dependencies {
-    // libxposed API for hook implementations (compile-only)
-    compileOnly(libs.libxposed.api)
-    // AndroidX annotations if needed by moved classes
-    compileOnly(libs.androidx.annotation)
+    api(project(xposedProjectPath))
+    api(project(domainProjectPath))
 }
