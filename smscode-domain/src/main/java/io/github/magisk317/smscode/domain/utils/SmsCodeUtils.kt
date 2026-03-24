@@ -2,11 +2,19 @@ package io.github.magisk317.smscode.domain.utils
 
 import io.github.magisk317.smscode.domain.model.AppLabelResolver
 import io.github.magisk317.smscode.domain.model.BuiltinSmsCodeRules
+import io.github.magisk317.smscode.domain.model.SmsCodeMatchedRule
+import io.github.magisk317.smscode.domain.model.SmsCodeMatchedRuleSource
+import io.github.magisk317.smscode.domain.model.SmsCodeParseResult
 import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
 import java.util.Locale
 import java.util.regex.Pattern
 
 object SmsCodeUtils {
+    private data class ParseCandidate(
+        val code: String,
+        val matchedRule: SmsCodeMatchedRule? = null,
+    )
+
     private const val LEVEL_DIGITAL_6 = 4
     private const val LEVEL_DIGITAL_4 = 3
     private const val LEVEL_DIGITAL_OTHERS = 2
@@ -21,10 +29,20 @@ object SmsCodeUtils {
         content: String,
         keywordsRegex: String,
         rules: List<SmsCodeRuleSpec> = emptyList(),
-    ): String {
+    ): String = parseSmsCodeResultIfExists(content, keywordsRegex, rules).code
+
+    suspend fun parseSmsCodeResultIfExists(
+        content: String,
+        keywordsRegex: String,
+        rules: List<SmsCodeRuleSpec> = emptyList(),
+    ): SmsCodeParseResult {
         val customResult = parseByCustomRules(content, rules)
         val defaultResult = parseByDefaultRule(content, keywordsRegex)
-        return pickBetterCode(customResult, defaultResult)
+        val bestResult = pickBetterCandidate(customResult, defaultResult)
+        return SmsCodeParseResult(
+            code = bestResult.code,
+            matchedRule = bestResult.matchedRule,
+        )
     }
 
     @JvmStatic
@@ -66,12 +84,31 @@ object SmsCodeUtils {
         return if (matcher.find()) matcher.group() else ""
     }
 
-    private fun parseByDefaultRule(content: String, keywordsRegex: String): String {
+    private fun parseByDefaultRule(content: String, keywordsRegex: String): ParseCandidate {
         val keyword = parseKeyword(keywordsRegex, content)
-        if (keyword.isEmpty()) return ""
+        if (keyword.isEmpty()) return ParseCandidate(code = "")
         val cnCode = if (containsChinese(content)) getSmsCodeCN(keyword, content) else ""
         val enCode = getSmsCodeEN(keyword, content)
-        return pickBetterCode(cnCode, enCode)
+        return pickBetterCandidate(
+            first = ParseCandidate(
+                code = cnCode,
+                matchedRule = cnCode.takeIf { it.isNotEmpty() }?.let {
+                    SmsCodeMatchedRule(
+                        source = SmsCodeMatchedRuleSource.BUILTIN,
+                        ordinal = 1,
+                    )
+                },
+            ),
+            second = ParseCandidate(
+                code = enCode,
+                matchedRule = enCode.takeIf { it.isNotEmpty() }?.let {
+                    SmsCodeMatchedRule(
+                        source = SmsCodeMatchedRuleSource.BUILTIN,
+                        ordinal = 2,
+                    )
+                },
+            ),
+        )
     }
 
     private fun getSmsCodeCN(keyword: String, content: String): String {
@@ -149,11 +186,11 @@ object SmsCodeUtils {
         else -> LEVEL_TEXT
     }
 
-    private fun pickBetterCode(first: String, second: String): String {
-        if (first.isEmpty()) return second
-        if (second.isEmpty()) return first
-        val firstLevel = getMatchLevel(first)
-        val secondLevel = getMatchLevel(second)
+    private fun pickBetterCandidate(first: ParseCandidate, second: ParseCandidate): ParseCandidate {
+        if (first.code.isEmpty()) return second
+        if (second.code.isEmpty()) return first
+        val firstLevel = getMatchLevel(first.code)
+        val secondLevel = getMatchLevel(second.code)
         return if (secondLevel > firstLevel) second else first
     }
 
@@ -178,18 +215,24 @@ object SmsCodeUtils {
         return minDistance
     }
 
-    private fun parseByCustomRules(content: String, rules: List<SmsCodeRuleSpec>): String {
+    private fun parseByCustomRules(content: String, rules: List<SmsCodeRuleSpec>): ParseCandidate {
         val lowerContent = content.lowercase()
-        for (rule in rules) {
+        for ((index, rule) in rules.withIndex()) {
             if (lowerContent.contains(rule.company?.lowercase() ?: "") &&
                 lowerContent.contains(rule.codeKeyword.lowercase())
             ) {
                 val matcher = Pattern.compile(rule.codeRegex).matcher(content)
                 if (matcher.find()) {
-                    return matcher.group()
+                    return ParseCandidate(
+                        code = matcher.group(),
+                        matchedRule = SmsCodeMatchedRule(
+                            source = SmsCodeMatchedRuleSource.CUSTOM,
+                            ordinal = index + 1,
+                        ),
+                    )
                 }
             }
         }
-        return ""
+        return ParseCandidate(code = "")
     }
 }
