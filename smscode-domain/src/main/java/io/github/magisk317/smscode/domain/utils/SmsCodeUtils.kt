@@ -14,6 +14,7 @@ object SmsCodeUtils {
     private const val LEVEL_NONE = -1
     private const val KEYWORD_DISTANCE_THRESHOLD = 30
     private val urlSchemeTokens = setOf("http", "https", "www")
+    private val dateTimeUnitTokens = setOf('年', '月', '日', '号', '时', '點', '点', '分', '秒')
 
     suspend fun parseSmsCodeIfExists(
         content: String,
@@ -100,6 +101,7 @@ object SmsCodeUtils {
         while (matcher.find()) {
             val candidate = matcher.group()
             if (candidate.lowercase(Locale.ROOT) in urlSchemeTokens) continue
+            if (isLikelyDateTimeToken(candidate, content)) continue
             possibleCodes.add(candidate)
         }
         if (possibleCodes.isEmpty()) return ""
@@ -127,6 +129,15 @@ object SmsCodeUtils {
             }
         }
         return smsCode
+    }
+
+    private fun isLikelyDateTimeToken(candidate: String, content: String): Boolean {
+        if (!candidate.all(Char::isDigit)) return false
+        val candidateIdx = content.indexOf(candidate)
+        if (candidateIdx < 0) return false
+        val prevChar = content.getOrNull(candidateIdx - 1)
+        val nextChar = content.getOrNull(candidateIdx + candidate.length)
+        return prevChar in dateTimeUnitTokens || nextChar in dateTimeUnitTokens
     }
 
     private fun getMatchLevel(matchedStr: String): Int = when {
