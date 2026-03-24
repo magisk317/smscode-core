@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.domain.utils
 
 import io.github.magisk317.smscode.domain.model.AppLabelResolver
+import io.github.magisk317.smscode.domain.model.BuiltinSmsCodeRules
 import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
 import java.util.Locale
 import java.util.regex.Pattern
@@ -74,7 +75,7 @@ object SmsCodeUtils {
     }
 
     private fun getSmsCodeCN(keyword: String, content: String): String {
-        val codeRegex = "(?<![a-zA-Z0-9])[a-zA-Z0-9]{4,8}(?![a-zA-Z0-9])"
+        val codeRegex = BuiltinSmsCodeRules.DEFAULT_ALPHANUMERIC_CODE_REGEX
         val handledContent = removeAllWhiteSpaces(content)
         var smsCode = getSmsCode(codeRegex, keyword, handledContent)
         if (smsCode.isEmpty()) {
@@ -84,7 +85,7 @@ object SmsCodeUtils {
     }
 
     private fun getSmsCodeEN(keyword: String, content: String): String {
-        val codeRegex = "(?<![0-9])[0-9]{4,8}(?![0-9])"
+        val codeRegex = BuiltinSmsCodeRules.DEFAULT_DIGITS_CODE_REGEX
         var smsCode = getSmsCode(codeRegex, keyword, content)
         if (smsCode.isEmpty()) {
             val handledContent = removeAllWhiteSpaces(content)
