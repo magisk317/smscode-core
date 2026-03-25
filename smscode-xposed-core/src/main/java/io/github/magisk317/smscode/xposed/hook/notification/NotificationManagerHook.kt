@@ -20,6 +20,7 @@ import io.github.magisk317.smscode.xposed.hookapi.LoadParam
 import io.github.magisk317.smscode.xposed.hookapi.MethodHook
 import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
+import io.github.magisk317.smscode.xposed.utils.NotificationLogSanitizer
 import io.github.magisk317.smscode.xposed.utils.XLog
 import java.util.Locale
 
@@ -249,6 +250,11 @@ class NotificationManagerHook : BaseHook() {
         } else {
             forwardIntent.putExtra("ipc_token", token)
         }
+        val sensitiveDebugLog = isSensitiveDebugLogEnabled(
+            systemContext = systemContext,
+            endpoint = endpoint,
+            callerPackageHint = pkg,
+        )
 
         XLog.i(
             "NotificationManagerHook intercepted: pkg=%s event=%s type=%s callType=%d title=%s body=%s",
@@ -256,8 +262,8 @@ class NotificationManagerHook : BaseHook() {
             eventId,
             notifyRoute.msgType,
             notifyRoute.callType,
-            title,
-            body,
+            NotificationLogSanitizer.formatTitle(title, sensitiveDebugLog),
+            NotificationLogSanitizer.formatBody(body, sensitiveDebugLog),
         )
         dispatchForwardBroadcast(systemContext, forwardIntent, pkg, eventId, endpoint)
     }
@@ -708,6 +714,21 @@ class NotificationManagerHook : BaseHook() {
             return cached
         }
         return ""
+    }
+
+    private fun isSensitiveDebugLogEnabled(
+        systemContext: Context,
+        endpoint: ModuleEndpoint,
+        callerPackageHint: String? = null,
+    ): Boolean {
+        if (!CoreRuntime.access.debug) return false
+        return queryPrefBoolean(
+            systemContext = systemContext,
+            endpoint = endpoint,
+            key = NotificationHookConst.KEY_SENSITIVE_DEBUG_LOG_MODE,
+            defaultValue = false,
+            callerPackageHint = callerPackageHint,
+        )
     }
 
     private fun queryPrefBooleanValue(
