@@ -9,6 +9,7 @@ object NotificationHookConst {
     const val KEY_IPC_TOKEN = "ipc_token"
     const val KEY_FORCE_STOP_RECOVERY = "pref_force_stop_recovery"
     const val KEY_FORCE_STOP_RECOVERY_RELAUNCH_ONCE = "pref_force_stop_recovery_relaunch_once"
+    const val KEY_SENSITIVE_DEBUG_LOG_MODE = "pref_sensitive_debug_log_mode"
 
     val ACTION_FORCE_STOP_RECOVERY_WAKEUP: String
         get() = "${resolveNamespace()}.FORCE_STOP_RECOVERY_WAKEUP"

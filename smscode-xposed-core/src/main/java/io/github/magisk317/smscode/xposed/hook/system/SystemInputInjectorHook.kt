@@ -329,6 +329,7 @@ class SystemInputInjectorHook : BaseHook() {
             }
             val filter = IntentFilter(resolveActionAutoInput())
             filter.addAction(resolveActionShowToast())
+            filter.priority = RECEIVER_PRIORITY_SYSTEM_FALLBACK
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
             } else {
@@ -680,6 +681,7 @@ class SystemInputInjectorHook : BaseHook() {
         private const val DELAY_REGISTER = 500L
         private const val MAX_REGISTER_ATTEMPTS = 10
         private const val CACHED_UID_TTL_MS = 10_000L
+        private const val RECEIVER_PRIORITY_SYSTEM_FALLBACK = -1000
 
         @Suppress("unused")
         fun resolveActionAutoInput(): String = "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT"

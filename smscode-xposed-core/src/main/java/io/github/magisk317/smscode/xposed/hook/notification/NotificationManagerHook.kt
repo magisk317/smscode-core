@@ -20,6 +20,7 @@ import io.github.magisk317.smscode.xposed.hookapi.LoadParam
 import io.github.magisk317.smscode.xposed.hookapi.MethodHook
 import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
+import io.github.magisk317.smscode.xposed.utils.NotificationLogSanitizer
 import io.github.magisk317.smscode.xposed.utils.XLog
 import java.util.Locale
 
@@ -180,12 +181,16 @@ class NotificationManagerHook : BaseHook() {
             packageName = pkg,
             notification = notification,
             notifyRoute = notifyRoute,
+            title = title,
+            body = body,
+            notifyChannelId = notifyChannelId,
         )
         if (skipReason != null) {
             XLog.d(
-                "NotificationManagerHook: skip by policy. pkg=%s reason=%s flags=0x%s category=%s",
+                "NotificationManagerHook: skip by policy. pkg=%s reason=%s channel=%s flags=0x%s category=%s",
                 pkg,
                 skipReason,
+                notifyChannelId.ifBlank { "<empty>" },
                 Integer.toHexString(notification.flags),
                 notification.category ?: "<null>",
             )
@@ -245,6 +250,11 @@ class NotificationManagerHook : BaseHook() {
         } else {
             forwardIntent.putExtra("ipc_token", token)
         }
+        val sensitiveDebugLog = isSensitiveDebugLogEnabled(
+            systemContext = systemContext,
+            endpoint = endpoint,
+            callerPackageHint = pkg,
+        )
 
         XLog.i(
             "NotificationManagerHook intercepted: pkg=%s event=%s type=%s callType=%d title=%s body=%s",
@@ -252,8 +262,8 @@ class NotificationManagerHook : BaseHook() {
             eventId,
             notifyRoute.msgType,
             notifyRoute.callType,
-            title,
-            body,
+            NotificationLogSanitizer.formatTitle(title, sensitiveDebugLog),
+            NotificationLogSanitizer.formatBody(body, sensitiveDebugLog),
         )
         dispatchForwardBroadcast(systemContext, forwardIntent, pkg, eventId, endpoint)
     }
@@ -454,6 +464,9 @@ class NotificationManagerHook : BaseHook() {
         packageName: String,
         notification: Notification,
         notifyRoute: NotifyRoute,
+        title: String,
+        body: String,
+        notifyChannelId: String,
     ): String? {
         val flags = notification.flags
         val isCallNotify = notifyRoute.msgType == MSG_TYPE_CALL_NOTIFY
@@ -466,6 +479,10 @@ class NotificationManagerHook : BaseHook() {
         if (notification.category == Notification.CATEGORY_SERVICE) {
             return "category_service"
         }
+        if (!isCallNotify) {
+            getFixedNotificationChannelReason(notifyChannelId)?.let { return it }
+            getFixedNotificationContentReason(title = title, body = body)?.let { return it }
+        }
         val isGroupSummary = (flags and Notification.FLAG_GROUP_SUMMARY) != 0
         if (isGroupSummary) {
             if (ENABLE_WECHAT_GROUP_SUMMARY_BYPASS && isWechatPackage(packageName)) {
@@ -477,6 +494,55 @@ class NotificationManagerHook : BaseHook() {
                 return null
             }
             return "group_summary"
+        }
+        return null
+    }
+
+    private fun getFixedNotificationChannelReason(notifyChannelId: String): String? {
+        val normalizedChannel = notifyChannelId.trim().lowercase(Locale.ROOT)
+        if (normalizedChannel.isBlank()) return null
+        if (normalizedChannel == "voicemail" || normalizedChannel == "voice_mail") {
+            return "channel_voicemail"
+        }
+        if (normalizedChannel.contains("foreground_service") || normalizedChannel.contains("foregroundservice")) {
+            return "channel_foreground_service"
+        }
+        if (normalizedChannel.contains("fgs")) {
+            return "channel_fgs"
+        }
+        if (normalizedChannel.contains("low_importance_service")) {
+            return "channel_low_importance_service"
+        }
+        if (normalizedChannel.contains("service_channel") || normalizedChannel.contains("servicechannel")) {
+            return "channel_service"
+        }
+        if (normalizedChannel.contains(".hide") || normalizedChannel.endsWith("_hide") || normalizedChannel.contains("_hide_")) {
+            return "channel_hidden"
+        }
+        if (normalizedChannel.contains("silent")) {
+            return "channel_silent"
+        }
+        return null
+    }
+
+    private fun getFixedNotificationContentReason(
+        title: String,
+        body: String,
+    ): String? {
+        val normalizedText = buildString {
+            append(title.trim())
+            append('\n')
+            append(body.trim())
+        }.lowercase(Locale.ROOT)
+        if (normalizedText.isBlank()) return null
+        if (normalizedText.contains("正在运行")) {
+            return "content_running"
+        }
+        if (normalizedText.contains("前台服务") || normalizedText.contains("foreground service")) {
+            return "content_foreground_service"
+        }
+        if (normalizedText.contains("正在检查应用更新") || normalizedText.contains("checking app updates")) {
+            return "content_checking_updates"
         }
         return null
     }
@@ -648,6 +714,21 @@ class NotificationManagerHook : BaseHook() {
             return cached
         }
         return ""
+    }
+
+    private fun isSensitiveDebugLogEnabled(
+        systemContext: Context,
+        endpoint: ModuleEndpoint,
+        callerPackageHint: String? = null,
+    ): Boolean {
+        if (!CoreRuntime.access.debug) return false
+        return queryPrefBoolean(
+            systemContext = systemContext,
+            endpoint = endpoint,
+            key = NotificationHookConst.KEY_SENSITIVE_DEBUG_LOG_MODE,
+            defaultValue = false,
+            callerPackageHint = callerPackageHint,
+        )
     }
 
     private fun queryPrefBooleanValue(

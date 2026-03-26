@@ -35,26 +35,38 @@ object XposedWrapper {
         null
     }
 
-    fun findAndHookMethod(clazz: Class<*>, methodName: String, vararg parameterTypesAndCallback: Any): HookHandle? = try {
-        if (parameterTypesAndCallback.isEmpty()) return null
-        val callback = parameterTypesAndCallback.lastOrNull() as? MethodHook ?: return null
-        val paramTypes = parameterTypesAndCallback.dropLast(1).toTypedArray()
-        val method = HookHelpers.findMethodExactIfExists(clazz, methodName, *paramTypes) ?: return null
-        hookMethod(method, callback)
-    } catch (t: Throwable) {
-        XLog.e("Error in hook %s#%s", clazz.name, methodName, t)
-        null
+    fun findAndHookMethod(clazz: Class<*>, methodName: String, vararg parameterTypesAndCallback: Any): HookHandle? {
+        return try {
+            if (parameterTypesAndCallback.isEmpty()) {
+                null
+            } else {
+                val callback = parameterTypesAndCallback.lastOrNull() as? MethodHook
+                if (callback == null) {
+                    null
+                } else {
+                    val paramTypes = parameterTypesAndCallback.dropLast(1).toTypedArray()
+                    val method = HookHelpers.findMethodExactIfExists(clazz, methodName, *paramTypes)
+                    if (method == null) null else hookMethod(method, callback)
+                }
+            }
+        } catch (t: Throwable) {
+            XLog.e("Error in hook %s#%s", clazz.name, methodName, t)
+            null
+        }
     }
 
-    fun hookMethod(hookMethod: Member, callback: MethodHook): HookHandle? = try {
-        if (hookMethod is Method && (Modifier.isAbstract(hookMethod.modifiers) || Modifier.isNative(hookMethod.modifiers))) {
-            XLog.d("Skip hook unsupported method: %s#%s", hookMethod.declaringClass.name, hookMethod.name)
-            return null
+    fun hookMethod(hookMethod: Member, callback: MethodHook): HookHandle? {
+        return try {
+            if (hookMethod is Method && (Modifier.isAbstract(hookMethod.modifiers) || Modifier.isNative(hookMethod.modifiers))) {
+                XLog.d("Skip hook unsupported method: %s#%s", hookMethod.declaringClass.name, hookMethod.name)
+                null
+            } else {
+                HookBridge.hookMethod(hookMethod, callback)
+            }
+        } catch (t: Throwable) {
+            XLog.e("Error in hookMethod: %s", hookMethod.name, t)
+            null
         }
-        HookBridge.hookMethod(hookMethod, callback)
-    } catch (t: Throwable) {
-        XLog.e("Error in hookMethod: %s", hookMethod.name, t)
-        null
     }
 
     fun hookAllConstructors(hookClass: Class<*>, callback: MethodHook): Set<HookHandle>? = try {
