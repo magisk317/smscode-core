@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "smscode-core"
 include(":smscode-xposed-core")
 include(":smscode-domain")
+include(":smscode-verification-core")
