@@ -1,4 +1,7 @@
 pluginManagement {
+    plugins {
+        id("com.android.library") version "9.2.0-alpha06"
+    }
     repositories {
         google()
         mavenCentral()
