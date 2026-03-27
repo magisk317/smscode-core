@@ -6,6 +6,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.os.Bundle
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -26,6 +28,7 @@ import io.github.magisk317.smscode.xposed.hookapi.MethodHook
 import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
 import io.github.magisk317.smscode.xposed.hookapi.ZygoteParam
 import java.lang.reflect.Method
+import java.util.Locale
 
 class SystemInputInjectorHook : BaseHook() {
     @Volatile
@@ -306,6 +309,7 @@ class SystemInputInjectorHook : BaseHook() {
                     val autoEnter = intent.getBooleanExtra("autoEnter", false)
                     val inputIntervalMs = intent.getLongExtra("inputIntervalMs", 0L).coerceAtLeast(0L)
                     val attemptId = intent.getLongExtra("attemptId", -1L).takeIf { it >= 0L }
+                    val accessibilityResult = resolveAccessibilityOrderedResult(this)
                     XLog.w(
                         "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
                         sendingUid,
@@ -313,6 +317,31 @@ class SystemInputInjectorHook : BaseHook() {
                         autoEnter,
                         inputIntervalMs,
                     )
+                    accessibilityResult?.let { result ->
+                        XLog.w(
+                            "Diag system receiver observed accessibility result: attemptId=%d success=%s strategy=%s reason=%s windowPkg=%s",
+                            attemptId ?: -1L,
+                            result.success,
+                            result.strategy.ifBlank { "<none>" },
+                            result.reason.ifBlank { "<none>" },
+                            result.windowPackage.ifBlank { "<none>" },
+                        )
+                        if (shouldSkipFallbackAfterAccessibility(context, result)) {
+                            XLog.w(
+                                "SystemServer fallback skipped after accessibility result: attemptId=%d reason=%s windowPkg=%s",
+                                attemptId ?: -1L,
+                                result.reason.ifBlank { "<none>" },
+                                result.windowPackage.ifBlank { "<none>" },
+                            )
+                            sendAutoInputResult(
+                                context,
+                                attemptId,
+                                success = result.success,
+                                reason = result.reason.takeIf { it.isNotBlank() } ?: "accessibility_result",
+                            )
+                            return
+                        }
+                    }
                     if (!code.isNullOrEmpty()) {
                         XLog.i(
                             "SystemServer received input request: %s, autoEnter: %s, inputIntervalMs: %d",
@@ -373,6 +402,53 @@ class SystemInputInjectorHook : BaseHook() {
                 XLog.e("Failed to show toast from System Server", t)
             }
         }
+    }
+
+    private data class AccessibilityOrderedResult(
+        val success: Boolean,
+        val strategy: String,
+        val reason: String,
+        val windowPackage: String,
+    )
+
+    private fun resolveAccessibilityOrderedResult(receiver: BroadcastReceiver): AccessibilityOrderedResult? {
+        val extras = runCatching { receiver.getResultExtras(false) }.getOrNull() ?: return null
+        if (!extras.getBoolean(EXTRA_ACCESSIBILITY_HANDLED, false)) return null
+        return AccessibilityOrderedResult(
+            success = extras.getBoolean(EXTRA_ACCESSIBILITY_SUCCESS, false),
+            strategy = extras.getString(EXTRA_ACCESSIBILITY_STRATEGY).orEmpty(),
+            reason = extras.getString(EXTRA_ACCESSIBILITY_REASON).orEmpty(),
+            windowPackage = extras.getString(EXTRA_ACCESSIBILITY_WINDOW_PACKAGE).orEmpty(),
+        )
+    }
+
+    private fun shouldSkipFallbackAfterAccessibility(
+        context: Context,
+        result: AccessibilityOrderedResult,
+    ): Boolean {
+        return AutoInputFallbackPolicy.shouldSkipFallbackAfterAccessibility(
+            success = result.success,
+            reason = result.reason,
+            windowPackage = result.windowPackage,
+            modulePackage = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.applicationId,
+            homePackages = resolveHomePackages(context),
+        )
+    }
+
+    private fun resolveHomePackages(context: Context): Set<String> {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        return runCatching {
+            val infos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.queryIntentActivities(
+                    intent,
+                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()),
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            }
+            infos.mapNotNull { it.activityInfo?.packageName?.takeIf(String::isNotBlank) }.toSet()
+        }.getOrDefault(emptySet())
     }
 
     private fun logSuppressedOnce(stage: String) {
@@ -691,5 +767,11 @@ class SystemInputInjectorHook : BaseHook() {
 
         fun resolveActionAutoInputResult(): String =
             "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT_RESULT"
+
+        const val EXTRA_ACCESSIBILITY_HANDLED = "accessibility_handled"
+        const val EXTRA_ACCESSIBILITY_SUCCESS = "accessibility_success"
+        const val EXTRA_ACCESSIBILITY_REASON = "accessibility_reason"
+        const val EXTRA_ACCESSIBILITY_STRATEGY = "accessibility_strategy"
+        const val EXTRA_ACCESSIBILITY_WINDOW_PACKAGE = "accessibility_window_package"
     }
 }

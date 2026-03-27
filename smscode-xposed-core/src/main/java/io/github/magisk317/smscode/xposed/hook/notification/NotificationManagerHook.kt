@@ -56,6 +56,7 @@ class NotificationManagerHook : BaseHook() {
 
     private data class NotifyRoute(
         val msgType: String,
+        val smsCode: String? = null,
         val callType: Int = CALL_TYPE_UNKNOWN,
         val callTypeLabel: String = "",
         val callStage: String = "",
@@ -214,6 +215,7 @@ class NotificationManagerHook : BaseHook() {
         forwardIntent.putExtra("packageName", pkg)
         forwardIntent.putExtra("notify_channel_id", notifyChannelId)
         forwardIntent.putExtra("msgType", notifyRoute.msgType)
+        notifyRoute.smsCode?.takeIf { it.isNotBlank() }?.let { forwardIntent.putExtra("smsCode", it) }
         if (notifyRoute.msgType == MSG_TYPE_CALL_NOTIFY) {
             forwardIntent.putExtra("call_type", notifyRoute.callType)
             if (notifyRoute.callStage.isNotBlank()) {
@@ -230,10 +232,16 @@ class NotificationManagerHook : BaseHook() {
         } catch (_: Exception) {
             pkg
         }
-        val companyLabel = if (notifyRoute.msgType == MSG_TYPE_CALL_NOTIFY) {
-            notifyRoute.callTypeLabel.ifBlank { CALL_TYPE_LABEL_DEFAULT }
-        } else {
-            appName
+        val companyLabel = when (notifyRoute.msgType) {
+            MSG_TYPE_CALL_NOTIFY -> notifyRoute.callTypeLabel.ifBlank { CALL_TYPE_LABEL_DEFAULT }
+            MSG_TYPE_SMS -> resolveSmsCompanyLabel(
+                title = title,
+                body = body,
+                expandedText = expandedText,
+                tickerText = tickerText,
+                fallbackLabel = appName,
+            )
+            else -> appName
         }
         forwardIntent.putExtra("company", companyLabel)
 
@@ -282,23 +290,31 @@ class NotificationManagerHook : BaseHook() {
         val isDialerPackage = isDialerPackage(packageName)
         val hasCallKeyword = containsAnyKeyword(normalizedText, CALL_NOTIFY_KEYWORDS)
         val isCallNotify = (isDialerPackage && isCallCategory) || (isDialerPackage && hasCallKeyword)
-        if (!isCallNotify) return NotifyRoute(msgType = MSG_TYPE_APP_NOTIFY)
-        var callType = resolveCallType(normalizedText)
-        if (callType == CALL_TYPE_UNKNOWN && isDialerPackage && isCallCategory) {
-            callType = CALL_TYPE_INCOMING
+        if (isCallNotify) {
+            var callType = resolveCallType(normalizedText)
+            if (callType == CALL_TYPE_UNKNOWN && isDialerPackage && isCallCategory) {
+                callType = CALL_TYPE_INCOMING
+            }
+            val callStage = resolveCallStage(
+                callType = callType,
+                isCallCategory = isCallCategory || hasCallKeyword,
+                normalizedText = normalizedText,
+                notifyChannelId = notifyChannelId,
+            )
+            return NotifyRoute(
+                msgType = MSG_TYPE_CALL_NOTIFY,
+                callType = callType,
+                callTypeLabel = callTypeLabel(callType),
+                callStage = callStage,
+            )
         }
-        val callStage = resolveCallStage(
-            callType = callType,
-            isCallCategory = isCallCategory || hasCallKeyword,
-            normalizedText = normalizedText,
-            notifyChannelId = notifyChannelId,
-        )
-        return NotifyRoute(
-            msgType = MSG_TYPE_CALL_NOTIFY,
-            callType = callType,
-            callTypeLabel = callTypeLabel(callType),
-            callStage = callStage,
-        )
+        return resolveTelephonySmsRoute(
+            packageName = packageName,
+            title = title,
+            body = body,
+            tickerText = tickerText,
+            expandedText = expandedText,
+        ) ?: NotifyRoute(msgType = MSG_TYPE_APP_NOTIFY)
     }
 
     private fun normalizeCallHintText(
@@ -318,6 +334,38 @@ class NotificationManagerHook : BaseHook() {
                 append(expandedText)
             }
         }.lowercase(Locale.ROOT)
+    }
+
+    private fun buildNotificationContent(
+        title: String,
+        body: String,
+        tickerText: String,
+        expandedText: String,
+    ): String {
+        return buildString {
+            if (title.isNotBlank()) appendLine(title)
+            if (body.isNotBlank()) appendLine(body)
+            if (expandedText.isNotBlank()) appendLine(expandedText)
+            if (tickerText.isNotBlank()) append(tickerText)
+        }.trim()
+    }
+
+    private fun resolveTelephonySmsRoute(
+        packageName: String,
+        title: String,
+        body: String,
+        tickerText: String,
+        expandedText: String,
+    ): NotifyRoute? {
+        if (!isTelephonySmsPackage(packageName)) return null
+        val content = buildNotificationContent(title, body, tickerText, expandedText)
+        if (content.isBlank()) return null
+        val smsCode = extractLikelyVerificationCode(content)
+        if (smsCode.isBlank()) return null
+        return NotifyRoute(
+            msgType = MSG_TYPE_SMS,
+            smsCode = smsCode,
+        )
     }
 
     private fun resolveExpandedText(notification: Notification): String {
@@ -429,6 +477,12 @@ class NotificationManagerHook : BaseHook() {
         val normalized = packageName.lowercase(Locale.ROOT)
         if (normalized in CALL_NOTIFY_PACKAGE_ALLOWLIST) return true
         return normalized.contains("dialer") || normalized.contains("incallui")
+    }
+
+    private fun isTelephonySmsPackage(packageName: String): Boolean {
+        val normalized = packageName.lowercase(Locale.ROOT)
+        if (normalized in TELEPHONY_SMS_PACKAGE_ALLOWLIST) return true
+        return normalized.contains("telephony")
     }
 
     private fun containsAnyKeyword(text: String, keywords: Set<String>): Boolean {
@@ -548,6 +602,65 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun isWechatPackage(packageName: String): Boolean = packageName == WECHAT_PACKAGE
+
+    private fun resolveSmsCompanyLabel(
+        title: String,
+        body: String,
+        expandedText: String,
+        tickerText: String,
+        fallbackLabel: String,
+    ): String {
+        val content = buildNotificationContent(title, body, tickerText, expandedText)
+        val company = extractCompanyCandidates(content).firstOrNull().orEmpty().trim()
+        if (company.isNotBlank()) return company
+        return title.trim().takeIf { it.isNotBlank() } ?: fallbackLabel
+    }
+
+    private fun extractCompanyCandidates(content: String): List<String> {
+        return COMPANY_PATTERN.findAll(content)
+            .map { it.value.trim() }
+            .filter { it.isNotBlank() }
+            .toList()
+    }
+
+    private fun extractLikelyVerificationCode(content: String): String {
+        val normalized = content.lowercase(Locale.ROOT)
+        if (!containsAnyKeyword(normalized, VERIFICATION_KEYWORDS)) return ""
+        val candidates = VERIFICATION_CODE_PATTERN.findAll(content)
+            .map { it.value }
+            .filterNot { isLikelyDateTimeToken(it, content) }
+            .toList()
+        if (candidates.isEmpty()) return ""
+        return candidates.sortedWith(
+            compareByDescending<String> { verificationCodePriority(it) }
+                .thenBy { distanceToVerificationKeyword(normalized, it.lowercase(Locale.ROOT)) },
+        ).first()
+    }
+
+    private fun verificationCodePriority(candidate: String): Int = when {
+        candidate.matches(Regex("^\\d{6}$")) -> 4
+        candidate.matches(Regex("^\\d{4}$")) -> 3
+        candidate.matches(Regex("^\\d{4,8}$")) -> 2
+        else -> 1
+    }
+
+    private fun distanceToVerificationKeyword(normalizedContent: String, candidate: String): Int {
+        val candidateIndex = normalizedContent.indexOf(candidate)
+        if (candidateIndex < 0) return normalizedContent.length
+        return VERIFICATION_KEYWORDS.minOfOrNull { keyword ->
+            val keywordIndex = normalizedContent.indexOf(keyword)
+            if (keywordIndex < 0) normalizedContent.length else kotlin.math.abs(keywordIndex - candidateIndex)
+        } ?: normalizedContent.length
+    }
+
+    private fun isLikelyDateTimeToken(candidate: String, content: String): Boolean {
+        if (!candidate.all(Char::isDigit)) return false
+        val candidateIndex = content.indexOf(candidate)
+        if (candidateIndex < 0) return false
+        val prev = content.getOrNull(candidateIndex - 1)
+        val next = content.getOrNull(candidateIndex + candidate.length)
+        return prev in DATE_TIME_UNIT_TOKENS || next in DATE_TIME_UNIT_TOKENS
+    }
 
     private fun getModuleEndpoint(systemContext: Context): ModuleEndpoint? {
         cachedEndpoint?.let { return it }
@@ -1316,6 +1429,7 @@ class NotificationManagerHook : BaseHook() {
         private const val MAIN_ACTIVITY_CLASS_NAME = "io.github.magisk317.relay.ui.home.MainActivity"
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val ENABLE_WECHAT_GROUP_SUMMARY_BYPASS = true
+        private const val MSG_TYPE_SMS = "sms"
         private const val MSG_TYPE_APP_NOTIFY = "app_notify"
         private const val MSG_TYPE_CALL_NOTIFY = "call_notify"
         private const val CALL_TYPE_UNKNOWN = 0
@@ -1331,6 +1445,32 @@ class NotificationManagerHook : BaseHook() {
             "com.google.android.dialer",
             "com.android.incallui",
         )
+        private val TELEPHONY_SMS_PACKAGE_ALLOWLIST = setOf(
+            "com.android.phone",
+            "com.android.providers.telephony",
+            "com.android.mms",
+            "com.android.messaging",
+            "com.google.android.apps.messaging",
+            "com.samsung.android.messaging",
+        )
+        private val VERIFICATION_KEYWORDS = setOf(
+            "验证码",
+            "校验码",
+            "检验码",
+            "确认码",
+            "激活码",
+            "动态码",
+            "安全码",
+            "verification",
+            "verify",
+            "otp",
+            "passcode",
+            "pin",
+            "code",
+        )
+        private val DATE_TIME_UNIT_TOKENS = setOf('年', '月', '日', '号', '时', '點', '点', '分', '秒')
+        private val VERIFICATION_CODE_PATTERN = Regex("\\b[A-Za-z0-9]{4,10}\\b")
+        private val COMPANY_PATTERN = Regex("(?<=【)[^】]+(?=】)|(?<=\\[)[^]]+(?=])")
         private val MISSED_CALL_KEYWORDS = setOf(
             "未接",
             "missed call",
