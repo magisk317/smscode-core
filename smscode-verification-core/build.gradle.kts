@@ -29,6 +29,7 @@ android {
 
 dependencies {
     implementation(project(smscodeXposedCorePath))
+    implementation("androidx.core:core-ktx:1.17.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     testImplementation("io.mockk:mockk:1.13.10")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
