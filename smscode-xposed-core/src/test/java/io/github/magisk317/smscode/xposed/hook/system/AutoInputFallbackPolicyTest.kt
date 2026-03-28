@@ -9,7 +9,7 @@ class AutoInputFallbackPolicyTest {
 
     @Test
     fun shouldSkipFallbackAfterAccessibility_skipsUnsafeWindows() {
-        assertTrue(
+        assertFalse(
             AutoInputFallbackPolicy.shouldSkipFallbackAfterAccessibility(
                 success = false,
                 reason = "no_editable_node",

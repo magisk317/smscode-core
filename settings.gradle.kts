@@ -1,6 +1,6 @@
 pluginManagement {
     plugins {
-        id("com.android.library") version "9.2.0-alpha06"
+        id("com.android.library") version "9.1.0"
     }
     repositories {
         google()

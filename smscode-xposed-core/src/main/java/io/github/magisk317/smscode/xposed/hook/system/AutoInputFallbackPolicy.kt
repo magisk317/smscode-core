@@ -68,9 +68,10 @@ object AutoInputFallbackPolicy {
         val normalizedWindow = windowPackage.trim().lowercase(Locale.ROOT)
         if (normalizedWindow.isBlank()) return true
         val normalizedModule = modulePackage.trim().lowercase(Locale.ROOT)
-        if (normalizedModule.isNotBlank() && normalizedWindow == normalizedModule) return true
         if (normalizedWindow == "android" || normalizedWindow == "com.android.systemui") return true
         if (homePackages.any { it.trim().lowercase(Locale.ROOT) == normalizedWindow }) return true
-        return normalizedWindow.contains("launcher") || normalizedWindow.contains("home")
+        if (normalizedWindow.contains("launcher") || normalizedWindow.contains("home")) return true
+        // Do not block system fallback solely because accessibility still reports the module window.
+        return false
     }
 }
