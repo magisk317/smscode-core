@@ -21,7 +21,18 @@ class InboundSmsBlocker(
         try {
             methodInvoker.deleteFromRawTable(inboundSmsHandler, smsReceiver, reason, eventId)
             deleteSucceeded = true
-        } catch (error: Throwable) {
+        } catch (error: ReflectiveOperationException) {
+            XLog.e("Error occurs when delete SMS data from raw table", error)
+        } catch (error: SecurityException) {
+            XLog.e("Error occurs when delete SMS data from raw table", error)
+        } catch (error: IllegalArgumentException) {
+            XLog.e("Error occurs when delete SMS data from raw table", error)
+        } catch (error: IllegalStateException) {
+            XLog.e("Error occurs when delete SMS data from raw table", error)
+        } catch (error: UnsupportedOperationException) {
+            XLog.e("Error occurs when delete SMS data from raw table", error)
+        } catch (error: InterruptedException) {
+            Thread.currentThread().interrupt()
             XLog.e("Error occurs when delete SMS data from raw table", error)
         } finally {
             restoreCallingIdentity(token)
@@ -31,7 +42,18 @@ class InboundSmsBlocker(
         try {
             methodInvoker.sendEventBroadcastComplete(inboundSmsHandler, reason, eventId)
             sendSucceeded = true
-        } catch (error: Throwable) {
+        } catch (error: ReflectiveOperationException) {
+            XLog.e("Error occurs when sending broadcast complete", error)
+        } catch (error: SecurityException) {
+            XLog.e("Error occurs when sending broadcast complete", error)
+        } catch (error: IllegalArgumentException) {
+            XLog.e("Error occurs when sending broadcast complete", error)
+        } catch (error: IllegalStateException) {
+            XLog.e("Error occurs when sending broadcast complete", error)
+        } catch (error: UnsupportedOperationException) {
+            XLog.e("Error occurs when sending broadcast complete", error)
+        } catch (error: InterruptedException) {
+            Thread.currentThread().interrupt()
             XLog.e("Error occurs when sending broadcast complete", error)
         }
         return deleteSucceeded && sendSucceeded

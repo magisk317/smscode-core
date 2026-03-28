@@ -1,7 +1,10 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Context
+import android.database.CursorIndexOutOfBoundsException
+import android.database.SQLException
 import android.net.Uri
+import android.os.OperationCanceledException
 
 object AutoInputBlockedPackageHelper {
     fun resolveBlockedState(
@@ -39,7 +42,19 @@ object AutoInputBlockedPackageHelper {
                     else -> false
                 }
             } ?: false
-        } catch (_: Exception) {
+        } catch (_: SecurityException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: IllegalStateException) {
+            null
+        } catch (_: UnsupportedOperationException) {
+            null
+        } catch (_: SQLException) {
+            null
+        } catch (_: CursorIndexOutOfBoundsException) {
+            null
+        } catch (_: OperationCanceledException) {
             null
         }
     }

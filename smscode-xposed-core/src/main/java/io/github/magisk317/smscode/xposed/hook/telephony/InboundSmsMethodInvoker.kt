@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.xposed.hook.telephony
 import android.os.Message
 import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
 import io.github.magisk317.smscode.xposed.utils.XLog
+import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.ArrayDeque
 
@@ -13,9 +14,17 @@ open class InboundSmsMethodInvoker(
         HookHelpers.findClass(className, classLoader)
     },
     private val messageObtainer: (Any, Int) -> Message = { inboundSmsHandler, what ->
-        runCatching {
+        try {
             HookHelpers.callMethod(inboundSmsHandler, "obtainMessage", what) as? Message
-        }.getOrNull() ?: Message.obtain().apply { this.what = what }
+        } catch (_: NoSuchMethodException) {
+            null
+        } catch (_: IllegalAccessException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: InvocationTargetException) {
+            null
+        } ?: Message.obtain().apply { this.what = what }
     },
 ) {
     @Volatile
@@ -43,24 +52,40 @@ open class InboundSmsMethodInvoker(
         val markDeleted = 2
         val handlerClass = classResolver(smsHandlerClassName, inboundSmsHandler.javaClass.classLoader)
         val cached = cachedDeleteRawMethod
+        var lastError: Throwable? = null
         if (cached != null) {
             val args = buildDeleteRawArgs(cached.parameterTypes, deleteWhere, deleteWhereArgs, markDeleted)
             if (args != null) {
-                cached.invoke(inboundSmsHandler, *args)
-                return
+                try {
+                    cached.invoke(inboundSmsHandler, *args)
+                    return
+                } catch (error: IllegalAccessException) {
+                    cachedDeleteRawMethod = null
+                    lastError = error
+                } catch (error: IllegalArgumentException) {
+                    cachedDeleteRawMethod = null
+                    lastError = error
+                } catch (error: InvocationTargetException) {
+                    cachedDeleteRawMethod = null
+                    lastError = error
+                }
+            } else {
+                cachedDeleteRawMethod = null
             }
-            cachedDeleteRawMethod = null
         }
 
         val methods = collectMethods(handlerClass, "deleteFromRawTable")
-        var lastError: Throwable? = null
         for (method in methods) {
             val args = buildDeleteRawArgs(method.parameterTypes, deleteWhere, deleteWhereArgs, markDeleted) ?: continue
             try {
                 method.invoke(inboundSmsHandler, *args)
                 cachedDeleteRawMethod = method
                 return
-            } catch (error: Throwable) {
+            } catch (error: IllegalAccessException) {
+                lastError = error
+            } catch (error: IllegalArgumentException) {
+                lastError = error
+            } catch (error: InvocationTargetException) {
                 lastError = error
             }
         }
@@ -102,12 +127,15 @@ open class InboundSmsMethodInvoker(
         if (cached != null) {
             val args = buildSendMessageArgs(cached.parameterTypes, inboundSmsHandler, what)
             if (args != null) {
-                return runCatching {
+                try {
                     cached.invoke(inboundSmsHandler, *args)
-                    true
-                }.getOrElse {
+                    return true
+                } catch (_: IllegalAccessException) {
                     cachedSendMessageMethod = null
-                    false
+                } catch (_: IllegalArgumentException) {
+                    cachedSendMessageMethod = null
+                } catch (_: InvocationTargetException) {
+                    cachedSendMessageMethod = null
                 }
             }
             cachedSendMessageMethod = null
@@ -116,11 +144,17 @@ open class InboundSmsMethodInvoker(
         val methods = collectMethods(inboundSmsHandler.javaClass, "sendMessage")
         for (method in methods) {
             val args = buildSendMessageArgs(method.parameterTypes, inboundSmsHandler, what) ?: continue
-            val ok = runCatching {
+            val ok = try {
                 method.invoke(inboundSmsHandler, *args)
                 cachedSendMessageMethod = method
                 true
-            }.getOrElse { false }
+            } catch (_: IllegalAccessException) {
+                false
+            } catch (_: IllegalArgumentException) {
+                false
+            } catch (_: InvocationTargetException) {
+                false
+            }
             if (ok) return true
         }
         return false

@@ -12,7 +12,13 @@ object CopyToClipboardActionHelper {
         try {
             XLog.d("Attempting to copy code to clipboard with context: %s", phoneContext)
             copyAction(phoneContext, smsCode)
-        } catch (error: Exception) {
+        } catch (error: SecurityException) {
+            XLog.e("Failed to copy to clipboard", error)
+        } catch (error: IllegalArgumentException) {
+            XLog.e("Failed to copy to clipboard", error)
+        } catch (error: IllegalStateException) {
+            XLog.e("Failed to copy to clipboard", error)
+        } catch (error: UnsupportedOperationException) {
             XLog.e("Failed to copy to clipboard", error)
         }
     }

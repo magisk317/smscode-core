@@ -1,5 +1,10 @@
 package io.github.magisk317.smscode.verification
 
+import android.content.OperationApplicationException
+import android.database.SQLException
+import android.os.OperationCanceledException
+import android.os.RemoteException
+
 object RecordSmsInsertResultHelper {
     fun success(detail: String? = null): RecordSmsActionHelper.InsertResult {
         return RecordSmsActionHelper.InsertResult(success = true, detail = detail)
@@ -18,7 +23,22 @@ object RecordSmsInsertResultHelper {
     ): RecordSmsActionHelper.InsertResult {
         return try {
             block()
-        } catch (throwable: Throwable) {
+        } catch (throwable: SecurityException) {
+            fromThrowable(throwable)
+        } catch (throwable: IllegalArgumentException) {
+            fromThrowable(throwable)
+        } catch (throwable: IllegalStateException) {
+            fromThrowable(throwable)
+        } catch (throwable: SQLException) {
+            fromThrowable(throwable)
+        } catch (throwable: OperationApplicationException) {
+            fromThrowable(throwable)
+        } catch (throwable: OperationCanceledException) {
+            fromThrowable(throwable)
+        } catch (throwable: RemoteException) {
+            fromThrowable(throwable)
+        } catch (throwable: InterruptedException) {
+            Thread.currentThread().interrupt()
             fromThrowable(throwable)
         }
     }

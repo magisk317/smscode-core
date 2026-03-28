@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.xposed.utils
 import android.util.Log
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSinkHolder
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
+import java.util.IllegalFormatException
 
 object XLog {
 
@@ -23,7 +24,7 @@ object XLog {
             if (args.isNotEmpty()) {
                 try {
                     String.format(message, *args)
-                } catch (ignored: Exception) {
+                } catch (_: IllegalFormatException) {
                     message
                 }
             } else {

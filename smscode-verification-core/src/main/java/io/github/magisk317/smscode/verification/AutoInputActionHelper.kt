@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.verification
 import android.app.ActivityManager
 import android.content.Context
 import io.github.magisk317.smscode.xposed.utils.XLog
+import java.lang.reflect.InvocationTargetException
 import java.util.LinkedHashMap
 
 class AutoInputActionHelper<M : SmsMessage>(
@@ -27,11 +28,19 @@ class AutoInputActionHelper<M : SmsMessage>(
         if (am == null) {
             null
         } else {
-            runCatching {
+            try {
                 val method = ActivityManager::class.java.getMethod("getRunningTasks", Int::class.javaPrimitiveType)
                 val result = method.invoke(am, 10) as? List<*>
                 result?.filterIsInstance<ActivityManager.RunningTaskInfo>()
-            }.getOrNull()
+            } catch (_: NoSuchMethodException) {
+                null
+            } catch (_: IllegalAccessException) {
+                null
+            } catch (_: InvocationTargetException) {
+                null
+            } catch (_: SecurityException) {
+                null
+            }
         }
     },
 ) {
@@ -56,11 +65,11 @@ class AutoInputActionHelper<M : SmsMessage>(
     }
 
     private fun autoInputCode(code: String?) {
+        if (code.isNullOrBlank()) return
+        val autoEnter = autoEnterReader(pluginContext)
+        val inputIntervalMs = inputIntervalReader(pluginContext)
+        val attemptId = attemptRecorder(smsMsg, resolveForegroundPackage())
         try {
-            if (code.isNullOrBlank()) return
-            val autoEnter = autoEnterReader(pluginContext)
-            val inputIntervalMs = inputIntervalReader(pluginContext)
-            val attemptId = attemptRecorder(smsMsg, resolveForegroundPackage())
             inputSender(phoneContext, code, autoEnter, inputIntervalMs, attemptId)
             XLog.d(
                 "Auto input request dispatched, autoEnter=%s inputIntervalMs=%d code_len=%d attemptId=%d",
@@ -69,36 +78,39 @@ class AutoInputActionHelper<M : SmsMessage>(
                 code.length,
                 attemptId ?: -1L,
             )
-        } catch (throwable: Throwable) {
-            XLog.e("Error occurs when auto input code", throwable)
+        } catch (error: SecurityException) {
+            XLog.e("Error occurs when auto input code", error)
+        } catch (error: IllegalArgumentException) {
+            XLog.e("Error occurs when auto input code", error)
+        } catch (error: IllegalStateException) {
+            XLog.e("Error occurs when auto input code", error)
+        } catch (error: UnsupportedOperationException) {
+            XLog.e("Error occurs when auto input code", error)
         }
     }
 
     private fun autoInputBlockedHere(): Boolean {
-        return try {
-            val runningTasks = runningTasksProvider(phoneContext)
-            val topPkgPrimary = runningTasks?.firstOrNull()?.topActivity?.packageName
+        val runningTasks = readRunningTasksSafely()
+        if (runningTasks != null) {
+            val topPkgPrimary = runningTasks.firstOrNull()?.topActivity?.packageName
             if (!topPkgPrimary.isNullOrBlank()) {
                 XLog.d("topPackagePrimary: %s", topPkgPrimary)
-                if (packageBlockedChecker(topPkgPrimary)) {
+                if (isBlockedPackageSafely(topPkgPrimary)) {
                     return true
                 }
             }
+        }
 
-            val appProcesses = runningProcessesProvider(phoneContext) ?: return false
-            val topProcess = appProcesses.firstOrNull()?.processName
-            val topPackages = appProcesses.firstOrNull()?.pkgList.orEmpty()
-            XLog.d("topProcessSecondary: %s, topPackages: %s", topProcess, topPackages.contentToString())
+        val appProcesses = readRunningProcessesSafely() ?: return false
+        val topProcess = appProcesses.firstOrNull()?.processName
+        val topPackages = appProcesses.firstOrNull()?.pkgList.orEmpty()
+        XLog.d("topProcessSecondary: %s, topPackages: %s", topProcess, topPackages.contentToString())
 
-            if (!topProcess.isNullOrBlank() && packageBlockedChecker(topProcess)) {
-                return true
-            }
-            topPackages.any { packageName ->
-                packageName.isNotBlank() && packageBlockedChecker(packageName)
-            }
-        } catch (error: Throwable) {
-            XLog.e("", error)
-            false
+        if (!topProcess.isNullOrBlank() && isBlockedPackageSafely(topProcess)) {
+            return true
+        }
+        return topPackages.any { packageName ->
+            packageName.isNotBlank() && isBlockedPackageSafely(packageName)
         }
     }
 
@@ -148,12 +160,60 @@ class AutoInputActionHelper<M : SmsMessage>(
     }
 
     private fun resolveForegroundPackage(): String? {
-        val primary = runningTasksProvider(phoneContext)?.firstOrNull()?.topActivity?.packageName
+        val primary = readRunningTasksSafely()?.firstOrNull()?.topActivity?.packageName
         if (!primary.isNullOrBlank()) return primary
-        val processes = runningProcessesProvider(phoneContext)
+        val processes = readRunningProcessesSafely()
         val processName = processes?.firstOrNull()?.processName
         if (!processName.isNullOrBlank()) return processName
         return processes?.firstOrNull()?.pkgList?.firstOrNull { it.isNotBlank() }
+    }
+
+    private fun isBlockedPackageSafely(packageName: String): Boolean {
+        return try {
+            packageBlockedChecker(packageName)
+        } catch (error: SecurityException) {
+            XLog.e("Error occurs when checking blocked package: %s", packageName, error)
+            false
+        } catch (error: IllegalArgumentException) {
+            XLog.e("Error occurs when checking blocked package: %s", packageName, error)
+            false
+        } catch (error: IllegalStateException) {
+            XLog.e("Error occurs when checking blocked package: %s", packageName, error)
+            false
+        } catch (error: UnsupportedOperationException) {
+            XLog.e("Error occurs when checking blocked package: %s", packageName, error)
+            false
+        }
+    }
+
+    private fun readRunningTasksSafely(): List<ActivityManager.RunningTaskInfo>? {
+        return try {
+            runningTasksProvider(phoneContext)
+        } catch (error: SecurityException) {
+            XLog.e("Error occurs when querying running tasks", error)
+            null
+        } catch (error: IllegalStateException) {
+            XLog.e("Error occurs when querying running tasks", error)
+            null
+        } catch (error: UnsupportedOperationException) {
+            XLog.e("Error occurs when querying running tasks", error)
+            null
+        }
+    }
+
+    private fun readRunningProcessesSafely(): List<ActivityManager.RunningAppProcessInfo>? {
+        return try {
+            runningProcessesProvider(phoneContext)
+        } catch (error: SecurityException) {
+            XLog.e("Error occurs when querying running processes", error)
+            null
+        } catch (error: IllegalStateException) {
+            XLog.e("Error occurs when querying running processes", error)
+            null
+        } catch (error: UnsupportedOperationException) {
+            XLog.e("Error occurs when querying running processes", error)
+            null
+        }
     }
 
     private companion object {

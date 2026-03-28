@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package io.github.magisk317.smscode.xposed.hook.permission
 
 import android.os.Build
@@ -25,7 +23,15 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
     override fun startHook() {
         try {
             hookGrantPermissionsLPw()
-        } catch (e: Throwable) {
+        } catch (e: ReflectiveOperationException) {
+            XLog.e("Failed to hook PackageManagerService", e)
+        } catch (e: IllegalArgumentException) {
+            XLog.e("Failed to hook PackageManagerService", e)
+        } catch (e: IllegalStateException) {
+            XLog.e("Failed to hook PackageManagerService", e)
+        } catch (e: SecurityException) {
+            XLog.e("Failed to hook PackageManagerService", e)
+        } catch (e: UnsupportedOperationException) {
             XLog.e("Failed to hook PackageManagerService", e)
         }
     }
@@ -58,7 +64,23 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
                     Boolean::class.javaPrimitiveType,
                 )
             }
-        } catch (e: Throwable) {
+        } catch (e: ReflectiveOperationException) {
+            PermissionDebugProbe.logFailure("PackageManagerServiceHook grantPermissionsLPw", e)
+            PermissionDebugProbe.dumpClass("PackageManagerServiceHook target", pmsClass)
+            throw e
+        } catch (e: IllegalArgumentException) {
+            PermissionDebugProbe.logFailure("PackageManagerServiceHook grantPermissionsLPw", e)
+            PermissionDebugProbe.dumpClass("PackageManagerServiceHook target", pmsClass)
+            throw e
+        } catch (e: IllegalStateException) {
+            PermissionDebugProbe.logFailure("PackageManagerServiceHook grantPermissionsLPw", e)
+            PermissionDebugProbe.dumpClass("PackageManagerServiceHook target", pmsClass)
+            throw e
+        } catch (e: SecurityException) {
+            PermissionDebugProbe.logFailure("PackageManagerServiceHook grantPermissionsLPw", e)
+            PermissionDebugProbe.dumpClass("PackageManagerServiceHook target", pmsClass)
+            throw e
+        } catch (e: UnsupportedOperationException) {
             PermissionDebugProbe.logFailure("PackageManagerServiceHook grantPermissionsLPw", e)
             PermissionDebugProbe.dumpClass("PackageManagerServiceHook target", pmsClass)
             throw e

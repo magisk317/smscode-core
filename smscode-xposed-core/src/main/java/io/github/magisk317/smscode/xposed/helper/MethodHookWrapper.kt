@@ -1,18 +1,21 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package io.github.magisk317.smscode.xposed.helper
 
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.hookapi.MethodHook
 import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
+import io.github.magisk317.smscode.xposed.utils.markInterruptedIfNeeded
+import io.github.magisk317.smscode.xposed.utils.rethrowIfFatal
 
 abstract class MethodHookWrapper : MethodHook() {
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
-        try {
+        val failure = runCatching {
             before(param)
-        } catch (t: Throwable) {
-            XLog.d("Error in hook %s", param.method.name, t)
+        }.exceptionOrNull()
+        if (failure != null) {
+            failure.markInterruptedIfNeeded()
+            failure.rethrowIfFatal()
+            XLog.d("Error in hook %s", param.method.name, failure)
         }
     }
 
@@ -22,10 +25,13 @@ abstract class MethodHookWrapper : MethodHook() {
 
     @Throws(Throwable::class)
     override fun afterHookedMethod(param: MethodHookParam) {
-        try {
+        val failure = runCatching {
             after(param)
-        } catch (t: Throwable) {
-            XLog.e("Error in hook %s", param.method.name, t)
+        }.exceptionOrNull()
+        if (failure != null) {
+            failure.markInterruptedIfNeeded()
+            failure.rethrowIfFatal()
+            XLog.e("Error in hook %s", param.method.name, failure)
         }
     }
 

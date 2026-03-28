@@ -1,9 +1,9 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package io.github.magisk317.smscode.xposed.hookapi
 
 import android.util.Log
 import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.smscode.xposed.utils.markInterruptedIfNeeded
+import io.github.magisk317.smscode.xposed.utils.rethrowIfFatal
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Executable
@@ -22,10 +22,13 @@ class LibXposedHookApi(private val module: XposedModule) : HookApi {
         val handle = module.hook(executable).intercept { chain ->
             val args = chain.args.toTypedArray()
             val param = SimpleMethodHookParam(chain.executable, chain.thisObject, args)
-            try {
+            val beforeFailure = runCatching {
                 callback.beforeHookedMethod(param)
-            } catch (t: Throwable) {
-                module.log(Log.WARN, "XSmsCode", "Hook before failed: ${member.name}", t)
+            }.exceptionOrNull()
+            if (beforeFailure != null) {
+                beforeFailure.markInterruptedIfNeeded()
+                beforeFailure.rethrowIfFatal()
+                module.log(Log.WARN, "XSmsCode", "Hook before failed: ${member.name}", beforeFailure)
             }
             val early = param.returnEarly
             if (early) {
@@ -36,18 +39,24 @@ class LibXposedHookApi(private val module: XposedModule) : HookApi {
 
             var result: Any? = null
             var throwable: Throwable? = null
-            try {
+            val proceedFailure = runCatching {
                 result = chain.proceed(param.args)
-            } catch (t: Throwable) {
-                throwable = t
+            }.exceptionOrNull()
+            if (proceedFailure != null) {
+                proceedFailure.markInterruptedIfNeeded()
+                proceedFailure.rethrowIfFatal()
+                throwable = proceedFailure
             }
             param.returnEarly = false
             param.result = result
             param.throwable = throwable
-            try {
+            val afterFailure = runCatching {
                 callback.afterHookedMethod(param)
-            } catch (t: Throwable) {
-                module.log(Log.WARN, "XSmsCode", "Hook after failed: ${member.name}", t)
+            }.exceptionOrNull()
+            if (afterFailure != null) {
+                afterFailure.markInterruptedIfNeeded()
+                afterFailure.rethrowIfFatal()
+                module.log(Log.WARN, "XSmsCode", "Hook after failed: ${member.name}", afterFailure)
             }
             val finalThrowable = param.throwable
             if (finalThrowable != null) throw finalThrowable

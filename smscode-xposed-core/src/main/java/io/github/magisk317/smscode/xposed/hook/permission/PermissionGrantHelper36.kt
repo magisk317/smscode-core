@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package io.github.magisk317.smscode.xposed.hook.permission
 
 import android.os.UserHandle
@@ -31,7 +29,19 @@ object PermissionGrantHelper36 {
         val resolvedPms = resolvePermissionManagerService(pms) ?: pms
         val userIds = try {
             getAllUserIds(resolvedPms)
-        } catch (e: Throwable) {
+        } catch (e: ReflectiveOperationException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: IllegalArgumentException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: IllegalStateException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: SecurityException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: UnsupportedOperationException) {
             XLog.w("Cannot get user IDs, using default user 0", e)
             intArrayOf(0)
         }
@@ -53,7 +63,19 @@ object PermissionGrantHelper36 {
         val userIds = if (rawUserId == USER_ALL) {
             try {
                 getAllUserIds(resolvedPms)
-            } catch (e: Throwable) {
+            } catch (e: ReflectiveOperationException) {
+                XLog.w("Cannot get user IDs, using default user 0", e)
+                intArrayOf(0)
+            } catch (e: IllegalArgumentException) {
+                XLog.w("Cannot get user IDs, using default user 0", e)
+                intArrayOf(0)
+            } catch (e: IllegalStateException) {
+                XLog.w("Cannot get user IDs, using default user 0", e)
+                intArrayOf(0)
+            } catch (e: SecurityException) {
+                XLog.w("Cannot get user IDs, using default user 0", e)
+                intArrayOf(0)
+            } catch (e: UnsupportedOperationException) {
                 XLog.w("Cannot get user IDs, using default user 0", e)
                 intArrayOf(0)
             }
@@ -73,7 +95,13 @@ object PermissionGrantHelper36 {
             if (arg == null) continue
             val pkgName = try {
                 HookHelpers.callMethod(arg, "getPackageName") as? String
-            } catch (_: Throwable) {
+            } catch (_: ReflectiveOperationException) {
+                null
+            } catch (_: IllegalArgumentException) {
+                null
+            } catch (_: IllegalStateException) {
+                null
+            } catch (_: SecurityException) {
                 null
             }
             if (!pkgName.isNullOrEmpty()) {
@@ -93,7 +121,13 @@ object PermissionGrantHelper36 {
                 is UserHandle -> {
                     candidate = try {
                         HookHelpers.callMethod(arg, "getIdentifier") as Int
-                    } catch (_: Throwable) {
+                    } catch (_: ReflectiveOperationException) {
+                        null
+                    } catch (_: IllegalArgumentException) {
+                        null
+                    } catch (_: IllegalStateException) {
+                        null
+                    } catch (_: SecurityException) {
                         null
                     }
                 }
@@ -127,7 +161,31 @@ object PermissionGrantHelper36 {
     ) {
         val impl = try {
             HookHelpers.getObjectField(pms, "mPermissionManagerServiceImpl") ?: pms
-        } catch (e: Throwable) {
+        } catch (e: ReflectiveOperationException) {
+            if (!loggedPermissionImplMissing) {
+                loggedPermissionImplMissing = true
+                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
+            }
+            pms
+        } catch (e: IllegalArgumentException) {
+            if (!loggedPermissionImplMissing) {
+                loggedPermissionImplMissing = true
+                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
+            }
+            pms
+        } catch (e: IllegalStateException) {
+            if (!loggedPermissionImplMissing) {
+                loggedPermissionImplMissing = true
+                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
+            }
+            pms
+        } catch (e: SecurityException) {
+            if (!loggedPermissionImplMissing) {
+                loggedPermissionImplMissing = true
+                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
+            }
+            pms
+        } catch (e: UnsupportedOperationException) {
             if (!loggedPermissionImplMissing) {
                 loggedPermissionImplMissing = true
                 PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
