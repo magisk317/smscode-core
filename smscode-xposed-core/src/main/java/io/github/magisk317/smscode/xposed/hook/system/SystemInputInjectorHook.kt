@@ -461,7 +461,7 @@ class SystemInputInjectorHook : BaseHook() {
         return resolveStaticIntFieldOrDefault(
             PackageManager::class.java,
             "MATCH_DEFAULT_ONLY",
-            0x00010000,
+            MATCH_DEFAULT_ONLY_FALLBACK,
         )
     }
 
@@ -775,6 +775,7 @@ class SystemInputInjectorHook : BaseHook() {
         private const val MAX_REGISTER_ATTEMPTS = 10
         private const val CACHED_UID_TTL_MS = 10_000L
         private const val RECEIVER_PRIORITY_SYSTEM_FALLBACK = -1000
+        private const val MATCH_DEFAULT_ONLY_FALLBACK = 0x00010000
 
         @Suppress("unused")
         fun resolveActionAutoInput(): String = "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT"

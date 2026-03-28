@@ -1457,11 +1457,19 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun contextIgnoreSecurityFlag(): Int {
-        return resolveStaticIntFieldOrDefault(Context::class.java, "CONTEXT_IGNORE_SECURITY", 0x00000002)
+        return resolveStaticIntFieldOrDefault(
+            Context::class.java,
+            "CONTEXT_IGNORE_SECURITY",
+            CONTEXT_IGNORE_SECURITY_FALLBACK,
+        )
     }
 
     private fun packageManagerMatchAllFlag(): Int {
-        return resolveStaticIntFieldOrDefault(PackageManager::class.java, "MATCH_ALL", 0x00020000)
+        return resolveStaticIntFieldOrDefault(
+            PackageManager::class.java,
+            "MATCH_ALL",
+            PACKAGE_MANAGER_MATCH_ALL_FALLBACK,
+        )
     }
 
     private fun buildEventId(packageName: String): String {
@@ -1490,6 +1498,8 @@ class NotificationManagerHook : BaseHook() {
         private const val CALL_TYPE_REJECTED = 5
         private const val CALL_TYPE_BLOCKED = 6
         private const val CALL_TYPE_LABEL_DEFAULT = "通话通知"
+        private const val CONTEXT_IGNORE_SECURITY_FALLBACK = 0x00000002
+        private const val PACKAGE_MANAGER_MATCH_ALL_FALLBACK = 0x00020000
         private val CALL_NOTIFY_PACKAGE_ALLOWLIST = setOf(
             "com.android.dialer",
             "com.google.android.dialer",
