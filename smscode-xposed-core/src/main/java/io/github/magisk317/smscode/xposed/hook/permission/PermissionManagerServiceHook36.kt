@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package io.github.magisk317.smscode.xposed.hook.permission
 
 import io.github.magisk317.smscode.xposed.utils.XLog
@@ -35,7 +33,15 @@ class PermissionManagerServiceHook36(classLoader: ClassLoader) : BaseSubHook(cla
         try {
             hookOnSystemReady()
             hookOnPackageInstalled()
-        } catch (e: Throwable) {
+        } catch (e: ReflectiveOperationException) {
+            XLog.e("Failed to hook PermissionManagerService for Android 16+", e)
+        } catch (e: IllegalArgumentException) {
+            XLog.e("Failed to hook PermissionManagerService for Android 16+", e)
+        } catch (e: IllegalStateException) {
+            XLog.e("Failed to hook PermissionManagerService for Android 16+", e)
+        } catch (e: SecurityException) {
+            XLog.e("Failed to hook PermissionManagerService for Android 16+", e)
+        } catch (e: UnsupportedOperationException) {
             XLog.e("Failed to hook PermissionManagerService for Android 16+", e)
         }
     }

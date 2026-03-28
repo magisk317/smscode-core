@@ -1,11 +1,12 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package io.github.magisk317.smscode.xposed.hook.system
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
+import android.os.Bundle
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -25,7 +26,11 @@ import io.github.magisk317.smscode.xposed.hookapi.LoadParam
 import io.github.magisk317.smscode.xposed.hookapi.MethodHook
 import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
 import io.github.magisk317.smscode.xposed.hookapi.ZygoteParam
+import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
+import io.github.magisk317.smscode.xposed.utils.runNonFatalCatching
+import io.github.magisk317.smscode.xposed.utils.runNonFatalOrNull
 import java.lang.reflect.Method
+import java.util.Locale
 
 class SystemInputInjectorHook : BaseHook() {
     @Volatile
@@ -63,7 +68,7 @@ class SystemInputInjectorHook : BaseHook() {
     override fun hookInitZygote(): Boolean = true
 
     override fun initZygote(startupParam: ZygoteParam) {
-        try {
+        runNonFatalCatching {
             // Redmi K60 Ultra (Redmi 23078RKD5C) Android 16 feedback:
             // system_server starts very early, ActivityThread.systemMain might be missed.
             XposedWrapper.findAndHookMethod(
@@ -89,7 +94,7 @@ class SystemInputInjectorHook : BaseHook() {
             )
             XLog.w("SystemInputInjectorHook: hooked ActivityThread.systemMain in zygote")
             HookBridge.log("XSmsCode: hooked ActivityThread.systemMain in zygote")
-        } catch (t: Throwable) {
+        }.onFailure { t ->
             XLog.e("SystemInputInjectorHook: failed to hook ActivityThread.systemMain in zygote", t)
             HookBridge.log("XSmsCode: failed to hook ActivityThread.systemMain in zygote: ${t.message}")
         }
@@ -106,7 +111,7 @@ class SystemInputInjectorHook : BaseHook() {
 
         hookBroadcastCallerUid(lpparam.classLoader)
 
-        try {
+        runNonFatalCatching {
             // Attempt 1: Check if already ready
             val activityThreadClass = HookHelpers.findClass("android.app.ActivityThread", lpparam.classLoader)
             val activityThread = HookHelpers.callStaticMethod(activityThreadClass, "currentActivityThread")
@@ -124,7 +129,7 @@ class SystemInputInjectorHook : BaseHook() {
                     if (receiverRegistered) return
                 }
             }
-        } catch (t: Throwable) {
+        }.onFailure { t ->
             XLog.w("Failed to get system context in onLoadPackage: ${t.message}")
         }
 
@@ -133,7 +138,7 @@ class SystemInputInjectorHook : BaseHook() {
 
     private fun hookAmsSystemReadyFallback(classLoader: ClassLoader?) {
         if (amsSystemReadyHooked) return
-        try {
+        runNonFatalCatching {
             val amsClass = HookHelpers.findClass("com.android.server.am.ActivityManagerService", classLoader)
             val methods = amsClass.declaredMethods.filter { it.name == "systemReady" }
             if (methods.isEmpty()) {
@@ -162,22 +167,15 @@ class SystemInputInjectorHook : BaseHook() {
             }
             amsSystemReadyHooked = true
             XLog.w("SystemInputInjectorHook: hooked ActivityManagerService.systemReady overloads as fallback")
-        } catch (t: Throwable) {
+        }.onFailure { t ->
             XLog.e("SystemInputInjectorHook: failed to hook AMS.systemReady overloads", t)
         }
     }
 
     private fun resolveSystemContext(systemService: Any?): Context? {
         if (systemService == null) return null
-        return try {
-            HookHelpers.getObjectField(systemService, "mContext") as? Context
-        } catch (_: Throwable) {
-            try {
-                HookHelpers.getObjectField(systemService, "mSystemContext") as? Context
-            } catch (_: Throwable) {
-                null
-            }
-        }
+        return runNonFatalOrNull { HookHelpers.getObjectField(systemService, "mContext") as? Context }
+            ?: runNonFatalOrNull { HookHelpers.getObjectField(systemService, "mSystemContext") as? Context }
     }
 
     private fun scheduleRegister(context: Context) {
@@ -193,7 +191,7 @@ class SystemInputInjectorHook : BaseHook() {
 
     private fun hookBroadcastCallerUid(classLoader: ClassLoader?) {
         if (broadcastHooked) return
-        try {
+        runNonFatalCatching {
             val queueClass = HookHelpers.findClassIfExists(
                 "com.android.server.am.BroadcastQueueImpl",
                 classLoader,
@@ -232,44 +230,42 @@ class SystemInputInjectorHook : BaseHook() {
             }
             broadcastHooked = true
             XLog.w("SystemInputInjectorHook: hooked BroadcastQueue enqueue for caller uid")
-        } catch (t: Throwable) {
+        }.onFailure { t ->
             XLog.w("SystemInputInjectorHook: failed to hook BroadcastQueue: %s", t.message ?: t.javaClass.simpleName)
         }
     }
 
     private fun extractBroadcastIntent(record: Any): Intent? {
         if (record is Intent) return record
-        return runCatching { HookHelpers.getObjectField(record, "intent") as? Intent }.getOrNull()
-            ?: runCatching { HookHelpers.callMethod(record, "getIntent") as? Intent }.getOrNull()
+        return runNonFatalOrNull { HookHelpers.getObjectField(record, "intent") as? Intent }
+            ?: runNonFatalOrNull { HookHelpers.callMethod(record, "getIntent") as? Intent }
     }
 
     private fun extractCallerInfo(record: Any): Pair<Int, String?> {
         val uidFields = listOf("callerUid", "callingUid", "uid")
         for (field in uidFields) {
-            runCatching { HookHelpers.getIntField(record, field) }.getOrNull()?.let { return it to null }
+            runNonFatalOrNull { HookHelpers.getIntField(record, field) }?.let { return it to null }
         }
-        var callerPkg = runCatching { HookHelpers.getObjectField(record, "callerPackage") as? String }.getOrNull()
-        val callerApp = runCatching { HookHelpers.getObjectField(record, "callerApp") }.getOrNull()
+        var callerPkg = runNonFatalOrNull { HookHelpers.getObjectField(record, "callerPackage") as? String }
+        val callerApp = runNonFatalOrNull { HookHelpers.getObjectField(record, "callerApp") }
         if (callerApp != null) {
-            runCatching { HookHelpers.getIntField(callerApp, "uid") }.getOrNull()?.let { uid ->
+            runNonFatalOrNull { HookHelpers.getIntField(callerApp, "uid") }?.let { uid ->
                 return uid to callerPkg
             }
-            runCatching { HookHelpers.getObjectField(callerApp, "info") }.getOrNull()?.let { info ->
+            runNonFatalOrNull { HookHelpers.getObjectField(callerApp, "info") }?.let { info ->
                 if (callerPkg == null) {
-                    callerPkg = runCatching { HookHelpers.getObjectField(info, "packageName") as? String }.getOrNull()
-                        ?: runCatching { HookHelpers.callMethod(info, "getPackageName") as? String }.getOrNull()
+                    callerPkg = runNonFatalOrNull { HookHelpers.getObjectField(info, "packageName") as? String }
+                        ?: runNonFatalOrNull { HookHelpers.callMethod(info, "getPackageName") as? String }
                 }
-                runCatching { HookHelpers.getIntField(info, "uid") }.getOrNull()?.let { uid ->
+                runNonFatalOrNull { HookHelpers.getIntField(info, "uid") }?.let { uid ->
                     return uid to callerPkg
                 }
             }
         }
         return -1 to callerPkg
     }
-
-    @Suppress("TooGenericExceptionCaught")
     private fun registerReceiver(context: Context) {
-        try {
+        runNonFatalCatching {
             if (receiverRegistered) return
             if (CoreHookPolicyHolder.shouldSuppressSystemHooks(context, "SystemInputInjectorHook#registerReceiver")) {
                 logSuppressedOnce("registerReceiver")
@@ -306,6 +302,7 @@ class SystemInputInjectorHook : BaseHook() {
                     val autoEnter = intent.getBooleanExtra("autoEnter", false)
                     val inputIntervalMs = intent.getLongExtra("inputIntervalMs", 0L).coerceAtLeast(0L)
                     val attemptId = intent.getLongExtra("attemptId", -1L).takeIf { it >= 0L }
+                    val accessibilityResult = resolveAccessibilityOrderedResult(this)
                     XLog.w(
                         "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
                         sendingUid,
@@ -313,6 +310,31 @@ class SystemInputInjectorHook : BaseHook() {
                         autoEnter,
                         inputIntervalMs,
                     )
+                    accessibilityResult?.let { result ->
+                        XLog.w(
+                            "Diag system receiver observed accessibility result: attemptId=%d success=%s strategy=%s reason=%s windowPkg=%s",
+                            attemptId ?: -1L,
+                            result.success,
+                            result.strategy.ifBlank { "<none>" },
+                            result.reason.ifBlank { "<none>" },
+                            result.windowPackage.ifBlank { "<none>" },
+                        )
+                        if (shouldSkipFallbackAfterAccessibility(context, result)) {
+                            XLog.w(
+                                "SystemServer fallback skipped after accessibility result: attemptId=%d reason=%s windowPkg=%s",
+                                attemptId ?: -1L,
+                                result.reason.ifBlank { "<none>" },
+                                result.windowPackage.ifBlank { "<none>" },
+                            )
+                            sendAutoInputResult(
+                                context,
+                                attemptId,
+                                success = result.success,
+                                reason = result.reason.takeIf { it.isNotBlank() } ?: "accessibility_result",
+                            )
+                            return
+                        }
+                    }
                     if (!code.isNullOrEmpty()) {
                         XLog.i(
                             "SystemServer received input request: %s, autoEnter: %s, inputIntervalMs: %d",
@@ -338,7 +360,7 @@ class SystemInputInjectorHook : BaseHook() {
             receiverRegistered = true
             XLog.w("SystemInputInjectorReceiver registered")
             HookBridge.log("XSmsCode: SystemInputInjectorReceiver registered")
-        } catch (t: Throwable) {
+        }.onFailure { t ->
             registerAttempts += 1
             XLog.e("Failed to register receiver", t)
             HookBridge.log("XSmsCode: Failed to register receiver: ${t.message}")
@@ -352,7 +374,7 @@ class SystemInputInjectorHook : BaseHook() {
 
     private fun showToast(context: Context, text: String, duration: Int) {
         getMainHandler().post {
-            try {
+            runNonFatalCatching {
                 val toast = Toast.makeText(context, text, duration)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     toast.addCallback(
@@ -369,10 +391,78 @@ class SystemInputInjectorHook : BaseHook() {
                 }
                 toast.show()
                 XLog.w("SystemServer toast show invoked: text_len=%d duration=%d", text.length, duration)
-            } catch (t: Throwable) {
+            }.onFailure { t ->
                 XLog.e("Failed to show toast from System Server", t)
             }
         }
+    }
+
+    private data class AccessibilityOrderedResult(
+        val success: Boolean,
+        val strategy: String,
+        val reason: String,
+        val windowPackage: String,
+    )
+
+    private fun resolveAccessibilityOrderedResult(receiver: BroadcastReceiver): AccessibilityOrderedResult? {
+        val extras = runNonFatalOrNull { receiver.getResultExtras(false) } ?: return null
+        if (!extras.getBoolean(EXTRA_ACCESSIBILITY_HANDLED, false)) return null
+        return AccessibilityOrderedResult(
+            success = extras.getBoolean(EXTRA_ACCESSIBILITY_SUCCESS, false),
+            strategy = extras.getString(EXTRA_ACCESSIBILITY_STRATEGY).orEmpty(),
+            reason = extras.getString(EXTRA_ACCESSIBILITY_REASON).orEmpty(),
+            windowPackage = extras.getString(EXTRA_ACCESSIBILITY_WINDOW_PACKAGE).orEmpty(),
+        )
+    }
+
+    private fun shouldSkipFallbackAfterAccessibility(
+        context: Context,
+        result: AccessibilityOrderedResult,
+    ): Boolean {
+        return AutoInputFallbackPolicy.shouldSkipFallbackAfterAccessibility(
+            success = result.success,
+            reason = result.reason,
+            windowPackage = result.windowPackage,
+            modulePackage = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.applicationId,
+            homePackages = resolveHomePackages(context),
+        )
+    }
+
+    private fun resolveHomePackages(context: Context): Set<String> {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        return runNonFatalCatching {
+            val infos = queryIntentActivitiesCompat(context.packageManager, intent)
+            infos.mapNotNull { it.activityInfo?.packageName?.takeIf(String::isNotBlank) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    private fun queryIntentActivitiesCompat(
+        packageManager: PackageManager,
+        intent: Intent,
+    ): List<ResolveInfo> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return packageManager.queryIntentActivities(
+                intent,
+                PackageManager.ResolveInfoFlags.of(matchDefaultOnlyFlag().toLong()),
+            )
+        }
+        val result = runNonFatalOrNull {
+            val method = packageManager.javaClass.getMethod(
+                "queryIntentActivities",
+                Intent::class.java,
+                Int::class.javaPrimitiveType,
+            )
+            method.invoke(packageManager, intent, matchDefaultOnlyFlag())
+        }
+        return (result as? List<*>)?.filterIsInstance<ResolveInfo>().orEmpty()
+    }
+
+    private fun matchDefaultOnlyFlag(): Int {
+        return resolveStaticIntFieldOrDefault(
+            PackageManager::class.java,
+            "MATCH_DEFAULT_ONLY",
+            MATCH_DEFAULT_ONLY_FALLBACK,
+        )
     }
 
     private fun logSuppressedOnce(stage: String) {
@@ -393,25 +483,25 @@ class SystemInputInjectorHook : BaseHook() {
             }
         }
         // Try system API if available
-        val direct = try {
+        val direct = runNonFatalCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 HookHelpers.callMethod(receiver, "getSendingUid") as Int
             } else {
                 null
             }
-        } catch (t: Throwable) {
+        }.getOrElse { t ->
             XLog.w("Failed to get sendingUid: ${t.message}")
             null
         }
         if (direct != null) return direct
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            val pendingResult = runCatching { HookHelpers.callMethod(receiver, "getPendingResult") }.getOrNull()
-                ?: runCatching { HookHelpers.getObjectField(receiver, "mPendingResult") }.getOrNull()
+            val pendingResult = runNonFatalOrNull { HookHelpers.callMethod(receiver, "getPendingResult") }
+                ?: runNonFatalOrNull { HookHelpers.getObjectField(receiver, "mPendingResult") }
             if (pendingResult != null) {
                 val candidates = listOf("mSentFromUid", "mSendingUid", "mSenderUid", "mCallingUid")
                 for (field in candidates) {
-                    runCatching { HookHelpers.getIntField(pendingResult, field) }.getOrNull()?.let { return it }
+                    runNonFatalOrNull { HookHelpers.getIntField(pendingResult, field) }?.let { return it }
                 }
                 logPendingResultFieldsOnce(pendingResult)
             } else {
@@ -490,14 +580,14 @@ class SystemInputInjectorHook : BaseHook() {
         if (cachedManager != null && cachedMethod != null) return cachedManager to cachedMethod
         return synchronized(this) {
             val manager = inputManagerGlobal
-            val method = injectMethod
-            if (manager != null && method != null) {
-                manager to method
-            } else {
-                try {
-                    val classCandidates = buildList {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            add("android.hardware.input.InputManagerGlobal")
+	            val method = injectMethod
+	            if (manager != null && method != null) {
+	                manager to method
+	            } else {
+	                runNonFatalCatching {
+	                    val classCandidates = buildList {
+	                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+	                            add("android.hardware.input.InputManagerGlobal")
                             add("android.hardware.input.InputManager")
                         } else {
                             add("android.hardware.input.InputManager")
@@ -506,7 +596,7 @@ class SystemInputInjectorHook : BaseHook() {
                     }
                     val errors = mutableListOf<String>()
                     for (className in classCandidates) {
-                        try {
+                        val resolved = runNonFatalCatching {
                             val inputManagerClass = HookHelpers.findClass(className, null)
                             val instance = HookHelpers.callStaticMethod(inputManagerClass, "getInstance") ?: continue
                             val inject = findInjectMethod(inputManagerClass)
@@ -518,17 +608,21 @@ class SystemInputInjectorHook : BaseHook() {
                                 className,
                                 inject.toGenericString(),
                             )
-                            return@synchronized instance to inject
-                        } catch (t: Throwable) {
+                            instance to inject
+                        }.getOrElse { t ->
                             errors += "$className -> ${t::class.java.simpleName}: ${t.message}"
+                            null
+                        }
+                        if (resolved != null) {
+                            return@synchronized resolved
                         }
                     }
-                    throw NoSuchMethodError(
-                        "No compatible injectInputEvent found. Details: ${errors.joinToString(" | ")}",
-                    )
-                } catch (t: Throwable) {
-                    XLog.e("Failed to resolve InputManagerGlobal", t)
-                    null
+	                    throw NoSuchMethodError(
+	                        "No compatible injectInputEvent found. Details: ${errors.joinToString(" | ")}",
+	                    )
+	                }.getOrElse { t ->
+	                    XLog.e("Failed to resolve InputManagerGlobal", t)
+	                    null
                 }
             }
         }
@@ -595,8 +689,8 @@ class SystemInputInjectorHook : BaseHook() {
         getInputHandler().post {
             var success = false
             var failReason: String? = null
-            try {
-                val managerPair = getInputManagerGlobal() ?: return@post
+	            runNonFatalCatching {
+	                val managerPair = getInputManagerGlobal() ?: return@post
                 val (manager, method) = managerPair
                 val mode = 0 // InputManager.INJECT_INPUT_EVENT_MODE_ASYNC
                 var injectedCount = 0
@@ -632,17 +726,16 @@ class SystemInputInjectorHook : BaseHook() {
                         XLog.e("Failed to inject KEYCODE_ENTER: down=$downResult, up=$upResult")
                         failReason = "enter_failed"
                     }
-                } else {
-                    success = injectedCount > 0
-                }
-            } catch (t: Throwable) {
-                XLog.e("Failed to inject text/enter from System Server", t)
-                failReason = "inject_exception"
-            } finally {
-                sendAutoInputResult(context, attemptId, success, failReason)
-            }
-        }
-    }
+	                } else {
+	                    success = injectedCount > 0
+	                }
+	            }.onFailure { t ->
+	                XLog.e("Failed to inject text/enter from System Server", t)
+	                failReason = "inject_exception"
+	            }
+	            sendAutoInputResult(context, attemptId, success, failReason)
+	        }
+	    }
 
     private fun sendAutoInputResult(
         context: Context,
@@ -651,7 +744,7 @@ class SystemInputInjectorHook : BaseHook() {
         reason: String?,
     ) {
         if (attemptId == null) return
-        runCatching {
+        runNonFatalCatching {
             val intent = Intent(resolveActionAutoInputResult())
             val appId = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.applicationId
             if (appId.isNotBlank()) {
@@ -682,6 +775,7 @@ class SystemInputInjectorHook : BaseHook() {
         private const val MAX_REGISTER_ATTEMPTS = 10
         private const val CACHED_UID_TTL_MS = 10_000L
         private const val RECEIVER_PRIORITY_SYSTEM_FALLBACK = -1000
+        private const val MATCH_DEFAULT_ONLY_FALLBACK = 0x00010000
 
         @Suppress("unused")
         fun resolveActionAutoInput(): String = "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT"
@@ -691,5 +785,11 @@ class SystemInputInjectorHook : BaseHook() {
 
         fun resolveActionAutoInputResult(): String =
             "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT_RESULT"
+
+        const val EXTRA_ACCESSIBILITY_HANDLED = "accessibility_handled"
+        const val EXTRA_ACCESSIBILITY_SUCCESS = "accessibility_success"
+        const val EXTRA_ACCESSIBILITY_REASON = "accessibility_reason"
+        const val EXTRA_ACCESSIBILITY_STRATEGY = "accessibility_strategy"
+        const val EXTRA_ACCESSIBILITY_WINDOW_PACKAGE = "accessibility_window_package"
     }
 }

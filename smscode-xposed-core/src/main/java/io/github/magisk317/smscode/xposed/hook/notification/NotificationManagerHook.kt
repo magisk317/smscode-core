@@ -1,5 +1,3 @@
-@file:Suppress("TooGenericExceptionCaught")
-
 package io.github.magisk317.smscode.xposed.hook.notification
 
 import android.app.Notification
@@ -7,7 +5,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.ProviderInfo
+import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Binder
 import android.os.Build
@@ -22,6 +23,9 @@ import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
 import io.github.magisk317.smscode.xposed.utils.NotificationLogSanitizer
 import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
+import io.github.magisk317.smscode.xposed.utils.runNonFatalCatching
+import io.github.magisk317.smscode.xposed.utils.runNonFatalOrNull
 import java.util.Locale
 
 class NotificationManagerHook : BaseHook() {
@@ -56,6 +60,7 @@ class NotificationManagerHook : BaseHook() {
 
     private data class NotifyRoute(
         val msgType: String,
+        val smsCode: String? = null,
         val callType: Int = CALL_TYPE_UNKNOWN,
         val callTypeLabel: String = "",
         val callStage: String = "",
@@ -70,7 +75,7 @@ class NotificationManagerHook : BaseHook() {
             lpparam.processName == "system_server"
         if (!isSystemPackage || !isSystemProcess) return
 
-        try {
+        runNonFatalCatching {
             val nmsClass = HookHelpers.findClass("com.android.server.notification.NotificationManagerService", lpparam.classLoader)
 
             val methods = nmsClass.declaredMethods.filter { it.name == "enqueueNotificationInternal" }
@@ -84,9 +89,9 @@ class NotificationManagerHook : BaseHook() {
                     method,
                     object : MethodHook() {
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            try {
+                            runNonFatalCatching {
                                 handleEnqueueNotificationInternal(param)
-                            } catch (t: Throwable) {
+                            }.onFailure { t ->
                                 XLog.e("NotificationManagerHook error", t)
                             }
                         }
@@ -94,7 +99,7 @@ class NotificationManagerHook : BaseHook() {
                 )
             }
             XLog.w("NotificationManagerHook: successfully hooked enqueueNotificationInternal")
-        } catch (t: Throwable) {
+        }.onFailure { t ->
             XLog.e("NotificationManagerHook: failed to hook NotificationManagerService", t)
         }
     }
@@ -120,10 +125,8 @@ class NotificationManagerHook : BaseHook() {
             return
         }
 
-        val systemContext = try {
+        val systemContext = runNonFatalOrNull {
             HookHelpers.callMethod(param.thisObject, "getContext") as? Context
-        } catch (_: Throwable) {
-            null
         }
 
         if (systemContext == null) {
@@ -214,6 +217,7 @@ class NotificationManagerHook : BaseHook() {
         forwardIntent.putExtra("packageName", pkg)
         forwardIntent.putExtra("notify_channel_id", notifyChannelId)
         forwardIntent.putExtra("msgType", notifyRoute.msgType)
+        notifyRoute.smsCode?.takeIf { it.isNotBlank() }?.let { forwardIntent.putExtra("smsCode", it) }
         if (notifyRoute.msgType == MSG_TYPE_CALL_NOTIFY) {
             forwardIntent.putExtra("call_type", notifyRoute.callType)
             if (notifyRoute.callStage.isNotBlank()) {
@@ -224,16 +228,20 @@ class NotificationManagerHook : BaseHook() {
         forwardIntent.putExtra("event_id", eventId)
 
         val pm = systemContext.packageManager
-        val appName = try {
+        val appName = runNonFatalCatching {
             val info = pm.getApplicationInfo(pkg, 0)
             pm.getApplicationLabel(info).toString()
-        } catch (_: Exception) {
-            pkg
-        }
-        val companyLabel = if (notifyRoute.msgType == MSG_TYPE_CALL_NOTIFY) {
-            notifyRoute.callTypeLabel.ifBlank { CALL_TYPE_LABEL_DEFAULT }
-        } else {
-            appName
+        }.getOrDefault(pkg)
+        val companyLabel = when (notifyRoute.msgType) {
+            MSG_TYPE_CALL_NOTIFY -> notifyRoute.callTypeLabel.ifBlank { CALL_TYPE_LABEL_DEFAULT }
+            MSG_TYPE_SMS -> resolveSmsCompanyLabel(
+                title = title,
+                body = body,
+                expandedText = expandedText,
+                tickerText = tickerText,
+                fallbackLabel = appName,
+            )
+            else -> appName
         }
         forwardIntent.putExtra("company", companyLabel)
 
@@ -282,23 +290,31 @@ class NotificationManagerHook : BaseHook() {
         val isDialerPackage = isDialerPackage(packageName)
         val hasCallKeyword = containsAnyKeyword(normalizedText, CALL_NOTIFY_KEYWORDS)
         val isCallNotify = (isDialerPackage && isCallCategory) || (isDialerPackage && hasCallKeyword)
-        if (!isCallNotify) return NotifyRoute(msgType = MSG_TYPE_APP_NOTIFY)
-        var callType = resolveCallType(normalizedText)
-        if (callType == CALL_TYPE_UNKNOWN && isDialerPackage && isCallCategory) {
-            callType = CALL_TYPE_INCOMING
+        if (isCallNotify) {
+            var callType = resolveCallType(normalizedText)
+            if (callType == CALL_TYPE_UNKNOWN && isDialerPackage && isCallCategory) {
+                callType = CALL_TYPE_INCOMING
+            }
+            val callStage = resolveCallStage(
+                callType = callType,
+                isCallCategory = isCallCategory || hasCallKeyword,
+                normalizedText = normalizedText,
+                notifyChannelId = notifyChannelId,
+            )
+            return NotifyRoute(
+                msgType = MSG_TYPE_CALL_NOTIFY,
+                callType = callType,
+                callTypeLabel = callTypeLabel(callType),
+                callStage = callStage,
+            )
         }
-        val callStage = resolveCallStage(
-            callType = callType,
-            isCallCategory = isCallCategory || hasCallKeyword,
-            normalizedText = normalizedText,
-            notifyChannelId = notifyChannelId,
-        )
-        return NotifyRoute(
-            msgType = MSG_TYPE_CALL_NOTIFY,
-            callType = callType,
-            callTypeLabel = callTypeLabel(callType),
-            callStage = callStage,
-        )
+        return resolveTelephonySmsRoute(
+            packageName = packageName,
+            title = title,
+            body = body,
+            tickerText = tickerText,
+            expandedText = expandedText,
+        ) ?: NotifyRoute(msgType = MSG_TYPE_APP_NOTIFY)
     }
 
     private fun normalizeCallHintText(
@@ -318,6 +334,38 @@ class NotificationManagerHook : BaseHook() {
                 append(expandedText)
             }
         }.lowercase(Locale.ROOT)
+    }
+
+    private fun buildNotificationContent(
+        title: String,
+        body: String,
+        tickerText: String,
+        expandedText: String,
+    ): String {
+        return buildString {
+            if (title.isNotBlank()) appendLine(title)
+            if (body.isNotBlank()) appendLine(body)
+            if (expandedText.isNotBlank()) appendLine(expandedText)
+            if (tickerText.isNotBlank()) append(tickerText)
+        }.trim()
+    }
+
+    private fun resolveTelephonySmsRoute(
+        packageName: String,
+        title: String,
+        body: String,
+        tickerText: String,
+        expandedText: String,
+    ): NotifyRoute? {
+        if (!isTelephonySmsPackage(packageName)) return null
+        val content = buildNotificationContent(title, body, tickerText, expandedText)
+        if (content.isBlank()) return null
+        val smsCode = extractLikelyVerificationCode(content)
+        if (smsCode.isBlank()) return null
+        return NotifyRoute(
+            msgType = MSG_TYPE_SMS,
+            smsCode = smsCode,
+        )
     }
 
     private fun resolveExpandedText(notification: Notification): String {
@@ -429,6 +477,12 @@ class NotificationManagerHook : BaseHook() {
         val normalized = packageName.lowercase(Locale.ROOT)
         if (normalized in CALL_NOTIFY_PACKAGE_ALLOWLIST) return true
         return normalized.contains("dialer") || normalized.contains("incallui")
+    }
+
+    private fun isTelephonySmsPackage(packageName: String): Boolean {
+        val normalized = packageName.lowercase(Locale.ROOT)
+        if (normalized in TELEPHONY_SMS_PACKAGE_ALLOWLIST) return true
+        return normalized.contains("telephony")
     }
 
     private fun containsAnyKeyword(text: String, keywords: Set<String>): Boolean {
@@ -549,6 +603,65 @@ class NotificationManagerHook : BaseHook() {
 
     private fun isWechatPackage(packageName: String): Boolean = packageName == WECHAT_PACKAGE
 
+    private fun resolveSmsCompanyLabel(
+        title: String,
+        body: String,
+        expandedText: String,
+        tickerText: String,
+        fallbackLabel: String,
+    ): String {
+        val content = buildNotificationContent(title, body, tickerText, expandedText)
+        val company = extractCompanyCandidates(content).firstOrNull().orEmpty().trim()
+        if (company.isNotBlank()) return company
+        return title.trim().takeIf { it.isNotBlank() } ?: fallbackLabel
+    }
+
+    private fun extractCompanyCandidates(content: String): List<String> {
+        return COMPANY_PATTERN.findAll(content)
+            .map { it.value.trim() }
+            .filter { it.isNotBlank() }
+            .toList()
+    }
+
+    private fun extractLikelyVerificationCode(content: String): String {
+        val normalized = content.lowercase(Locale.ROOT)
+        if (!containsAnyKeyword(normalized, VERIFICATION_KEYWORDS)) return ""
+        val candidates = VERIFICATION_CODE_PATTERN.findAll(content)
+            .map { it.value }
+            .filterNot { isLikelyDateTimeToken(it, content) }
+            .toList()
+        if (candidates.isEmpty()) return ""
+        return candidates.sortedWith(
+            compareByDescending<String> { verificationCodePriority(it) }
+                .thenBy { distanceToVerificationKeyword(normalized, it.lowercase(Locale.ROOT)) },
+        ).first()
+    }
+
+    private fun verificationCodePriority(candidate: String): Int = when {
+        candidate.matches(Regex("^\\d{6}$")) -> 4
+        candidate.matches(Regex("^\\d{4}$")) -> 3
+        candidate.matches(Regex("^\\d{4,8}$")) -> 2
+        else -> 1
+    }
+
+    private fun distanceToVerificationKeyword(normalizedContent: String, candidate: String): Int {
+        val candidateIndex = normalizedContent.indexOf(candidate)
+        if (candidateIndex < 0) return normalizedContent.length
+        return VERIFICATION_KEYWORDS.minOfOrNull { keyword ->
+            val keywordIndex = normalizedContent.indexOf(keyword)
+            if (keywordIndex < 0) normalizedContent.length else kotlin.math.abs(keywordIndex - candidateIndex)
+        } ?: normalizedContent.length
+    }
+
+    private fun isLikelyDateTimeToken(candidate: String, content: String): Boolean {
+        if (!candidate.all(Char::isDigit)) return false
+        val candidateIndex = content.indexOf(candidate)
+        if (candidateIndex < 0) return false
+        val prev = content.getOrNull(candidateIndex - 1)
+        val next = content.getOrNull(candidateIndex + candidate.length)
+        return prev in DATE_TIME_UNIT_TOKENS || next in DATE_TIME_UNIT_TOKENS
+    }
+
     private fun getModuleEndpoint(systemContext: Context): ModuleEndpoint? {
         cachedEndpoint?.let { return it }
         val resolved = withClearedCallingIdentity("resolveModuleEndpoint") {
@@ -568,7 +681,7 @@ class NotificationManagerHook : BaseHook() {
 
         for (packageName in candidates) {
             val prefAuthority = "$packageName.pref.provider"
-            try {
+            runNonFatalCatching {
                 val prefProviderPackage = resolveProviderPackage(systemContext, prefAuthority)
                 if (prefProviderPackage == packageName) {
                     return ModuleEndpoint(
@@ -584,7 +697,7 @@ class NotificationManagerHook : BaseHook() {
                     packageName,
                     prefProviderPackage ?: "<null>",
                 )
-            } catch (t: Throwable) {
+            }.onFailure { t ->
                 XLog.w(
                     "NotificationManagerHook: candidate %s resolve failed: %s",
                     packageName,
@@ -607,22 +720,14 @@ class NotificationManagerHook : BaseHook() {
 
     private fun resolveForwardReceiverPackages(systemContext: Context): List<String> {
         val packages = LinkedHashSet<String>()
-        return try {
+        return runNonFatalCatching {
             val intent = Intent(NotificationHookConst.ACTION_FORWARD_SMS)
-            val receivers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                systemContext.packageManager.queryBroadcastReceivers(
-                    intent,
-                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong()),
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                systemContext.packageManager.queryBroadcastReceivers(intent, PackageManager.MATCH_ALL)
-            }
+            val receivers = queryBroadcastReceiversCompat(systemContext.packageManager, intent)
             receivers.forEach { resolveInfo ->
                 resolveInfo.activityInfo?.packageName?.takeIf { it.isNotBlank() }?.let { packages.add(it) }
             }
             packages.toList()
-        } catch (t: Throwable) {
+        }.getOrElse { t ->
             XLog.w(
                 "NotificationManagerHook: queryBroadcastReceivers failed: %s",
                 t.message ?: t.javaClass.simpleName,
@@ -632,18 +737,10 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun resolveProviderPackage(systemContext: Context, authority: String): String? {
-        return try {
-            val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                systemContext.packageManager.resolveContentProvider(
-                    authority,
-                    PackageManager.ComponentInfoFlags.of(PackageManager.MATCH_ALL.toLong()),
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                systemContext.packageManager.resolveContentProvider(authority, PackageManager.MATCH_ALL)
-            }
+        return runNonFatalCatching {
+            val info = resolveContentProviderCompat(systemContext.packageManager, authority)
             info?.packageName
-        } catch (t: Throwable) {
+        }.getOrElse { t ->
             XLog.w(
                 "NotificationManagerHook: resolveContentProvider(%s) failed: %s",
                 authority,
@@ -799,7 +896,7 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun queryPrefStringInternal(context: Context, uri: Uri, defaultValue: String): String? {
-        return try {
+        return runNonFatalCatching {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     cursor.getString(0) ?: defaultValue
@@ -810,7 +907,7 @@ class NotificationManagerHook : BaseHook() {
                 XLog.w("NotificationManagerHook: pref query returned null cursor. uri=%s", uri)
                 null
             }
-        } catch (t: Throwable) {
+        }.getOrElse { t ->
             XLog.w(
                 "NotificationManagerHook: pref query failed. uri=%s err=%s callerUid=%d selfUid=%d",
                 uri,
@@ -823,29 +920,16 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun tryCreatePackageContext(systemContext: Context, packageName: String): Context? {
-        return try {
-            @Suppress("DEPRECATION")
-            systemContext.createPackageContext(packageName, Context.CONTEXT_IGNORE_SECURITY)
-        } catch (_: Throwable) {
-            null
+        return runNonFatalOrNull {
+            systemContext.createPackageContext(packageName, contextIgnoreSecurityFlag())
         }
     }
 
     private fun isPackageInstalled(systemContext: Context, packageName: String): Boolean {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                systemContext.packageManager.getPackageInfo(
-                    packageName,
-                    PackageManager.PackageInfoFlags.of(PackageManager.MATCH_ALL.toLong()),
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                systemContext.packageManager.getPackageInfo(packageName, PackageManager.MATCH_ALL)
-            }
+        return runNonFatalCatching {
+            getPackageInfoCompat(systemContext.packageManager, packageName)
             true
-        } catch (_: Throwable) {
-            false
-        }
+        }.getOrDefault(false)
     }
 
     private inline fun <T> withClearedCallingIdentity(reason: String, block: () -> T): T {
@@ -893,7 +977,7 @@ class NotificationManagerHook : BaseHook() {
                 )
             }
             for (userHandle in targetUsers) {
-                try {
+                runNonFatalCatching {
                     sendBroadcastAsUser(
                         systemContext = systemContext,
                         intent = intent,
@@ -903,8 +987,9 @@ class NotificationManagerHook : BaseHook() {
                         endpoint = endpoint,
                         recoveryEnabled = recoveryEnabled,
                     )
+                }.onSuccess {
                     return@withClearedCallingIdentity
-                } catch (t: Throwable) {
+                }.onFailure { t ->
                     XLog.w(
                         "NotificationManagerHook: sendBroadcastAsUser failed. pkg=%s event=%s user=%s err=%s",
                         sourcePackage,
@@ -1179,10 +1264,10 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun isPackageStopped(systemContext: Context, packageName: String, userId: Int): Boolean {
-        return try {
+        return runNonFatalCatching {
             val appInfo = getApplicationInfoForUser(systemContext, packageName, userId) ?: return false
             (appInfo.flags and ApplicationInfo.FLAG_STOPPED) != 0
-        } catch (t: Throwable) {
+        }.getOrElse { t ->
             XLog.w(
                 "NotificationManagerHook: isPackageStopped failed. pkg=%s user=%d err=%s",
                 packageName,
@@ -1199,21 +1284,10 @@ class NotificationManagerHook : BaseHook() {
             val method = pm.javaClass.methods.firstOrNull {
                 it.name == "getApplicationInfoAsUser" && it.parameterTypes.size == 3
             } ?: return@runCatching null
-            @Suppress("DEPRECATION")
-            method.invoke(pm, packageName, PackageManager.MATCH_ALL, userId) as? ApplicationInfo
+            method.invoke(pm, packageName, packageManagerMatchAllFlag(), userId) as? ApplicationInfo
         }.getOrNull()
         if (asUser != null) return asUser
-        return runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.getApplicationInfo(
-                    packageName,
-                    PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_ALL.toLong()),
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getApplicationInfo(packageName, PackageManager.MATCH_ALL)
-            }
-        }.getOrNull()
+        return getApplicationInfoCompat(pm, packageName)
     }
 
     private fun clearPackageStoppedState(systemContext: Context, packageName: String, userId: Int): Boolean {
@@ -1301,6 +1375,103 @@ class NotificationManagerHook : BaseHook() {
         }.getOrDefault(userHandle.toString())
     }
 
+    private fun queryBroadcastReceiversCompat(
+        packageManager: PackageManager,
+        intent: Intent,
+    ): List<ResolveInfo> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return packageManager.queryBroadcastReceivers(
+                intent,
+                PackageManager.ResolveInfoFlags.of(packageManagerMatchAllFlag().toLong()),
+            )
+        }
+        val result = runNonFatalOrNull {
+            val method = packageManager.javaClass.getMethod(
+                "queryBroadcastReceivers",
+                Intent::class.java,
+                Int::class.javaPrimitiveType,
+            )
+            method.invoke(packageManager, intent, packageManagerMatchAllFlag())
+        }
+        return (result as? List<*>)?.filterIsInstance<ResolveInfo>().orEmpty()
+    }
+
+    private fun resolveContentProviderCompat(
+        packageManager: PackageManager,
+        authority: String,
+    ): ProviderInfo? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return packageManager.resolveContentProvider(
+                authority,
+                PackageManager.ComponentInfoFlags.of(packageManagerMatchAllFlag().toLong()),
+            )
+        }
+        return runNonFatalOrNull {
+            val method = packageManager.javaClass.getMethod(
+                "resolveContentProvider",
+                String::class.java,
+                Int::class.javaPrimitiveType,
+            )
+            method.invoke(packageManager, authority, packageManagerMatchAllFlag()) as? ProviderInfo
+        }
+    }
+
+    private fun getPackageInfoCompat(
+        packageManager: PackageManager,
+        packageName: String,
+    ): PackageInfo? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return packageManager.getPackageInfo(
+                packageName,
+                PackageManager.PackageInfoFlags.of(packageManagerMatchAllFlag().toLong()),
+            )
+        }
+        return runNonFatalOrNull {
+            val method = packageManager.javaClass.getMethod(
+                "getPackageInfo",
+                String::class.java,
+                Int::class.javaPrimitiveType,
+            )
+            method.invoke(packageManager, packageName, packageManagerMatchAllFlag()) as? PackageInfo
+        }
+    }
+
+    private fun getApplicationInfoCompat(
+        packageManager: PackageManager,
+        packageName: String,
+    ): ApplicationInfo? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return packageManager.getApplicationInfo(
+                packageName,
+                PackageManager.ApplicationInfoFlags.of(packageManagerMatchAllFlag().toLong()),
+            )
+        }
+        return runNonFatalOrNull {
+            val method = packageManager.javaClass.getMethod(
+                "getApplicationInfo",
+                String::class.java,
+                Int::class.javaPrimitiveType,
+            )
+            method.invoke(packageManager, packageName, packageManagerMatchAllFlag()) as? ApplicationInfo
+        }
+    }
+
+    private fun contextIgnoreSecurityFlag(): Int {
+        return resolveStaticIntFieldOrDefault(
+            Context::class.java,
+            "CONTEXT_IGNORE_SECURITY",
+            CONTEXT_IGNORE_SECURITY_FALLBACK,
+        )
+    }
+
+    private fun packageManagerMatchAllFlag(): Int {
+        return resolveStaticIntFieldOrDefault(
+            PackageManager::class.java,
+            "MATCH_ALL",
+            PACKAGE_MANAGER_MATCH_ALL_FALLBACK,
+        )
+    }
+
     private fun buildEventId(packageName: String): String {
         val now = System.currentTimeMillis().toString(36)
         val suffix = kotlin.math.abs((packageName + now).hashCode()).toString(36)
@@ -1316,6 +1487,7 @@ class NotificationManagerHook : BaseHook() {
         private const val MAIN_ACTIVITY_CLASS_NAME = "io.github.magisk317.relay.ui.home.MainActivity"
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val ENABLE_WECHAT_GROUP_SUMMARY_BYPASS = true
+        private const val MSG_TYPE_SMS = "sms"
         private const val MSG_TYPE_APP_NOTIFY = "app_notify"
         private const val MSG_TYPE_CALL_NOTIFY = "call_notify"
         private const val CALL_TYPE_UNKNOWN = 0
@@ -1326,11 +1498,39 @@ class NotificationManagerHook : BaseHook() {
         private const val CALL_TYPE_REJECTED = 5
         private const val CALL_TYPE_BLOCKED = 6
         private const val CALL_TYPE_LABEL_DEFAULT = "通话通知"
+        private const val CONTEXT_IGNORE_SECURITY_FALLBACK = 0x00000002
+        private const val PACKAGE_MANAGER_MATCH_ALL_FALLBACK = 0x00020000
         private val CALL_NOTIFY_PACKAGE_ALLOWLIST = setOf(
             "com.android.dialer",
             "com.google.android.dialer",
             "com.android.incallui",
         )
+        private val TELEPHONY_SMS_PACKAGE_ALLOWLIST = setOf(
+            "com.android.phone",
+            "com.android.providers.telephony",
+            "com.android.mms",
+            "com.android.messaging",
+            "com.google.android.apps.messaging",
+            "com.samsung.android.messaging",
+        )
+        private val VERIFICATION_KEYWORDS = setOf(
+            "验证码",
+            "校验码",
+            "检验码",
+            "确认码",
+            "激活码",
+            "动态码",
+            "安全码",
+            "verification",
+            "verify",
+            "otp",
+            "passcode",
+            "pin",
+            "code",
+        )
+        private val DATE_TIME_UNIT_TOKENS = setOf('年', '月', '日', '号', '时', '點', '点', '分', '秒')
+        private val VERIFICATION_CODE_PATTERN = Regex("\\b[A-Za-z0-9]{4,10}\\b")
+        private val COMPANY_PATTERN = Regex("(?<=【)[^】]+(?=】)|(?<=\\[)[^]]+(?=])")
         private val MISSED_CALL_KEYWORDS = setOf(
             "未接",
             "missed call",

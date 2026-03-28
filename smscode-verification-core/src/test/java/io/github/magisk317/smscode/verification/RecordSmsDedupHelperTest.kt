@@ -1,0 +1,108 @@
+package io.github.magisk317.smscode.verification
+
+import io.github.magisk317.smscode.xposed.utils.XLog
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockkObject
+import io.mockk.runs
+import io.mockk.unmockkObject
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+
+class RecordSmsDedupHelperTest {
+    @BeforeEach
+    fun setUp() {
+        mockkObject(XLog)
+        every { XLog.w(any<String>(), *anyVararg()) } just runs
+    }
+
+    @AfterEach
+    fun tearDown() {
+        unmockkObject(XLog)
+    }
+
+    @Test
+    fun shouldSkipByWindow_skipsOnFingerprintDuplicate() {
+        val sms = FakeSmsMessage(
+            sender = "10086",
+            body = "code 1234",
+            date = 1_000L,
+            smsCode = "1234",
+            packageName = "com.android.phone",
+            company = "carrier",
+        )
+
+        val skipped = RecordSmsDedupHelper.shouldSkipByWindow(
+            smsMsg = sms,
+            eventLabel = "evt-1",
+            hasFingerprintDuplicate = { sender, body, from, to ->
+                sender == "10086" && body == "code 1234" && from == 0L && to == 6_000L
+            },
+            hasCodeDuplicateByPackage = { _, _, _, _ -> false },
+            hasCodeDuplicateByCompany = { _, _, _, _ -> false },
+        )
+
+        assertTrue(skipped)
+    }
+
+    @Test
+    fun shouldSkipByWindow_skipsOnPackageDuplicate() {
+        val sms = FakeSmsMessage(
+            sender = "bank",
+            body = "Your code is 5678",
+            date = 10_000L,
+            smsCode = "5678",
+            packageName = "com.google.android.apps.messaging",
+            company = "bank",
+        )
+
+        val skipped = RecordSmsDedupHelper.shouldSkipByWindow(
+            smsMsg = sms,
+            eventLabel = "evt-2",
+            hasFingerprintDuplicate = { _, _, _, _ -> false },
+            hasCodeDuplicateByPackage = { code, pkg, from, to ->
+                code == "5678" &&
+                    pkg == "com.google.android.apps.messaging" &&
+                    from == 5_000L &&
+                    to == 15_000L
+            },
+            hasCodeDuplicateByCompany = { _, _, _, _ -> false },
+        )
+
+        assertTrue(skipped)
+    }
+
+    @Test
+    fun shouldSkipByWindow_allowsFreshMessage() {
+        val sms = FakeSmsMessage(
+            sender = "bank",
+            body = "Your code is 5678",
+            date = 10_000L,
+            smsCode = "5678",
+            packageName = "com.google.android.apps.messaging",
+            company = "bank",
+        )
+
+        val skipped = RecordSmsDedupHelper.shouldSkipByWindow(
+            smsMsg = sms,
+            eventLabel = "evt-3",
+            hasFingerprintDuplicate = { _, _, _, _ -> false },
+            hasCodeDuplicateByPackage = { _, _, _, _ -> false },
+            hasCodeDuplicateByCompany = { _, _, _, _ -> false },
+        )
+
+        assertFalse(skipped)
+    }
+
+    private data class FakeSmsMessage(
+        override val sender: String?,
+        override val body: String?,
+        override val date: Long,
+        override val smsCode: String?,
+        override val packageName: String?,
+        override val company: String?,
+    ) : SmsMessage
+}
