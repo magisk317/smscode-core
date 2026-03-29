@@ -155,11 +155,7 @@ class NotificationManagerHook : BaseHook() {
             ""
         }
 
-        val body = when {
-            text.isNotEmpty() -> text
-            expandedText.isNotEmpty() -> expandedText
-            else -> tickerText
-        }
+        val body = resolvePreferredBody(text, expandedText, tickerText)
         if (title.isBlank() && body.isBlank()) {
             if (isWechatPackage(pkg)) {
                 XLog.w(
@@ -342,12 +338,11 @@ class NotificationManagerHook : BaseHook() {
         tickerText: String,
         expandedText: String,
     ): String {
-        return buildString {
-            if (title.isNotBlank()) appendLine(title)
-            if (body.isNotBlank()) appendLine(body)
-            if (expandedText.isNotBlank()) appendLine(expandedText)
-            if (tickerText.isNotBlank()) append(tickerText)
-        }.trim()
+        return listOf(title, body, expandedText, tickerText)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .joinToString("\n")
     }
 
     private fun resolveTelephonySmsRoute(
@@ -373,10 +368,58 @@ class NotificationManagerHook : BaseHook() {
         val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
         val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty()
         val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
-            ?.mapNotNull { it?.toString() }
+            ?.mapNotNull { it?.toString()?.trim() }
+            ?.filter { it.isNotEmpty() }
             ?.joinToString("\n")
             .orEmpty()
         return listOf(bigText, lines, subText).firstOrNull { it.isNotBlank() }.orEmpty()
+    }
+
+    private fun resolvePreferredBody(
+        text: String,
+        expandedText: String,
+        tickerText: String,
+    ): String {
+        val normalizedText = text.trim()
+        val normalizedExpanded = expandedText.trim()
+        val normalizedTicker = tickerText.trim()
+        return when {
+            shouldPreferExpandedText(normalizedText, normalizedExpanded) -> normalizedExpanded
+            normalizedText.isNotEmpty() -> normalizedText
+            normalizedExpanded.isNotEmpty() -> normalizedExpanded
+            else -> normalizedTicker
+        }
+    }
+
+    private fun shouldPreferExpandedText(
+        text: String,
+        expandedText: String,
+    ): Boolean {
+        if (expandedText.isBlank()) return false
+        if (text.isBlank()) return true
+        if (looksTruncated(text) && expandedText.length >= text.length) return true
+        val comparableText = stripEdgeEllipsis(text)
+        if (comparableText.isNotEmpty() && expandedText.contains(comparableText) && expandedText.length > comparableText.length) {
+            return true
+        }
+        return expandedText.length >= text.length + 8
+    }
+
+    private fun looksTruncated(text: String): Boolean {
+        val normalized = text.trim()
+        return normalized.startsWith("...") ||
+            normalized.startsWith("…") ||
+            normalized.endsWith("...") ||
+            normalized.endsWith("…")
+    }
+
+    private fun stripEdgeEllipsis(text: String): String {
+        return text.trim()
+            .removePrefix("...")
+            .removePrefix("…")
+            .removeSuffix("...")
+            .removeSuffix("…")
+            .trim()
     }
 
     private fun resolveCallStage(
