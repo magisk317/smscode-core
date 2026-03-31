@@ -14,7 +14,14 @@ class PermissionGranterHook : BaseHook() {
             ANDROID_PACKAGE == lpparam.packageName &&
             (ANDROID_PACKAGE == lpparam.processName || SYSTEM_SERVER_PROCESS == lpparam.processName)
         ) {
-            val classLoader = lpparam.classLoader
+            val classLoader = lpparam.classLoader ?: run {
+                io.github.magisk317.smscode.xposed.utils.XLog.w(
+                    "PermissionGranterHook skip: classLoader is null for pkg=%s process=%s",
+                    lpparam.packageName,
+                    lpparam.processName,
+                )
+                return
+            }
 
             val sdkInt = Build.VERSION.SDK_INT
             when {

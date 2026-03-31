@@ -39,6 +39,6 @@ object ModuleUtils {
      */
     @JvmStatic
     fun isModuleActivated(context: android.content.Context): Boolean {
-        return runtimeActivated || ModuleActivationStore.isActivatedRecently(context)
+        return isModuleEnabled() || runtimeActivated || ModuleActivationStore.isActivatedRecently(context)
     }
 }
