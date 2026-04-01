@@ -7,6 +7,7 @@ import kotlin.math.abs
 object SmsIntentHookSupport {
     private const val EVENT_ID_EXTRA = "event_id"
     private const val DISPATCH_HANDLED_EXTRA_PREFIX = "xsms_dispatch_handled:"
+    private const val DEFAULT_HANDLER_KEY = "default"
 
     fun isSmsAction(action: String?): Boolean {
         return action == Telephony.Sms.Intents.SMS_DELIVER_ACTION ||
@@ -23,9 +24,14 @@ object SmsIntentHookSupport {
         return generated
     }
 
-    fun markDispatchHandled(intent: Intent, action: String?): Boolean {
+    fun markDispatchHandled(
+        intent: Intent,
+        action: String?,
+        handlerKey: String = DEFAULT_HANDLER_KEY,
+    ): Boolean {
         if (action.isNullOrBlank()) return false
-        val key = "$DISPATCH_HANDLED_EXTRA_PREFIX$action"
+        val normalizedHandlerKey = handlerKey.trim().ifBlank { DEFAULT_HANDLER_KEY }
+        val key = "$DISPATCH_HANDLED_EXTRA_PREFIX$normalizedHandlerKey:$action"
         if (intent.getBooleanExtra(key, false)) {
             return true
         }

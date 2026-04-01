@@ -11,6 +11,7 @@ class AutoInputActionHelper<M : SmsMessage>(
     private val phoneContext: Context,
     private val smsMsg: M,
     private val deduplicateEnabled: Boolean? = null,
+    private val dispatchDelayMs: Long = 0L,
     private val deduplicateReader: (Context) -> Boolean,
     private val sharedGateClaimer: (Context, String, String, Long, Int) -> ClaimResult,
     private val packageBlockedChecker: (String) -> Boolean,
@@ -117,11 +118,12 @@ class AutoInputActionHelper<M : SmsMessage>(
     private fun shouldSkipByRecentAutoInput(): Boolean {
         val key = SmsMessageDedupKeys.buildMessageKey(smsMsg)
         if (key.isBlank()) return false
+        val dedupWindowMs = resolveAutoInputDedupWindowMs()
         val sharedClaim = sharedGateClaimer(
             pluginContext,
             SHARED_AUTO_INPUT_FILE_NAME,
             key,
-            AUTO_INPUT_DEDUP_WINDOW_MS,
+            dedupWindowMs,
             MAX_AUTO_INPUT_CACHE_SIZE,
         )
         if (!sharedClaim.claimed) {
@@ -137,12 +139,12 @@ class AutoInputActionHelper<M : SmsMessage>(
             val iterator = recentAutoInputs.entries.iterator()
             while (iterator.hasNext()) {
                 val entry = iterator.next()
-                if (now - entry.value > AUTO_INPUT_DEDUP_WINDOW_MS) {
+                if (now - entry.value > dedupWindowMs) {
                     iterator.remove()
                 }
             }
             val last = recentAutoInputs[key]
-            if (last != null && now - last <= AUTO_INPUT_DEDUP_WINDOW_MS) {
+            if (last != null && now - last <= dedupWindowMs) {
                 XLog.w(
                     "Diag auto-input dedup skip: key=%s ageMs=%d",
                     key,
@@ -157,6 +159,11 @@ class AutoInputActionHelper<M : SmsMessage>(
             }
         }
         return false
+    }
+
+    private fun resolveAutoInputDedupWindowMs(): Long {
+        return (dispatchDelayMs + AUTO_INPUT_DEDUP_EXTRA_MS)
+            .coerceAtLeast(AUTO_INPUT_DEDUP_WINDOW_MS)
     }
 
     private fun resolveForegroundPackage(): String? {
@@ -219,6 +226,7 @@ class AutoInputActionHelper<M : SmsMessage>(
     private companion object {
         private const val SHARED_AUTO_INPUT_FILE_NAME = "auto_input_dedup"
         private const val AUTO_INPUT_DEDUP_WINDOW_MS = 5_000L
+        private const val AUTO_INPUT_DEDUP_EXTRA_MS = 5_000L
         private const val MAX_AUTO_INPUT_CACHE_SIZE = 128
         private val AUTO_INPUT_CACHE_LOCK = Any()
         private val recentAutoInputs = LinkedHashMap<String, Long>(MAX_AUTO_INPUT_CACHE_SIZE, 0.75f, true)

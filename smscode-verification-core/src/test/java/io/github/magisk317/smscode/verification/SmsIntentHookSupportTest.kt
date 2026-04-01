@@ -20,6 +20,16 @@ class SmsIntentHookSupportTest {
     }
 
     @Test
+    fun markDispatchHandled_keepsHandlerScopesIndependent() {
+        val intent = fakeIntent(Telephony.Sms.Intents.SMS_DELIVER_ACTION)
+
+        assertFalse(SmsIntentHookSupport.markDispatchHandled(intent, intent.action, "sms_handler"))
+        assertFalse(SmsIntentHookSupport.markDispatchHandled(intent, intent.action, "sms_forward"))
+        assertTrue(SmsIntentHookSupport.markDispatchHandled(intent, intent.action, "sms_handler"))
+        assertTrue(SmsIntentHookSupport.markDispatchHandled(intent, intent.action, "sms_forward"))
+    }
+
+    @Test
     fun ensureEventId_reusesExistingExtra() {
         val intent = fakeIntent().apply {
             putExtra("event_id", "evt-1")

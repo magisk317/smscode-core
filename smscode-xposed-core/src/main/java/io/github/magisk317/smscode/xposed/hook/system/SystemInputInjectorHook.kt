@@ -103,7 +103,9 @@ class SystemInputInjectorHook : BaseHook() {
     override fun hookOnLoadPackage(): Boolean = true
 
     override fun onLoadPackage(lpparam: LoadParam) {
-        if (lpparam.packageName != "android") return
+        if (lpparam.packageName != ANDROID_PACKAGE || !isSystemServerProcess(lpparam.processName)) {
+            return
+        }
 
         // Fallback for Redmi K60 Ultra (Android 16): 
         // If systemMain was already executed, try immediate initialization or hook systemReady.
@@ -771,6 +773,9 @@ class SystemInputInjectorHook : BaseHook() {
     }
 
     companion object {
+        private const val ANDROID_PACKAGE = "android"
+        private const val SYSTEM_PROCESS = "system"
+        private const val SYSTEM_SERVER_PROCESS = "system_server"
         private const val DELAY_REGISTER = 500L
         private const val MAX_REGISTER_ATTEMPTS = 10
         private const val CACHED_UID_TTL_MS = 10_000L
@@ -791,5 +796,11 @@ class SystemInputInjectorHook : BaseHook() {
         const val EXTRA_ACCESSIBILITY_REASON = "accessibility_reason"
         const val EXTRA_ACCESSIBILITY_STRATEGY = "accessibility_strategy"
         const val EXTRA_ACCESSIBILITY_WINDOW_PACKAGE = "accessibility_window_package"
+
+        private fun isSystemServerProcess(processName: String): Boolean {
+            return processName == ANDROID_PACKAGE ||
+                processName == SYSTEM_PROCESS ||
+                processName == SYSTEM_SERVER_PROCESS
+        }
     }
 }

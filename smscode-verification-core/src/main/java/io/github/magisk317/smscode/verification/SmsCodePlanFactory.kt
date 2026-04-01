@@ -57,6 +57,7 @@ object SmsCodePlanFactory {
         return SmsCodePostParseCoordinator.ObservedSmsPlan(
             deduplicateSmsEnabled = settings.deduplicateSmsEnabled,
             autoInputEnabled = settings.autoInputEnabled,
+            autoInputDelayMs = if (settings.autoInputEnabled) settings.autoInputDelayMs else null,
             shouldRecord = settings.recordSmsEnabled && !settings.deduplicateSmsEnabled,
         )
     }
