@@ -2,8 +2,6 @@ package io.github.magisk317.smscode.verification
 
 import android.content.Intent
 import android.provider.Telephony
-import io.mockk.every
-import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -52,21 +50,30 @@ class SmsIntentHookSupportTest {
     }
 
     private fun fakeIntent(action: String? = null): Intent {
-        val extras = linkedMapOf<String, Any?>()
-        return mockk(relaxed = true) {
-            every { this@mockk.action } returns action
-            every { getStringExtra(any()) } answers { extras[firstArg<String>()] as? String }
-            every { getBooleanExtra(any(), any()) } answers {
-                extras[firstArg<String>()] as? Boolean ?: secondArg()
-            }
-            every { putExtra(any<String>(), any<String>()) } answers {
-                extras[firstArg()] = secondArg<String>()
-                this@mockk
-            }
-            every { putExtra(any<String>(), any<Boolean>()) } answers {
-                extras[firstArg()] = secondArg<Boolean>()
-                this@mockk
-            }
+        return FakeIntent(action)
+    }
+
+    private class FakeIntent(
+        private val actionValue: String? = null,
+    ) : Intent() {
+        private val extras = linkedMapOf<String, Any?>()
+
+        override fun getAction(): String? = actionValue
+
+        override fun getStringExtra(name: String): String? = extras[name] as? String
+
+        override fun getBooleanExtra(name: String, defaultValue: Boolean): Boolean {
+            return extras[name] as? Boolean ?: defaultValue
+        }
+
+        override fun putExtra(name: String, value: String?): Intent {
+            extras[name] = value
+            return this
+        }
+
+        override fun putExtra(name: String, value: Boolean): Intent {
+            extras[name] = value
+            return this
         }
     }
 }

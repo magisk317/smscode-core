@@ -1,11 +1,6 @@
 package io.github.magisk317.smscode.verification
 
 import io.github.magisk317.smscode.xposed.utils.XLog
-import io.mockk.every
-import io.mockk.just
-import io.mockk.mockkObject
-import io.mockk.runs
-import io.mockk.unmockkObject
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.AfterEach
@@ -15,13 +10,12 @@ import org.junit.jupiter.api.Test
 class RecordSmsDedupHelperTest {
     @BeforeEach
     fun setUp() {
-        mockkObject(XLog)
-        every { XLog.w(any<String>(), *anyVararg()) } just runs
+        XLog.setTestSink { _, _ -> }
     }
 
     @AfterEach
     fun tearDown() {
-        unmockkObject(XLog)
+        XLog.setTestSink(null)
     }
 
     @Test
