@@ -24,6 +24,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":smscode-domain"))
     implementation("androidx.annotation:annotation:1.9.1")
     implementation("androidx.core:core-ktx:1.18.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
