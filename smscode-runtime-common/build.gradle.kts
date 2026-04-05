@@ -1,5 +1,6 @@
 plugins {
     id("com.android.library")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -25,6 +26,7 @@ android {
 dependencies {
     implementation("androidx.annotation:annotation:1.9.1")
     implementation("androidx.core:core-ktx:1.18.0")
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
     testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
