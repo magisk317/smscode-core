@@ -6,6 +6,10 @@ package io.github.magisk317.smscode.xposed.utils
 object ModuleUtils {
     @Volatile
     private var runtimeActivated = false
+    @Volatile
+    private var moduleVersionFailureLogged = false
+    @Volatile
+    internal var moduleVersionResolverForTesting: (() -> Int)? = null
 
     /**
      * 标记当前运行时是否已连接到 Xposed Service。
@@ -28,11 +32,28 @@ object ModuleUtils {
         return -1
     }
 
+    private fun resolveModuleVersionSafely(): Int {
+        val resolver = moduleVersionResolverForTesting ?: ::getModuleVersion
+        return try {
+            resolver()
+        } catch (throwable: Throwable) {
+            if (!moduleVersionFailureLogged) {
+                moduleVersionFailureLogged = true
+                XLog.w(
+                    "getModuleVersion() failed, treating module as disabled: %s",
+                    throwable.message ?: throwable.javaClass.simpleName,
+                    throwable,
+                )
+            }
+            -1
+        }
+    }
+
     /**
      * 当前模块是否在XposedInstaller中被启用
      */
     @JvmStatic
-    fun isModuleEnabled(): Boolean = getModuleVersion() > 0
+    fun isModuleEnabled(): Boolean = resolveModuleVersionSafely() > 0
 
     /**
      * 模块是否已激活（兼容新 API 静态作用域场景）
