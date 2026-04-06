@@ -24,9 +24,10 @@ class RuleImporter(private val jsonStream: InputStream?) : Closeable {
 
     @Throws(BackupInvalidException::class)
     fun parsePayload(): BackupParseResult {
+        val stream = jsonStream ?: throw BackupInvalidException("Backup stream is null")
         val jsonText = try {
-            InputStreamReader(jsonStream, StandardCharsets.UTF_8).use { it.readText() }
-        } catch (ex: Exception) {
+            InputStreamReader(stream, StandardCharsets.UTF_8).use { it.readText() }
+        } catch (ex: IOException) {
             throw BackupInvalidException(ex)
         }
 
@@ -47,7 +48,9 @@ class RuleImporter(private val jsonStream: InputStream?) : Closeable {
             throw ex
         } catch (ex: VersionMissedException) {
             throw ex
-        } catch (ex: Exception) {
+        } catch (ex: IllegalArgumentException) {
+            throw BackupInvalidException(ex)
+        } catch (ex: IllegalStateException) {
             throw BackupInvalidException(ex)
         }
     }
@@ -59,14 +62,18 @@ class RuleImporter(private val jsonStream: InputStream?) : Closeable {
     }
 
     @Throws(BackupInvalidException::class)
-    private fun readRule(ruleObject: JsonObject): BackupRule = try {
-        val company = ruleObject[BackupConst.KEY_COMPANY]?.jsonPrimitive?.content
-        val codeKeyword = ruleObject[BackupConst.KEY_CODE_KEYWORD]?.jsonPrimitive?.content ?: ""
-        val codeRegex = ruleObject[BackupConst.KEY_CODE_REGEX]?.jsonPrimitive?.content ?: ""
+    private fun readRule(ruleObject: JsonObject): BackupRule {
+        return try {
+            val company = ruleObject[BackupConst.KEY_COMPANY]?.jsonPrimitive?.content
+            val codeKeyword = ruleObject[BackupConst.KEY_CODE_KEYWORD]?.jsonPrimitive?.content ?: ""
+            val codeRegex = ruleObject[BackupConst.KEY_CODE_REGEX]?.jsonPrimitive?.content ?: ""
 
-        BackupRule(company = company, codeKeyword = codeKeyword, codeRegex = codeRegex)
-    } catch (e: Exception) {
-        throw BackupInvalidException(e)
+            BackupRule(company = company, codeKeyword = codeKeyword, codeRegex = codeRegex)
+        } catch (e: IllegalArgumentException) {
+            throw BackupInvalidException(e)
+        } catch (e: IllegalStateException) {
+            throw BackupInvalidException(e)
+        }
     }
 
     private fun readSchemaVersion(jsonObject: JsonObject): Int {
@@ -81,21 +88,21 @@ class RuleImporter(private val jsonStream: InputStream?) : Closeable {
     private fun readAppVersion(jsonObject: JsonObject): String =
         jsonObject[BackupConst.KEY_APP_VERSION]?.jsonPrimitive?.content ?: ""
 
-    private fun readPreferences(jsonObject: JsonObject): Map<String, String?>? = try {
-        val prefObject = jsonObject[BackupConst.KEY_PREFERENCES]?.jsonObject
-        prefObject?.let { obj ->
-            buildMap {
-                for ((key, element) in obj) {
-                    if (element.jsonPrimitive.isString) {
-                        put(key, element.jsonPrimitive.content)
-                    } else {
-                        put(key, element.jsonPrimitive.contentOrNull)
+    private fun readPreferences(jsonObject: JsonObject): Map<String, String?>? {
+        return runCatching {
+            val prefObject = jsonObject[BackupConst.KEY_PREFERENCES]?.jsonObject
+            prefObject?.let { obj ->
+                buildMap {
+                    for ((key, element) in obj) {
+                        if (element.jsonPrimitive.isString) {
+                            put(key, element.jsonPrimitive.content)
+                        } else {
+                            put(key, element.jsonPrimitive.contentOrNull)
+                        }
                     }
                 }
             }
-        }
-    } catch (_: Exception) {
-        null
+        }.getOrNull()
     }
 
     private fun readRecords(jsonObject: JsonObject): List<BackupSmsRecord>? {

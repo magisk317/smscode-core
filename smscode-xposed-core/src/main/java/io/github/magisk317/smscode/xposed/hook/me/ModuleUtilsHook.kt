@@ -19,7 +19,15 @@ open class ModuleUtilsHook(
             try {
                 XLog.i("Hooking current Xposed module status...")
                 hookModuleUtils(lpparam)
-            } catch (e: Throwable) {
+            } catch (e: ReflectiveOperationException) {
+                XLog.e("Failed to hook current Xposed module status.")
+            } catch (e: IllegalArgumentException) {
+                XLog.e("Failed to hook current Xposed module status.")
+            } catch (e: IllegalStateException) {
+                XLog.e("Failed to hook current Xposed module status.")
+            } catch (e: SecurityException) {
+                XLog.e("Failed to hook current Xposed module status.")
+            } catch (e: UnsupportedOperationException) {
                 XLog.e("Failed to hook current Xposed module status.")
             }
         }

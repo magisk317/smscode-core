@@ -34,19 +34,18 @@ object ModuleUtils {
 
     private fun resolveModuleVersionSafely(): Int {
         val resolver = moduleVersionResolverForTesting ?: ::getModuleVersion
-        return try {
-            resolver()
-        } catch (throwable: Throwable) {
-            if (!moduleVersionFailureLogged) {
-                moduleVersionFailureLogged = true
-                XLog.w(
-                    "getModuleVersion() failed, treating module as disabled: %s",
-                    throwable.message ?: throwable.javaClass.simpleName,
-                    throwable,
-                )
+        return runCatching { resolver() }
+            .onFailure { throwable ->
+                if (!moduleVersionFailureLogged) {
+                    moduleVersionFailureLogged = true
+                    XLog.w(
+                        "getModuleVersion() failed, treating module as disabled: %s",
+                        throwable.message ?: throwable.javaClass.simpleName,
+                        throwable,
+                    )
+                }
             }
-            -1
-        }
+            .getOrDefault(-1)
     }
 
     /**

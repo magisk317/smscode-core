@@ -133,7 +133,13 @@ object BackupManagerCore {
     ): ExportResult {
         Log.i(
             LOG_TAG,
-            "exportBackup start: uri=$uri rules=${ruleList.size} prefs=${preferences?.size ?: 0} records=${records?.size ?: 0} appVersion=$appVersion includeDatabase=$includeDatabase",
+            "exportBackup start: " +
+                "uri=$uri " +
+                "rules=${ruleList.size} " +
+                "prefs=${preferences?.size ?: 0} " +
+                "records=${records?.size ?: 0} " +
+                "appVersion=$appVersion " +
+                "includeDatabase=$includeDatabase",
         )
         if (includeDatabase) {
             return try {
@@ -194,7 +200,12 @@ object BackupManagerCore {
             val schemaVersion = payload.schemaVersion
             Log.i(
                 LOG_TAG,
-                "importRuleList parsed: schema=$schemaVersion appVersion=${payload.appVersion} rules=${payload.rules.size} prefs=${payload.preferences?.size ?: 0} records=${payload.records?.size ?: 0}",
+                "importRuleList parsed: " +
+                    "schema=$schemaVersion " +
+                    "appVersion=${payload.appVersion} " +
+                    "rules=${payload.rules.size} " +
+                    "prefs=${payload.preferences?.size ?: 0} " +
+                    "records=${payload.records?.size ?: 0}",
             )
             if (schemaVersion > BackupConst.BACKUP_VERSION) {
                 return BackupImportResult(ImportResult.VERSION_TOO_NEW)
