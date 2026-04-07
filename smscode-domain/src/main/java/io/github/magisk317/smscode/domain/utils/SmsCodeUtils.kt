@@ -23,6 +23,7 @@ object SmsCodeUtils {
     private const val LEVEL_NONE = -1
     private const val KEYWORD_DISTANCE_THRESHOLD = 30
     private val urlSchemeTokens = setOf("http", "https", "www")
+    private val urlContextTokens = setOf('.', '/', ':', '?', '&', '=', '#', '%')
     private val dateTimeUnitTokens = setOf('年', '月', '日', '号', '时', '點', '点', '分', '秒')
 
     suspend fun parseSmsCodeIfExists(
@@ -140,6 +141,7 @@ object SmsCodeUtils {
             val candidate = matcher.group()
             if (candidate.lowercase(Locale.ROOT) in urlSchemeTokens) continue
             if (isLikelyDateTimeToken(candidate, content)) continue
+            if (isLikelyUrlToken(candidate, content)) continue
             possibleCodes.add(candidate)
         }
         if (possibleCodes.isEmpty()) return ""
@@ -176,6 +178,20 @@ object SmsCodeUtils {
         val prevChar = content.getOrNull(candidateIdx - 1)
         val nextChar = content.getOrNull(candidateIdx + candidate.length)
         return prevChar in dateTimeUnitTokens || nextChar in dateTimeUnitTokens
+    }
+
+    private fun isLikelyUrlToken(candidate: String, content: String): Boolean {
+        val candidateIdx = content.indexOf(candidate)
+        if (candidateIdx < 0) return false
+        val prevChar = content.getOrNull(candidateIdx - 1)
+        val nextChar = content.getOrNull(candidateIdx + candidate.length)
+        if (prevChar in urlContextTokens || nextChar in urlContextTokens) {
+            return true
+        }
+        val contextStart = (candidateIdx - 8).coerceAtLeast(0)
+        val contextEnd = (candidateIdx + candidate.length + 8).coerceAtMost(content.length)
+        val nearby = content.substring(contextStart, contextEnd).lowercase(Locale.ROOT)
+        return nearby.contains("http://") || nearby.contains("https://") || nearby.contains("www.")
     }
 
     private fun getMatchLevel(matchedStr: String): Int = when {

@@ -38,4 +38,14 @@ class SmsCodeUtilsTest {
         assertEquals("123456", result.code)
         assertEquals(SmsCodeMatchedRuleSource.BUILTIN, result.matchedRule?.source)
     }
+
+    @Test
+    fun `parse ignores url domain token even when custom keyword is too broad`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "请点击 br.pingan.com/zYR 完成后续操作。",
+            keywordsRegex = "pin",
+        )
+
+        assertEquals("", result.code)
+    }
 }
