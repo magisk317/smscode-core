@@ -11,6 +11,7 @@ val smscodeXposedCorePath = parent?.path
 android {
     namespace = "io.github.magisk317.smscode.verification"
     compileSdk = 37
+    compileSdkMinor = 0
 
     defaultConfig {
         minSdk = 26

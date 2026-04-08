@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "io.github.magisk317.smscode.xposed"
     compileSdk = 37
+    compileSdkMinor = 0
 
     defaultConfig {
         minSdk = 26
