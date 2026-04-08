@@ -4,6 +4,11 @@ import kotlin.math.abs
 
 object CodeRecordSimilarityUtils {
     const val DEFAULT_WINDOW_MS = 20_000L
+    val DEFAULT_SYSTEM_SMS_PACKAGES: Set<String> = setOf(
+        "com.android.mms",
+        "com.android.messaging",
+        "com.google.android.apps.messaging",
+    )
 
     data class Projection(
         val code: String?,
@@ -19,16 +24,19 @@ object CodeRecordSimilarityUtils {
         firstBody: String?,
         firstCompany: String?,
         firstSender: String?,
+        firstPackageName: String? = null,
         firstDate: Long,
         secondCode: String?,
         secondBody: String?,
         secondCompany: String?,
         secondSender: String?,
+        secondPackageName: String? = null,
         secondDate: Long,
         windowMs: Long = DEFAULT_WINDOW_MS,
+        systemPackages: Set<String> = DEFAULT_SYSTEM_SMS_PACKAGES,
     ): Boolean {
         if (abs(firstDate - secondDate) > windowMs) return false
-        return crossSourceMatchScore(
+        if (crossSourceMatchScore(
             existingCode = firstCode,
             existingBody = firstBody,
             existingCompany = firstCompany,
@@ -37,7 +45,18 @@ object CodeRecordSimilarityUtils {
             incomingBody = secondBody,
             incomingCompany = secondCompany,
             incomingSender = secondSender,
-        ) > 0
+        ) > 0) {
+            return true
+        }
+        return shouldMergeSystemSummaryCopy(
+            firstCode = firstCode,
+            firstBody = firstBody,
+            firstPackageName = firstPackageName,
+            secondCode = secondCode,
+            secondBody = secondBody,
+            secondPackageName = secondPackageName,
+            systemPackages = systemPackages,
+        )
     }
 
     fun crossSourceMatchScore(
@@ -79,7 +98,7 @@ object CodeRecordSimilarityUtils {
         packageName: String?,
         company: String?,
         sender: String?,
-        systemPackages: Set<String> = emptySet(),
+        systemPackages: Set<String> = DEFAULT_SYSTEM_SMS_PACKAGES,
     ): Int {
         var score = 0
         val pkg = packageName.orEmpty()
@@ -146,7 +165,11 @@ object CodeRecordSimilarityUtils {
 
     fun normalizeBody(body: String?): String {
         return body.orEmpty()
+            .replace(Regex("^\\s*\\[\\d+条]\\s*"), "")
             .replace(Regex("^\\s*[【\\[].*?[】\\]]\\s*"), "")
+            .replace(Regex("^\\s*[.…·•:：;；,，!！?？、\\-—~～]+"), "")
+            .replace("...", "")
+            .replace("…", "")
             .replace(Regex("\\s+"), "")
             .trim()
     }
@@ -156,5 +179,41 @@ object CodeRecordSimilarityUtils {
             .trim()
             .trim('【', '】', '[', ']')
             .replace(Regex("\\s+"), "")
+    }
+
+    fun isSystemSmsPackage(
+        packageName: String?,
+        systemPackages: Set<String> = DEFAULT_SYSTEM_SMS_PACKAGES,
+    ): Boolean {
+        val pkg = packageName.orEmpty().trim()
+        return pkg.isNotEmpty() && pkg in systemPackages
+    }
+
+    fun isSystemSmsSummaryBody(body: String?): Boolean {
+        val raw = body.orEmpty().trim()
+        return raw.startsWith("[") && raw.contains("条]") ||
+            raw.startsWith("...") ||
+            raw.startsWith("…")
+    }
+
+    fun shouldMergeSystemSummaryCopy(
+        firstCode: String?,
+        firstBody: String?,
+        firstPackageName: String?,
+        secondCode: String?,
+        secondBody: String?,
+        secondPackageName: String?,
+        systemPackages: Set<String> = DEFAULT_SYSTEM_SMS_PACKAGES,
+    ): Boolean {
+        val leftCode = firstCode.orEmpty().trim()
+        val rightCode = secondCode.orEmpty().trim()
+        if (leftCode.isBlank() || leftCode != rightCode) return false
+
+        val firstSystem = isSystemSmsPackage(firstPackageName, systemPackages)
+        val secondSystem = isSystemSmsPackage(secondPackageName, systemPackages)
+        if (firstSystem == secondSystem) return false
+
+        val summaryBody = if (firstSystem) firstBody else secondBody
+        return isSystemSmsSummaryBody(summaryBody)
     }
 }

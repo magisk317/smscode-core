@@ -30,11 +30,13 @@ class CodeRecordSimilarityUtilsTest {
                 firstBody = "【验证码】888686，尊敬的用户，您正在登录中国移动 APP",
                 firstCompany = "10086910",
                 firstSender = "10086910",
+                firstPackageName = "com.greenpoint.android.mc10086.activity",
                 firstDate = 27_000L,
                 secondCode = "888686",
                 secondBody = "【验证码】888686，尊敬的用户，您正在登录中国移动 APP",
                 secondCompany = "中国移动",
                 secondSender = "中国移动",
+                secondPackageName = "com.android.mms",
                 secondDate = 34_000L,
             ),
         )
@@ -48,13 +50,43 @@ class CodeRecordSimilarityUtilsTest {
                 firstBody = "same",
                 firstCompany = "A",
                 firstSender = "A",
+                firstPackageName = "pkg.a",
                 firstDate = 1_000L,
                 secondCode = "888686",
                 secondBody = "same",
                 secondCompany = "A",
                 secondSender = "A",
+                secondPackageName = "pkg.b",
                 secondDate = 25_001L,
             ),
+        )
+    }
+
+    @Test
+    fun shouldMergeByCodeWithinWindow_matchesSystemSummaryCopy() {
+        assertTrue(
+            CodeRecordSimilarityUtils.shouldMergeByCodeWithinWindow(
+                firstCode = "088864",
+                firstBody = "[瑞幸咖啡] 验证码：088864，2分钟后即失效，赶紧和luckin打个招呼吧！",
+                firstCompany = "瑞幸咖啡",
+                firstSender = "106854970926",
+                firstPackageName = "com.lucky.luckyclient",
+                firstDate = 1_000L,
+                secondCode = "088864",
+                secondBody = "[2条]...验证码：088864，2分钟后即失效，赶紧和luckin打个招呼吧！",
+                secondCompany = "瑞幸咖啡",
+                secondSender = "瑞幸咖啡",
+                secondPackageName = "com.android.mms",
+                secondDate = 7_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun normalizeBody_stripsSystemSummaryPrefixAndEllipsis() {
+        assertEquals(
+            "验证码：088864，2分钟后即失效，赶紧和luckin打个招呼吧！",
+            CodeRecordSimilarityUtils.normalizeBody("[2条]...验证码：088864，2分钟后即失效，赶紧和luckin打个招呼吧！"),
         )
     }
 
