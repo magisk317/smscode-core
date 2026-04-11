@@ -6,6 +6,7 @@ object SmsMsgCursorContract {
         "sender",
         "body",
         "date",
+        "processed_time",
         "company",
         "sms_code",
         "package_name",
@@ -24,6 +25,7 @@ object SmsMsgCursorContract {
             "sender" -> record.sender
             "body" -> record.body
             "date" -> record.date
+            "processed_time" -> record.processedTime
             "company" -> record.company
             "sms_code" -> record.smsCode
             "package_name" -> record.packageName

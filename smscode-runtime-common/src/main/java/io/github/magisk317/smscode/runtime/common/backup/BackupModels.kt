@@ -67,6 +67,8 @@ data class BackupSmsRecord(
     val body: String? = null,
     @SerialName("date")
     val date: Long = 0,
+    @SerialName("processedTime")
+    val processedTime: Long = 0L,
     @SerialName("company")
     val company: String? = null,
     @SerialName("code")

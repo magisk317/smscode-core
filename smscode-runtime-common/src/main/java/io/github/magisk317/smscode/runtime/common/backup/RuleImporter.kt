@@ -119,6 +119,9 @@ class RuleImporter(private val jsonStream: InputStream?) : Closeable {
                     date = datePrimitive?.longOrNull
                         ?: datePrimitive?.contentOrNull?.toLongOrNull()
                         ?: 0L,
+                    processedTime = obj["processedTime"]?.jsonPrimitive?.longOrNull
+                        ?: obj["processedTime"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+                        ?: 0L,
                     company = obj["company"]?.jsonPrimitive?.contentOrNull,
                     smsCode = obj["code"]?.jsonPrimitive?.contentOrNull,
                     packageName = obj["packageName"]?.jsonPrimitive?.contentOrNull,

@@ -5,6 +5,7 @@ interface SmsMsgRecord {
     val sender: String?
     val body: String?
     val date: Long
+    val processedTime: Long
     val company: String?
     val smsCode: String?
     val packageName: String?
