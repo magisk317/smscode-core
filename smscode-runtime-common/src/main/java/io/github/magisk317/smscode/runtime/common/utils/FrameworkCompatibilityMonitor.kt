@@ -2,6 +2,17 @@ package io.github.magisk317.smscode.runtime.common.utils
 
 object FrameworkCompatibilityMonitor {
 
+    private val officialLsposedKeywords = listOf(
+        "lsposed",
+        "zygisk_lsposed",
+        "riru_lsposed",
+    )
+
+    private val incompatibleNameKeywords = listOf(
+        "vector",
+        "jingmatrix",
+    )
+
     enum class FrameworkIssueType {
         KNOWN_INCOMPATIBLE_FRAMEWORK,
         HOOKER_ANNOTATION_INCOMPATIBLE,
@@ -41,13 +52,17 @@ object FrameworkCompatibilityMonitor {
     }
 
     private fun isKnownIncompatibleFramework(frameworkInfo: FrameworkInfo): Boolean {
-        val tokens = listOfNotNull(
-            frameworkInfo.name,
-            frameworkInfo.moduleId,
-            frameworkInfo.author,
-        ).joinToString(" ").lowercase()
-        return tokens.contains("jingmatrix") ||
-            tokens.contains("zygisk_vector") ||
-            tokens.contains(" vector")
+        val name = frameworkInfo.name.lowercase()
+        val moduleId = frameworkInfo.moduleId?.lowercase().orEmpty()
+        val author = frameworkInfo.author?.lowercase().orEmpty()
+        val officialLsposedDetected = listOf(name, moduleId).any { candidate ->
+            officialLsposedKeywords.any(candidate::contains)
+        }
+        if (officialLsposedDetected) {
+            return false
+        }
+        return listOf(name, moduleId).any { candidate ->
+            incompatibleNameKeywords.any(candidate::contains)
+        } || author.contains("jingmatrix")
     }
 }
