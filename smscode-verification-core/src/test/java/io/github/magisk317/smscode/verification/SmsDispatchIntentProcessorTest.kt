@@ -2,11 +2,9 @@ package io.github.magisk317.smscode.verification
 
 import android.content.Context
 import android.content.Intent
+import dev.mokkery.MockMode.autofill
+import dev.mokkery.mock
 import io.github.magisk317.smscode.xposed.utils.XLog
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -18,15 +16,15 @@ class SmsDispatchIntentProcessorTest {
 
     @AfterEach
     fun tearDown() {
-        unmockkAll()
+        XLog.setTestSink(null)
     }
 
     @Test
     fun handle_passesParsedSmsIntoBlacklistAndDecisionPipeline() {
         stubXLog()
-        val pluginContext = mockk<Context>(relaxed = true)
-        val phoneContext = mockk<Context>(relaxed = true)
-        val intent = mockk<Intent>(relaxed = true)
+        val pluginContext = mock<Context>(autofill)
+        val phoneContext = mock<Context>(autofill)
+        val intent = Intent()
         var matchedSender: String? = null
         var matchedBody: String? = null
         val parseResult = TestParseResult(isBlockSms = true)
@@ -68,9 +66,9 @@ class SmsDispatchIntentProcessorTest {
     @Test
     fun handle_reportsNullParseResultWhenCodeWorkerMisses() {
         stubXLog()
-        val pluginContext = mockk<Context>(relaxed = true)
-        val phoneContext = mockk<Context>(relaxed = true)
-        val intent = mockk<Intent>(relaxed = true)
+        val pluginContext = mock<Context>(autofill)
+        val phoneContext = mock<Context>(autofill)
+        val intent = Intent()
         val processor = SmsDispatchIntentProcessor<TestSmsMessage>(
             pluginContext = pluginContext,
             phoneContext = phoneContext,
@@ -90,7 +88,6 @@ class SmsDispatchIntentProcessorTest {
     }
 
     private fun stubXLog() {
-        mockkObject(XLog)
-        every { XLog.w(any(), *anyVararg()) } returns Unit
+        XLog.setTestSink { _, _ -> }
     }
 }

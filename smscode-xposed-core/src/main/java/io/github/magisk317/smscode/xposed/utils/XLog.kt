@@ -8,10 +8,19 @@ import java.util.IllegalFormatException
 object XLog {
 
     @Volatile
+    private var testSink: ((Int, String) -> Unit)? = null
+
+    @Volatile
     private var sLogLevel = CoreRuntime.access.logLevel
 
     private fun log(priority: Int, message: String, vararg args: Any?) {
         if (priority < sLogLevel) return
+
+        val activeTestSink = testSink
+        if (activeTestSink != null) {
+            activeTestSink(priority, formatMessageForTest(message, args))
+            return
+        }
 
         val runtime = CoreRuntime.access
         val logTag = runtime.logTag
@@ -39,6 +48,21 @@ object XLog {
         }
 
         CoreLogSinkHolder.append(priority, logTag, logMessage)
+    }
+
+    private fun formatMessageForTest(message: String, args: Array<out Any?>): String {
+        val lastArg = args.lastOrNull()
+        return if (lastArg is Throwable) {
+            message + '\n' + lastArg.stackTraceToString()
+        } else if (args.isNotEmpty()) {
+            try {
+                String.format(message, *args)
+            } catch (_: IllegalFormatException) {
+                message
+            }
+        } else {
+            message
+        }
     }
 
     @JvmStatic
@@ -73,4 +97,9 @@ object XLog {
 
     @JvmStatic
     fun getLogLevel(): Int = sLogLevel
+
+    @JvmStatic
+    fun setTestSink(sink: ((Int, String) -> Unit)?) {
+        testSink = sink
+    }
 }

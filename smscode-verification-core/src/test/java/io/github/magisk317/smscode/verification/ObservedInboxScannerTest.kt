@@ -1,7 +1,8 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Context
-import io.mockk.mockk
+import dev.mokkery.MockMode.autofill
+import dev.mokkery.mock
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -10,8 +11,8 @@ class ObservedInboxScannerTest {
 
     @Test
     fun scan_filtersDuplicateAndBlankCodeRows() {
-        val pluginContext = mockk<Context>(relaxed = true)
-        val phoneContext = mockk<Context>(relaxed = true)
+        val pluginContext = mock<Context>(autofill)
+        val phoneContext = mock<Context>(autofill)
         val scanner = ObservedInboxScanner(
             pluginContext = pluginContext,
             phoneContext = phoneContext,
@@ -60,8 +61,8 @@ class ObservedInboxScannerTest {
 
     @Test
     fun scan_keepsExplicitTriggerUri() {
-        val pluginContext = mockk<Context>(relaxed = true)
-        val phoneContext = mockk<Context>(relaxed = true)
+        val pluginContext = mock<Context>(autofill)
+        val phoneContext = mock<Context>(autofill)
         val scanner = ObservedInboxScanner(
             pluginContext = pluginContext,
             phoneContext = phoneContext,
@@ -89,8 +90,8 @@ class ObservedInboxScannerTest {
 
     @Test
     fun scan_passesTriggeredSmsIdToLoader() {
-        val pluginContext = mockk<Context>(relaxed = true)
-        val phoneContext = mockk<Context>(relaxed = true)
+        val pluginContext = mock<Context>(autofill)
+        val phoneContext = mock<Context>(autofill)
         var receivedTriggeredSmsId: Long? = null
         val scanner = ObservedInboxScanner(
             pluginContext = pluginContext,

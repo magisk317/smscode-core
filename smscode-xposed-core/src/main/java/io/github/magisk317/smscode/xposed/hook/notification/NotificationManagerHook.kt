@@ -668,15 +668,17 @@ class NotificationManagerHook : BaseHook() {
 
     private fun extractLikelyVerificationCode(content: String): String {
         val normalized = content.lowercase(Locale.ROOT)
-        if (!containsAnyKeyword(normalized, VERIFICATION_KEYWORDS)) return ""
+        val keywordPositions = extractVerificationKeywordPositions(normalized)
+        if (keywordPositions.isEmpty()) return ""
         val candidates = VERIFICATION_CODE_PATTERN.findAll(content)
             .map { it.value }
             .filterNot { isLikelyDateTimeToken(it, content) }
+            .filterNot { isLikelyUrlToken(it, content) }
             .toList()
         if (candidates.isEmpty()) return ""
         return candidates.sortedWith(
             compareByDescending<String> { verificationCodePriority(it) }
-                .thenBy { distanceToVerificationKeyword(normalized, it.lowercase(Locale.ROOT)) },
+                .thenBy { distanceToVerificationKeyword(keywordPositions, normalized, it.lowercase(Locale.ROOT)) },
         ).first()
     }
 
@@ -687,13 +689,14 @@ class NotificationManagerHook : BaseHook() {
         else -> 1
     }
 
-    private fun distanceToVerificationKeyword(normalizedContent: String, candidate: String): Int {
+    private fun distanceToVerificationKeyword(
+        keywordPositions: List<Int>,
+        normalizedContent: String,
+        candidate: String,
+    ): Int {
         val candidateIndex = normalizedContent.indexOf(candidate)
         if (candidateIndex < 0) return normalizedContent.length
-        return VERIFICATION_KEYWORDS.minOfOrNull { keyword ->
-            val keywordIndex = normalizedContent.indexOf(keyword)
-            if (keywordIndex < 0) normalizedContent.length else kotlin.math.abs(keywordIndex - candidateIndex)
-        } ?: normalizedContent.length
+        return keywordPositions.minOfOrNull { kotlin.math.abs(it - candidateIndex) } ?: normalizedContent.length
     }
 
     private fun isLikelyDateTimeToken(candidate: String, content: String): Boolean {
@@ -703,6 +706,40 @@ class NotificationManagerHook : BaseHook() {
         val prev = content.getOrNull(candidateIndex - 1)
         val next = content.getOrNull(candidateIndex + candidate.length)
         return prev in DATE_TIME_UNIT_TOKENS || next in DATE_TIME_UNIT_TOKENS
+    }
+
+    private fun isLikelyUrlToken(candidate: String, content: String): Boolean {
+        val candidateIndex = content.indexOf(candidate)
+        if (candidateIndex < 0) return false
+        val prev = content.getOrNull(candidateIndex - 1)
+        val next = content.getOrNull(candidateIndex + candidate.length)
+        if (prev in URL_CONTEXT_TOKENS || next in URL_CONTEXT_TOKENS) {
+            return true
+        }
+        val contextStart = (candidateIndex - 8).coerceAtLeast(0)
+        val contextEnd = (candidateIndex + candidate.length + 8).coerceAtMost(content.length)
+        val nearby = content.substring(contextStart, contextEnd).lowercase(Locale.ROOT)
+        return nearby.contains("http://") || nearby.contains("https://") || nearby.contains("www.")
+    }
+
+    private fun extractVerificationKeywordPositions(normalizedText: String): List<Int> {
+        if (normalizedText.isBlank()) return emptyList()
+        val positions = mutableListOf<Int>()
+        CJK_VERIFICATION_KEYWORDS.forEach { keyword ->
+            var searchStart = 0
+            while (searchStart < normalizedText.length) {
+                val index = normalizedText.indexOf(keyword, startIndex = searchStart)
+                if (index < 0) break
+                positions += index
+                searchStart = index + keyword.length
+            }
+        }
+        LATIN_VERIFICATION_KEYWORD_PATTERNS.forEach { regex ->
+            regex.findAll(normalizedText).forEach { match ->
+                positions += match.range.first
+            }
+        }
+        return positions.sorted()
     }
 
     private fun getModuleEndpoint(systemContext: Context): ModuleEndpoint? {
@@ -1556,7 +1593,7 @@ class NotificationManagerHook : BaseHook() {
             "com.google.android.apps.messaging",
             "com.samsung.android.messaging",
         )
-        private val VERIFICATION_KEYWORDS = setOf(
+        private val CJK_VERIFICATION_KEYWORDS = setOf(
             "验证码",
             "校验码",
             "检验码",
@@ -1564,14 +1601,17 @@ class NotificationManagerHook : BaseHook() {
             "激活码",
             "动态码",
             "安全码",
-            "verification",
-            "verify",
-            "otp",
-            "passcode",
-            "pin",
-            "code",
+        )
+        private val LATIN_VERIFICATION_KEYWORD_PATTERNS = listOf(
+            Regex("(?<![a-z])verification(?![a-z])"),
+            Regex("(?<![a-z])verify(?![a-z])"),
+            Regex("(?<![a-z])otp(?![a-z])"),
+            Regex("(?<![a-z])passcode(?![a-z])"),
+            Regex("(?<![a-z])pin(?![a-z])"),
+            Regex("(?<![a-z])code(?![a-z])"),
         )
         private val DATE_TIME_UNIT_TOKENS = setOf('年', '月', '日', '号', '时', '點', '点', '分', '秒')
+        private val URL_CONTEXT_TOKENS = setOf('.', '/', ':', '?', '&', '=', '#', '%')
         private val VERIFICATION_CODE_PATTERN = Regex("\\b[A-Za-z0-9]{4,10}\\b")
         private val COMPANY_PATTERN = Regex("(?<=【)[^】]+(?=】)|(?<=\\[)[^]]+(?=])")
         private val MISSED_CALL_KEYWORDS = setOf(

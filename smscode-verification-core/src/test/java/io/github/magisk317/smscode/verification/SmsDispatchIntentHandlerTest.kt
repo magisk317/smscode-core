@@ -2,11 +2,9 @@ package io.github.magisk317.smscode.verification
 
 import android.content.Context
 import android.content.Intent
+import dev.mokkery.MockMode.autofill
+import dev.mokkery.mock
 import io.github.magisk317.smscode.xposed.utils.XLog
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -18,7 +16,7 @@ class SmsDispatchIntentHandlerTest {
 
     @AfterEach
     fun tearDown() {
-        unmockkAll()
+        XLog.setTestSink(null)
     }
 
     @Test
@@ -33,7 +31,7 @@ class SmsDispatchIntentHandlerTest {
         )
 
         val outcome = handler.handle(
-            intent = mockk(relaxed = true),
+            intent = Intent(),
             eventId = "evt-1",
             inboundSmsHandler = Any(),
             receiver = Any(),
@@ -63,7 +61,7 @@ class SmsDispatchIntentHandlerTest {
         )
 
         val outcome = handler.handle(
-            intent = mockk(relaxed = true),
+            intent = Intent(),
             eventId = "evt-2",
             inboundSmsHandler = Any(),
             receiver = Any(),
@@ -104,7 +102,7 @@ class SmsDispatchIntentHandlerTest {
         )
 
         val outcome = handler.handle(
-            intent = mockk(relaxed = true),
+            intent = Intent(),
             eventId = "evt-3",
             inboundSmsHandler = Any(),
             receiver = Any(),
@@ -147,7 +145,7 @@ class SmsDispatchIntentHandlerTest {
         )
 
         val outcome = handler.handle(
-            intent = mockk(relaxed = true),
+            intent = Intent(),
             eventId = "evt-4",
             inboundSmsHandler = Any(),
             receiver = Any(),
@@ -160,15 +158,12 @@ class SmsDispatchIntentHandlerTest {
 
     private fun runtime(): VerificationRuntimeContext {
         return object : VerificationRuntimeContext {
-            override val pluginContext: Context = mockk(relaxed = true)
-            override val phoneContext: Context = mockk(relaxed = true)
+            override val pluginContext: Context = mock<Context>(autofill)
+            override val phoneContext: Context = mock<Context>(autofill)
         }
     }
 
     private fun stubXLog() {
-        mockkObject(XLog)
-        every { XLog.w(any(), *anyVararg()) } returns Unit
-        every { XLog.i(any(), *anyVararg()) } returns Unit
-        every { XLog.e(any(), *anyVararg()) } returns Unit
+        XLog.setTestSink { _, _ -> }
     }
 }
