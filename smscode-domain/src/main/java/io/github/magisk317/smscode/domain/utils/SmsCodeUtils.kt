@@ -78,6 +78,23 @@ object SmsCodeUtils {
         return matcher.find()
     }
 
+    private fun isNearToKeyword(keyword: String, match: MatchResult, content: String): Boolean {
+        if (keyword.isEmpty()) return true
+        
+        var minDistance = Int.MAX_VALUE
+        var keywordIndex = content.indexOf(keyword)
+        while (keywordIndex != -1) {
+            val distance = Math.abs(match.range.first - keywordIndex)
+            if (distance < minDistance) {
+                minDistance = distance
+            }
+            keywordIndex = content.indexOf(keyword, keywordIndex + 1)
+        }
+        
+        if (minDistance == Int.MAX_VALUE) return false
+        return minDistance < KEYWORD_DISTANCE_THRESHOLD
+    }
+
     private fun parseKeyword(keywordsRegex: String, content: String): String {
         if (keywordsRegex.isBlank()) return ""
         val pattern = Pattern.compile(keywordsRegex)
@@ -123,7 +140,7 @@ object SmsCodeUtils {
     }
 
     private fun getSmsCodeEN(keyword: String, content: String): String {
-        val codeRegex = BuiltinSmsCodeRules.DEFAULT_DIGITS_CODE_REGEX
+        val codeRegex = "(?<![a-zA-Z0-9])[0-9]{4,8}(?![a-zA-Z0-9])"
         var smsCode = getSmsCode(codeRegex, keyword, content)
         if (smsCode.isEmpty()) {
             val handledContent = removeAllWhiteSpaces(content)
@@ -148,7 +165,11 @@ object SmsCodeUtils {
 
         var filteredCodes = possibleCodes.filter { isNearToKeyword(keyword, it, content) }
         if (filteredCodes.isEmpty()) {
-            filteredCodes = possibleCodes
+            if (keyword.isEmpty()) {
+                filteredCodes = possibleCodes
+            } else {
+                return ""
+            }
         }
 
         var maxMatchLevel = LEVEL_NONE
