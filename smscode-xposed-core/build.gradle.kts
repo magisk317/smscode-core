@@ -24,8 +24,8 @@ android {
 }
 
 dependencies {
-    compileOnly("io.github.libxposed:api:101.0.0")
-    compileOnly("androidx.annotation:annotation:1.9.1")
-    testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.0.3")
+    compileOnly(libs.libxposed.api)
+    compileOnly(libs.androidx.annotation)
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
