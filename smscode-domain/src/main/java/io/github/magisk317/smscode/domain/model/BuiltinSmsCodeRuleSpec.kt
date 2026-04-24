@@ -11,7 +11,7 @@ object BuiltinSmsCodeRules {
     const val RULE_ID_DIGITS = "default_digits"
     const val KEYWORD_SETTING_HINT = "\$keyword_setting"
     const val DEFAULT_ALPHANUMERIC_CODE_REGEX = "(?<![a-zA-Z0-9])[a-zA-Z0-9]{4,8}(?![a-zA-Z0-9])"
-    const val DEFAULT_DIGITS_CODE_REGEX = "(?<![0-9])[0-9]{4,8}(?![0-9])"
+    const val DEFAULT_DIGITS_CODE_REGEX = "(?<![a-zA-Z0-9])[0-9]{4,8}(?![a-zA-Z0-9])"
 
     val all: List<BuiltinSmsCodeRuleSpec> = listOf(
         BuiltinSmsCodeRuleSpec(
