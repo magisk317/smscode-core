@@ -8,6 +8,7 @@ import java.util.HashMap
 
 /**
  * Permission Constants
+ * Note: Some permission management hooks might require specialized handling for Android 15/16 (API 35/36).
  */
 object PermConst {
 
