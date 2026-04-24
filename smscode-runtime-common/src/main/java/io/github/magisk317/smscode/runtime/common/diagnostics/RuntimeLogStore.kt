@@ -40,6 +40,9 @@ object RuntimeLogStore {
     private val lock = Any()
     private val buffer = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
     private val pendingFileEntries = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
+    private val logExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "runtime-log-flusher").apply { isDaemon = true }
+    }
     private val fileTimestampFormatter = object : ThreadLocal<SimpleDateFormat>() {
         override fun initialValue(): SimpleDateFormat = SimpleDateFormat(FILE_TIMESTAMP_PATTERN, Locale.getDefault())
     }
@@ -101,15 +104,12 @@ object RuntimeLogStore {
                 while (buffer.size > MAX_BUFFER_SIZE) {
                     buffer.removeFirst()
                 }
-                if (!appendToFilesLocked(entry)) {
-                    pendingFileEntries.addLast(entry)
-                    while (pendingFileEntries.size > MAX_BUFFER_SIZE) {
-                        pendingFileEntries.removeFirst()
-                    }
-                    return@synchronized
+                pendingFileEntries.addLast(entry)
+                while (pendingFileEntries.size > MAX_BUFFER_SIZE) {
+                    pendingFileEntries.removeFirst()
                 }
-                flushPendingLocked()
             }
+            triggerFlush()
         }.onFailure {
             Log.w(
                 INTERNAL_TAG,
@@ -223,9 +223,24 @@ object RuntimeLogStore {
         val applicationId = RuntimeDiagnosticsEnvironment.current().applicationId
         if (applicationId.isBlank()) return app
         if (app.packageName == applicationId) return app
+
+        // Skip direct file writing for system_server or processes with different UIDs
+        // as they likely won't have permission to write to the app's data directory.
+        if (android.os.Process.myUid() == 1000 || android.os.Process.myUid() == 0) {
+            return app
+        }
+
         return runCatching {
             app.createPackageContext(applicationId, Context.CONTEXT_IGNORE_SECURITY)
         }.getOrElse { app }
+    }
+
+    private fun triggerFlush() {
+        logExecutor.execute {
+            synchronized(lock) {
+                flushPendingLocked()
+            }
+        }
     }
 
     private fun appendToFilesLocked(entry: RuntimeLogEntry): Boolean {
