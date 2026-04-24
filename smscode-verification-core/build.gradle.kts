@@ -38,7 +38,7 @@ dependencies {
     implementation(project(smscodeXposedCorePath))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
-    testImplementation(libs.mokkery.runtime-jvm)
+    testImplementation(libs.mokkery.runtime.jvm)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
