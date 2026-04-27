@@ -3,13 +3,20 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import dev.mokkery.MockMode.autofill
 import dev.mokkery.mock
+import io.github.magisk317.smscode.xposed.utils.XLog
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class AutoInputActionHelperTest {
+    @AfterEach
+    fun tearDown() {
+        XLog.setTestSink(null)
+    }
 
     @Test
     fun run_skipsSecondDispatchWhenCodeMatchesWithinWindow() {
+        XLog.setTestSink { _, _ -> }
         val pluginContext = mock<Context>(autofill)
         val phoneContext = mock<Context>(autofill)
         val sentCodes = mutableListOf<String>()
