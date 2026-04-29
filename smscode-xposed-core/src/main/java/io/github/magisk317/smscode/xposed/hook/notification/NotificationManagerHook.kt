@@ -7,9 +7,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
-import android.content.pm.ProviderInfo
 import android.content.pm.ResolveInfo
-import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import android.os.Process
@@ -20,6 +18,7 @@ import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
 import io.github.magisk317.smscode.xposed.hookapi.LoadParam
 import io.github.magisk317.smscode.xposed.hookapi.MethodHook
 import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
+import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
 import io.github.magisk317.smscode.xposed.utils.NotificationLogSanitizer
 import io.github.magisk317.smscode.xposed.utils.XLog
@@ -31,14 +30,10 @@ import java.util.Locale
 class NotificationManagerHook : BaseHook() {
     private data class ModuleEndpoint(
         val packageName: String,
-        val prefAuthority: String,
     )
 
     @Volatile
     private var cachedEndpoint: ModuleEndpoint? = null
-
-    @Volatile
-    private var cachedIpcToken: String? = null
 
     @Volatile
     private var cachedForceStopRecoveryEnabled: Boolean? = null
@@ -241,11 +236,7 @@ class NotificationManagerHook : BaseHook() {
         }
         forwardIntent.putExtra("company", companyLabel)
 
-        val token = resolveIpcToken(
-            systemContext = systemContext,
-            endpoint = endpoint,
-            callerPackageHint = pkg,
-        )
+        val token = resolveIpcToken(callerPackageHint = pkg)
         if (token.isBlank()) {
             XLog.w(
                 "NotificationManagerHook: ipc token empty, continue forwarding with receiver-side bypass. pkg=%s",
@@ -254,11 +245,7 @@ class NotificationManagerHook : BaseHook() {
         } else {
             forwardIntent.putExtra("ipc_token", token)
         }
-        val sensitiveDebugLog = isSensitiveDebugLogEnabled(
-            systemContext = systemContext,
-            endpoint = endpoint,
-            callerPackageHint = pkg,
-        )
+        val sensitiveDebugLog = isSensitiveDebugLogEnabled(callerPackageHint = pkg)
 
         XLog.i(
             "NotificationManagerHook intercepted: pkg=%s event=%s type=%s callType=%d title=%s body=%s",
@@ -757,25 +744,18 @@ class NotificationManagerHook : BaseHook() {
         resolveForwardReceiverPackages(systemContext).forEach { candidates.add(it) }
         CoreRuntime.access.applicationId.takeIf { it.isNotBlank() }?.let { candidates.add(it) }
         candidates.add("io.github.magisk317.relay")
-        var fallbackCandidate: String? = null
 
         for (packageName in candidates) {
-            val prefAuthority = "$packageName.pref.provider"
             runNonFatalCatching {
-                val prefProviderPackage = resolveProviderPackage(systemContext, prefAuthority)
-                if (prefProviderPackage == packageName) {
+                if (isPackageInstalled(systemContext, packageName)) {
                     return ModuleEndpoint(
                         packageName = packageName,
-                        prefAuthority = prefAuthority,
                     )
                 }
-                if (fallbackCandidate == null && isPackageInstalled(systemContext, packageName)) {
-                    fallbackCandidate = packageName
-                }
                 XLog.w(
-                    "NotificationManagerHook: candidate %s rejected. prefProvider=%s",
+                    "NotificationManagerHook: candidate %s rejected. installed=%s",
                     packageName,
-                    prefProviderPackage ?: "<null>",
+                    false,
                 )
             }.onFailure { t ->
                 XLog.w(
@@ -784,16 +764,6 @@ class NotificationManagerHook : BaseHook() {
                     t.message ?: t.javaClass.simpleName,
                 )
             }
-        }
-        if (!fallbackCandidate.isNullOrBlank()) {
-            XLog.w(
-                "NotificationManagerHook: using unverified endpoint fallback package=%s",
-                fallbackCandidate,
-            )
-            return ModuleEndpoint(
-                packageName = fallbackCandidate,
-                prefAuthority = "$fallbackCandidate.pref.provider",
-            )
         }
         return null
     }
@@ -816,192 +786,65 @@ class NotificationManagerHook : BaseHook() {
         }
     }
 
-    private fun resolveProviderPackage(systemContext: Context, authority: String): String? {
-        return runNonFatalCatching {
-            val info = resolveContentProviderCompat(systemContext.packageManager, authority)
-            info?.packageName
-        }.getOrElse { t ->
-            XLog.w(
-                "NotificationManagerHook: resolveContentProvider(%s) failed: %s",
-                authority,
-                t.message ?: t.javaClass.simpleName,
-            )
-            null
-        }
-    }
-
-    private fun queryPrefString(
-        systemContext: Context,
-        endpoint: ModuleEndpoint,
-        key: String,
-        defaultValue: String,
-        callerPackageHint: String? = null,
-    ): String = queryPrefStringValue(
-        systemContext = systemContext,
-        modulePackageName = endpoint.packageName,
-        authority = endpoint.prefAuthority,
-        typePath = "string",
-        key = key,
-        defaultValue = defaultValue,
-        callerPackageHint = callerPackageHint,
-    )
-
-    private fun queryPrefBoolean(
-        systemContext: Context,
-        endpoint: ModuleEndpoint,
-        key: String,
-        defaultValue: Boolean,
-        callerPackageHint: String? = null,
-    ): Boolean = queryPrefBooleanValue(
-        systemContext = systemContext,
-        modulePackageName = endpoint.packageName,
-        authority = endpoint.prefAuthority,
-        typePath = "bool",
-        key = key,
-        defaultValue = defaultValue,
-        callerPackageHint = callerPackageHint,
-    )
-
     private fun resolveIpcToken(
-        systemContext: Context,
-        endpoint: ModuleEndpoint,
         callerPackageHint: String? = null,
     ): String {
-        val freshToken = queryPrefString(
-            systemContext = systemContext,
-            endpoint = endpoint,
+        val freshToken = readCorePrefString(
             key = NotificationHookConst.KEY_IPC_TOKEN,
             defaultValue = "",
             callerPackageHint = callerPackageHint,
         )
         if (freshToken.isNotBlank()) {
-            if (cachedIpcToken != freshToken) {
-                XLog.d("NotificationManagerHook: ipc token refreshed from provider")
-            }
-            cachedIpcToken = freshToken
+            XLog.d("NotificationManagerHook: ipc token resolved from CorePrefs")
             return freshToken
-        }
-
-        val cached = cachedIpcToken
-        if (!cached.isNullOrBlank()) {
-            XLog.w(
-                "NotificationManagerHook: ipc token provider unavailable, using cached token. caller=%s",
-                callerPackageHint ?: "<none>",
-            )
-            return cached
         }
         return ""
     }
 
     private fun isSensitiveDebugLogEnabled(
-        systemContext: Context,
-        endpoint: ModuleEndpoint,
         callerPackageHint: String? = null,
     ): Boolean {
         if (!CoreRuntime.access.debug) return false
-        return queryPrefBoolean(
-            systemContext = systemContext,
-            endpoint = endpoint,
+        return readCorePrefBoolean(
             key = NotificationHookConst.KEY_SENSITIVE_DEBUG_LOG_MODE,
             defaultValue = false,
             callerPackageHint = callerPackageHint,
         )
     }
 
-    private fun queryPrefBooleanValue(
-        systemContext: Context,
-        modulePackageName: String,
-        authority: String,
-        typePath: String,
+    private fun readCorePrefBoolean(
         key: String,
         defaultValue: Boolean,
         callerPackageHint: String? = null,
     ): Boolean {
-        val defaultString = if (defaultValue) "1" else "0"
-        val value = queryPrefStringValue(
-            systemContext = systemContext,
-            modulePackageName = modulePackageName,
-            authority = authority,
-            typePath = typePath,
-            key = key,
-            defaultValue = defaultString,
-            callerPackageHint = callerPackageHint,
-        )
-        return value == "1" || value.equals("true", ignoreCase = true)
+        return runNonFatalCatching {
+            CorePrefs.getBoolean(key, defaultValue)
+        }.getOrElse { t ->
+            XLog.w(
+                "NotificationManagerHook: CorePrefs boolean failed. key=%s err=%s caller=%s",
+                key,
+                t.message ?: t.javaClass.simpleName,
+                callerPackageHint ?: "<none>",
+            )
+            defaultValue
+        }
     }
 
-    private fun queryPrefStringValue(
-        systemContext: Context,
-        modulePackageName: String,
-        authority: String,
-        typePath: String,
+    private fun readCorePrefString(
         key: String,
         defaultValue: String,
         callerPackageHint: String? = null,
     ): String {
-        val uri = Uri.parse("content://$authority/$typePath")
-            .buildUpon()
-            .appendQueryParameter("key", key)
-            .appendQueryParameter("default", defaultValue)
-            .build()
-        val primary = withClearedCallingIdentity("queryPref:$authority/$key") {
-            queryPrefStringInternal(systemContext, uri, defaultValue)
-        }
-        if (primary != null) return primary
-
-        val fallbackContext = tryCreatePackageContext(systemContext, modulePackageName)
-        if (fallbackContext != null) {
-            val fallback = withClearedCallingIdentity("queryPrefFallback:$authority/$key") {
-                queryPrefStringInternal(fallbackContext, uri, defaultValue)
-            }
-            if (fallback != null) {
-                XLog.d(
-                    "NotificationManagerHook: query pref fallback succeeded. authority=%s key=%s module=%s caller=%s",
-                    authority,
-                    key,
-                    modulePackageName,
-                    callerPackageHint ?: "<none>",
-                )
-                return fallback
-            }
-        }
-        XLog.w(
-            "NotificationManagerHook: query pref unavailable. authority=%s key=%s module=%s caller=%s",
-            authority,
-            key,
-            modulePackageName,
-            callerPackageHint ?: "<none>",
-        )
-        return defaultValue
-    }
-
-    private fun queryPrefStringInternal(context: Context, uri: Uri, defaultValue: String): String? {
         return runNonFatalCatching {
-            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    cursor.getString(0) ?: defaultValue
-                } else {
-                    defaultValue
-                }
-            } ?: run {
-                XLog.w("NotificationManagerHook: pref query returned null cursor. uri=%s", uri)
-                null
-            }
+            CorePrefs.getString(key, defaultValue)
         }.getOrElse { t ->
             XLog.w(
-                "NotificationManagerHook: pref query failed. uri=%s err=%s callerUid=%d selfUid=%d",
-                uri,
+                "NotificationManagerHook: CorePrefs string failed. key=%s err=%s caller=%s",
+                key,
                 t.message ?: t.javaClass.simpleName,
-                Binder.getCallingUid(),
-                Process.myUid(),
+                callerPackageHint ?: "<none>",
             )
-            null
-        }
-    }
-
-    private fun tryCreatePackageContext(systemContext: Context, packageName: String): Context? {
-        return runNonFatalOrNull {
-            systemContext.createPackageContext(packageName, contextIgnoreSecurityFlag())
+            defaultValue
         }
     }
 
@@ -1044,7 +887,7 @@ class NotificationManagerHook : BaseHook() {
                 return@withClearedCallingIdentity
             }
 
-            val recoveryEnabled = isForceStopRecoveryEnabled(systemContext, endpoint, sourcePackage)
+            val recoveryEnabled = isForceStopRecoveryEnabled(sourcePackage)
             val targetUsers = resolveTargetUsers(Binder.getCallingUid())
             if (recoveryEnabled) {
                 attemptForceStopRecoveryIfNeeded(
@@ -1118,8 +961,6 @@ class NotificationManagerHook : BaseHook() {
                     }
 
                     val relaunchOnceEnabled = isForceStopRecoveryRelaunchOnceEnabled(
-                        systemContext = systemContext,
-                        endpoint = endpoint,
                         callerPackageHint = sourcePackage,
                     )
                     val recovered = attemptForceStopRecoveryIfNeeded(
@@ -1187,8 +1028,6 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun isForceStopRecoveryEnabled(
-        systemContext: Context,
-        endpoint: ModuleEndpoint,
         callerPackageHint: String,
     ): Boolean {
         val now = System.currentTimeMillis()
@@ -1196,9 +1035,7 @@ class NotificationManagerHook : BaseHook() {
         if (cached != null && now - cachedForceStopRecoveryCheckedAt <= RECOVERY_PREF_CACHE_MS) {
             return cached
         }
-        val enabled = queryPrefBoolean(
-            systemContext = systemContext,
-            endpoint = endpoint,
+        val enabled = readCorePrefBoolean(
             key = NotificationHookConst.KEY_FORCE_STOP_RECOVERY,
             defaultValue = false,
             callerPackageHint = callerPackageHint,
@@ -1209,8 +1046,6 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun isForceStopRecoveryRelaunchOnceEnabled(
-        systemContext: Context,
-        endpoint: ModuleEndpoint,
         callerPackageHint: String,
     ): Boolean {
         val now = System.currentTimeMillis()
@@ -1218,9 +1053,7 @@ class NotificationManagerHook : BaseHook() {
         if (cached != null && now - cachedRecoveryRelaunchOnceCheckedAt <= RECOVERY_PREF_CACHE_MS) {
             return cached
         }
-        val enabled = queryPrefBoolean(
-            systemContext = systemContext,
-            endpoint = endpoint,
+        val enabled = readCorePrefBoolean(
             key = NotificationHookConst.KEY_FORCE_STOP_RECOVERY_RELAUNCH_ONCE,
             defaultValue = false,
             callerPackageHint = callerPackageHint,
@@ -1476,26 +1309,6 @@ class NotificationManagerHook : BaseHook() {
         return (result as? List<*>)?.filterIsInstance<ResolveInfo>().orEmpty()
     }
 
-    private fun resolveContentProviderCompat(
-        packageManager: PackageManager,
-        authority: String,
-    ): ProviderInfo? {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return packageManager.resolveContentProvider(
-                authority,
-                PackageManager.ComponentInfoFlags.of(packageManagerMatchAllFlag().toLong()),
-            )
-        }
-        return runNonFatalOrNull {
-            val method = packageManager.javaClass.getMethod(
-                "resolveContentProvider",
-                String::class.java,
-                Int::class.javaPrimitiveType,
-            )
-            method.invoke(packageManager, authority, packageManagerMatchAllFlag()) as? ProviderInfo
-        }
-    }
-
     private fun getPackageInfoCompat(
         packageManager: PackageManager,
         packageName: String,
@@ -1536,14 +1349,6 @@ class NotificationManagerHook : BaseHook() {
         }
     }
 
-    private fun contextIgnoreSecurityFlag(): Int {
-        return resolveStaticIntFieldOrDefault(
-            Context::class.java,
-            "CONTEXT_IGNORE_SECURITY",
-            CONTEXT_IGNORE_SECURITY_FALLBACK,
-        )
-    }
-
     private fun packageManagerMatchAllFlag(): Int {
         return resolveStaticIntFieldOrDefault(
             PackageManager::class.java,
@@ -1578,7 +1383,6 @@ class NotificationManagerHook : BaseHook() {
         private const val CALL_TYPE_REJECTED = 5
         private const val CALL_TYPE_BLOCKED = 6
         private const val CALL_TYPE_LABEL_DEFAULT = "通话通知"
-        private const val CONTEXT_IGNORE_SECURITY_FALLBACK = 0x00000002
         private const val PACKAGE_MANAGER_MATCH_ALL_FALLBACK = 0x00020000
         private val CALL_NOTIFY_PACKAGE_ALLOWLIST = setOf(
             "com.android.dialer",

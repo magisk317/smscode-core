@@ -8,3 +8,4 @@
 
 ### Changed
 - Clarified that parent repositories are expected to advance `smscode-core` in lockstep when shared behavior changes.
+- Switched shared notification hook config reads to `CorePrefs`; parent repositories must install `CorePrefsAccess` instead of relying on `*.pref.provider` fallback.

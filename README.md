@@ -26,6 +26,7 @@ Recommended public surface:
 ### `smscode-xposed-core`
 - Shared Xposed/libxposed compatibility layer and runtime glue.
 - Owns hook API abstractions, base hook classes, runtime logging/policy, and system input fallback helpers.
+- Hook-side shared configuration must be provided by parent repos via `io.github.magisk317.smscode.xposed.prefs.CorePrefs`.
 
 Recommended public surface:
 - `io.github.magisk317.smscode.xposed.hookapi`
@@ -45,6 +46,7 @@ Boundary rules:
 - Do not import `smscode-xposed-core` from pure UI modules unless the code is genuinely hook/runtime facing.
 - Do not duplicate verification orchestration in parent repositories when the behavior already exists in `smscode-verification-core`.
 - Keep Android process/runtime side effects out of `smscode-domain`.
+- Parent repositories must install `CorePrefsAccess` before shared hooks read module settings.
 
 ## Compatibility
 
