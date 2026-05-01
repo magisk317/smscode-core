@@ -34,13 +34,6 @@ data class UpgradeInfo(
     val signingCertSha256: String = "",
 )
 
-sealed class UpgradeCheckResult {
-    data class Structured(val info: UpgradeInfo) : UpgradeCheckResult()
-    data class ReleaseLink(val release: GithubReleaseInfo) : UpgradeCheckResult()
-    data object NoUpdate : UpgradeCheckResult()
-    data class CheckFailed(val message: String? = null) : UpgradeCheckResult()
-}
-
 data class GithubUpdateConfig(
     val latestReleaseApiUrl: String,
     val defaultReleaseHtmlUrl: String,
