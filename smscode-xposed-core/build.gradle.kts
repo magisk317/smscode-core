@@ -24,7 +24,12 @@ android {
 }
 
 dependencies {
-    implementation(project(":smscode-hook-core"))
+    val hookCoreProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:smscode-hook-core"
+    } else {
+        ":smscode-hook-core"
+    }
+    implementation(project(hookCoreProjectPath))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.junit.jupiter)
