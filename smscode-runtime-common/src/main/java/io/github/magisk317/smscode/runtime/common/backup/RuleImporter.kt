@@ -67,8 +67,18 @@ class RuleImporter(private val jsonStream: InputStream?) : Closeable {
             val company = ruleObject[BackupConst.KEY_COMPANY]?.jsonPrimitive?.content
             val codeKeyword = ruleObject[BackupConst.KEY_CODE_KEYWORD]?.jsonPrimitive?.content ?: ""
             val codeRegex = ruleObject[BackupConst.KEY_CODE_REGEX]?.jsonPrimitive?.content ?: ""
+            val senderRegex = ruleObject[BackupConst.KEY_SENDER_REGEX]?.jsonPrimitive?.contentOrNull
+            val packageNameHint = ruleObject[BackupConst.KEY_PACKAGE_NAME_HINT]?.jsonPrimitive?.contentOrNull
+            val priority = ruleObject[BackupConst.KEY_PRIORITY]?.jsonPrimitive?.intOrNull ?: 0
 
-            BackupRule(company = company, codeKeyword = codeKeyword, codeRegex = codeRegex)
+            BackupRule(
+                company = company,
+                codeKeyword = codeKeyword,
+                codeRegex = codeRegex,
+                senderRegex = senderRegex,
+                packageNameHint = packageNameHint,
+                priority = priority,
+            )
         } catch (e: IllegalArgumentException) {
             throw BackupInvalidException(e)
         } catch (e: IllegalStateException) {

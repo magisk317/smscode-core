@@ -1,12 +1,9 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
-
-data class ActivationStatusInputs(
-    val runtimeConnected: Boolean,
-    val hasHookHeartbeat: Boolean,
-    val hasLegacyActivationMarker: Boolean,
-)
+typealias ActivationDiagnosticsSnapshot = io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationDiagnosticsSnapshot
+typealias ActivationStatusInputs = io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationStatusInputs
+typealias ActivationStatusState = io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationStatusState
 
 data class RuntimeDiagnosticsConfig(
     val applicationId: String = "",

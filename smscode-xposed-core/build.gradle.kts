@@ -24,6 +24,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":smscode-hook-core"))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.junit.jupiter)

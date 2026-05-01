@@ -1,7 +1,5 @@
+@file:Suppress("unused")
+
 package io.github.magisk317.smscode.domain.model
 
-data class SmsCodeRuleSpec(
-    val company: String?,
-    val codeKeyword: String,
-    val codeRegex: String,
-)
+typealias SmsCodeRuleSpec = io.github.magisk317.smscode.rule.model.SmsCodeRuleSpec
