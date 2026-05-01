@@ -6,9 +6,4 @@ typealias UpgradeApkAsset = io.github.magisk317.smscode.runtime.contract.update.
 typealias UpgradeInfo = io.github.magisk317.smscode.runtime.contract.update.UpgradeInfo
 typealias GithubUpdateConfig = io.github.magisk317.smscode.runtime.contract.update.GithubUpdateConfig
 
-sealed class UpgradeCheckResult {
-    data class Structured(val info: UpgradeInfo) : UpgradeCheckResult()
-    data class ReleaseLink(val release: GithubReleaseInfo) : UpgradeCheckResult()
-    data object NoUpdate : UpgradeCheckResult()
-    data class CheckFailed(val message: String? = null) : UpgradeCheckResult()
-}
+typealias UpgradeCheckResult = io.github.magisk317.smscode.runtime.contract.update.UpgradeCheckResult
