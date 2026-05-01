@@ -29,7 +29,7 @@ dependencies {
     } else {
         ":smscode-hook-core"
     }
-    implementation(project(hookCoreProjectPath))
+    api(project(hookCoreProjectPath))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.junit.jupiter)
