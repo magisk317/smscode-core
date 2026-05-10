@@ -32,6 +32,7 @@ object LogBundleExporter {
         "/data/adb/lspd/log",
         "/data/adb/lspd/log.old",
     )
+    private val sensitiveTokenPattern = Regex("""(?i)(?:ipc_)?token=[^\s,"')}\]]+""")
     private val opLock = Any()
 
     @Suppress("TooGenericExceptionCaught")
@@ -84,7 +85,7 @@ object LogBundleExporter {
                     details += "lsposed log missing or unreadable"
                 }
 
-                captureLogcat(stagingDir, details)
+                captureLogcat(config.logTag, stagingDir, details)
 
                 File(stagingDir, "summary.txt").writeText(
                     buildString {
@@ -208,6 +209,7 @@ object LogBundleExporter {
             val hasAny = lsposedTargetRoot.exists() &&
                 (lsposedTargetRoot.listFiles()?.isNotEmpty() == true)
             if (hasAny) {
+                sanitizeDirectory(logTag, lsposedTargetRoot)
                 details += "lsposed copied via su"
                 return true
             }
@@ -216,23 +218,23 @@ object LogBundleExporter {
         return false
     }
 
-    private fun captureLogcat(stagingDir: File, details: MutableList<String>) {
+    private fun captureLogcat(logTag: String, stagingDir: File, details: MutableList<String>) {
         val logcatDir = File(stagingDir, "logcat")
         if (!ensureDirectory(logcatDir, recreateWhenFile = true)) return
         val output = File(logcatDir, "logcat_all.txt")
         val command = listOf("logcat", "-d", "-v", "threadtime", "-b", "all")
-        val ok = dumpCommandOutput(command, output)
+        val ok = dumpCommandOutput(command, output, logTag)
         if (ok) {
             details += "logcat: direct"
             return
         }
-        val okSu = dumpCommandOutput(listOf("su", "-c", "logcat -d -v threadtime -b all"), output)
+        val okSu = dumpCommandOutput(listOf("su", "-c", "logcat -d -v threadtime -b all"), output, logTag)
         if (okSu) {
             details += "logcat: su"
         }
     }
 
-    private fun dumpCommandOutput(command: List<String>, output: File): Boolean {
+    private fun dumpCommandOutput(command: List<String>, output: File, logTag: String): Boolean {
         return runCatching {
             val process = ProcessBuilder(command)
                 .redirectErrorStream(true)
@@ -244,6 +246,7 @@ object LogBundleExporter {
             if (process.isAlive) {
                 process.destroy()
             }
+            sanitizeTextLogFile(output, logTag)
             output.exists() && output.length() > 0
         }.getOrDefault(false)
     }
@@ -295,11 +298,41 @@ object LogBundleExporter {
                 }
                 runCatching {
                     file.copyTo(dest, overwrite = true)
+                    sanitizeTextLogFile(dest, logTag)
                 }.onFailure {
                     logWarn(logTag, "Skip copy file failed: src=${file.absolutePath} dst=${dest.absolutePath}")
                 }
             }
         }
+    }
+
+    private fun sanitizeDirectory(logTag: String, dir: File) {
+        dir.walkTopDown()
+            .filter { it.isFile }
+            .forEach { file -> sanitizeTextLogFile(file, logTag) }
+    }
+
+    private fun sanitizeTextLogFile(file: File, logTag: String) {
+        if (!shouldSanitizeLogFile(file)) return
+        runCatching {
+            val original = file.readText()
+            val sanitized = sensitiveTokenPattern.replace(original) { match ->
+                "${match.value.substringBefore('=')}=<redacted>"
+            }
+            if (sanitized != original) {
+                file.writeText(sanitized)
+            }
+        }.onFailure {
+            logWarn(logTag, "Skip log sanitization failed: ${file.absolutePath}")
+        }
+    }
+
+    private fun shouldSanitizeLogFile(file: File): Boolean {
+        val name = file.name.lowercase(Locale.ROOT)
+        return name.endsWith(".jsonl") ||
+            name.endsWith(".log") ||
+            name.endsWith(".txt") ||
+            name == "props"
     }
 
     private fun zipDirectory(logTag: String, sourceDir: File, outputZip: File) {
