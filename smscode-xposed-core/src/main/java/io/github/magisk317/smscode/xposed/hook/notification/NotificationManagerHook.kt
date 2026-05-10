@@ -1083,7 +1083,15 @@ class NotificationManagerHook : BaseHook() {
             } else {
                 false
             }
-            val warmedUp = wakeRecoveryService(systemContext, modulePackage, userHandle, reason, eventId)
+            val recoveryToken = resolveIpcToken(callerPackageHint = sourcePackage)
+            val warmedUp = wakeRecoveryService(
+                systemContext = systemContext,
+                modulePackage = modulePackage,
+                userHandle = userHandle,
+                reason = reason,
+                eventId = eventId,
+                token = recoveryToken,
+            )
             recovered = recovered || unstopped || warmedUp
             XLog.w(
                 "NotificationManagerHook: recovery attempted. module=%s source=%s event=%s user=%s stopped=%s unstopped=%s warmed=%s reason=%s",
@@ -1242,12 +1250,18 @@ class NotificationManagerHook : BaseHook() {
         userHandle: UserHandle,
         reason: String,
         eventId: String,
+        token: String,
     ): Boolean {
         val wakeIntent = Intent(NotificationHookConst.ACTION_FORCE_STOP_RECOVERY_WAKEUP).apply {
             setClassName(modulePackage, FORCE_STOP_RECOVERY_SERVICE_CLASS_NAME)
             addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
             putExtra(NotificationHookConst.EXTRA_FORCE_STOP_REASON, reason)
             putExtra(NotificationHookConst.EXTRA_FORCE_STOP_EVENT_ID, eventId)
+            if (token.isBlank()) {
+                XLog.w("NotificationManagerHook: recovery wake token empty; receiver may use legacy compat bypass")
+            } else {
+                putExtra(NotificationHookConst.EXTRA_IPC_TOKEN, token)
+            }
         }
         val startedAsUser = runCatching {
             HookHelpers.callMethod(systemContext, "startServiceAsUser", wakeIntent, userHandle)

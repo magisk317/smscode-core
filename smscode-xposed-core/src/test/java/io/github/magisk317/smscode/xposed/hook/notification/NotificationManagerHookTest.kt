@@ -53,6 +53,11 @@ class NotificationManagerHookTest {
     }
 
     @Test
+    fun `force stop wake uses shared ipc token extra key`() {
+        assertEquals(NotificationHookConst.KEY_IPC_TOKEN, NotificationHookConst.EXTRA_IPC_TOKEN)
+    }
+
+    @Test
     fun `uses core prefs for debug and recovery booleans`() {
         installCoreRuntime(debug = true)
         installCorePrefs(

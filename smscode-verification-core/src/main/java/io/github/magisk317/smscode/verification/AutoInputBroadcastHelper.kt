@@ -3,9 +3,12 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
+import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.utils.XLog
 
 object AutoInputBroadcastHelper {
+    const val EXTRA_IPC_TOKEN = "ipc_token"
+
     fun sendText(
         context: Context,
         text: String?,
@@ -13,6 +16,7 @@ object AutoInputBroadcastHelper {
         inputIntervalMs: Long = 0L,
         attemptId: Long? = null,
         actionResolver: () -> String,
+        tokenProvider: () -> String = { CorePrefs.getString(EXTRA_IPC_TOKEN, "") },
         broadcaster: (Context, Intent) -> Unit = { senderContext, intent ->
             senderContext.sendOrderedBroadcast(intent, null)
         },
@@ -24,6 +28,7 @@ object AutoInputBroadcastHelper {
             putExtra("autoEnter", autoEnter)
             putExtra("inputIntervalMs", inputIntervalMs)
             putExtra("attemptId", resolvedAttemptId)
+            normalizeIpcToken(tokenProvider())?.let { putExtra(EXTRA_IPC_TOKEN, it) }
         }
         broadcaster(context, intent)
         XLog.i(
@@ -34,4 +39,6 @@ object AutoInputBroadcastHelper {
             inputIntervalMs,
         )
     }
+
+    fun normalizeIpcToken(token: String?): String? = token?.trim()?.takeIf { it.isNotEmpty() }
 }

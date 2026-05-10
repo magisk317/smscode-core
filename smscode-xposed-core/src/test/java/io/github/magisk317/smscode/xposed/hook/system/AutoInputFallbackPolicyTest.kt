@@ -97,4 +97,12 @@ class AutoInputFallbackPolicyTest {
         assertTrue(result.success)
         assertEquals(2, invocation)
     }
+
+    @Test
+    fun normalizeIpcToken_trimsAndDropsBlankValues() {
+        assertEquals("token", SystemInputInjectorHook.normalizeIpcToken(" token "))
+        assertEquals(null, SystemInputInjectorHook.normalizeIpcToken(""))
+        assertEquals(null, SystemInputInjectorHook.normalizeIpcToken("   "))
+        assertEquals(null, SystemInputInjectorHook.normalizeIpcToken(null))
+    }
 }

@@ -26,6 +26,7 @@ import io.github.magisk317.smscode.xposed.hookapi.LoadParam
 import io.github.magisk317.smscode.xposed.hookapi.MethodHook
 import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
 import io.github.magisk317.smscode.xposed.hookapi.ZygoteParam
+import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
 import io.github.magisk317.smscode.xposed.utils.runNonFatalCatching
 import io.github.magisk317.smscode.xposed.utils.runNonFatalOrNull
@@ -757,6 +758,12 @@ class SystemInputInjectorHook : BaseHook() {
             if (!success && !reason.isNullOrBlank()) {
                 intent.putExtra("reason", reason)
             }
+            val token = normalizeIpcToken(CorePrefs.getString(KEY_IPC_TOKEN, ""))
+            if (token == null) {
+                XLog.w("Auto input result ipc token empty; receiver may use legacy compat bypass")
+            } else {
+                intent.putExtra(EXTRA_IPC_TOKEN, token)
+            }
             context.sendBroadcast(intent)
             XLog.w(
                 "Diag auto input result broadcast: attemptId=%d success=%s reason=%s",
@@ -791,11 +798,15 @@ class SystemInputInjectorHook : BaseHook() {
         fun resolveActionAutoInputResult(): String =
             "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT_RESULT"
 
+        const val KEY_IPC_TOKEN = "ipc_token"
+        const val EXTRA_IPC_TOKEN = KEY_IPC_TOKEN
         const val EXTRA_ACCESSIBILITY_HANDLED = "accessibility_handled"
         const val EXTRA_ACCESSIBILITY_SUCCESS = "accessibility_success"
         const val EXTRA_ACCESSIBILITY_REASON = "accessibility_reason"
         const val EXTRA_ACCESSIBILITY_STRATEGY = "accessibility_strategy"
         const val EXTRA_ACCESSIBILITY_WINDOW_PACKAGE = "accessibility_window_package"
+
+        fun normalizeIpcToken(token: String?): String? = token?.trim()?.takeIf { it.isNotEmpty() }
 
         private fun isSystemServerProcess(processName: String): Boolean {
             return processName == ANDROID_PACKAGE ||
