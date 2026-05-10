@@ -258,7 +258,9 @@ object SmsCodeUtils {
             if (lowerContent.contains(rule.company?.lowercase() ?: "") &&
                 lowerContent.contains(rule.codeKeyword.lowercase())
             ) {
-                val matcher = Pattern.compile(rule.codeRegex).matcher(content)
+                val matcher = runCatching {
+                    Pattern.compile(rule.codeRegex).matcher(content)
+                }.getOrNull() ?: continue
                 if (matcher.find()) {
                     return ParseCandidate(
                         code = matcher.group(),

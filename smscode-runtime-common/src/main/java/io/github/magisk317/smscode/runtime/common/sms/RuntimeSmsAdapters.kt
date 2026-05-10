@@ -13,7 +13,7 @@ fun interface SmsKeywordProvider {
 }
 
 fun interface SmsCodeRuleProvider {
-    fun getRuleSpecs(context: Context): List<SmsCodeRuleSpec>
+    suspend fun getRuleSpecs(context: Context): List<SmsCodeRuleSpec>
 }
 
 fun interface SmsPackageLabelResolver {

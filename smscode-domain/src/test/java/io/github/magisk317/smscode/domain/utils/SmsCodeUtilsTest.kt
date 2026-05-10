@@ -48,4 +48,27 @@ class SmsCodeUtilsTest {
 
         assertEquals("", result.code)
     }
+
+    @Test
+    fun `parse skips invalid custom rule and keeps later matching rule`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】验证码:246810",
+            keywordsRegex = "验证码",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "验证码",
+                    codeRegex = "[",
+                ),
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "验证码",
+                    codeRegex = "(?<=验证码:)\\d{6}",
+                ),
+            ),
+        )
+
+        assertEquals("246810", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.CUSTOM, result.matchedRule?.source)
+    }
 }
