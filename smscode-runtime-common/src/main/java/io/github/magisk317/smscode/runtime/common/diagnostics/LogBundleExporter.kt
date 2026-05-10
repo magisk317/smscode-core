@@ -58,6 +58,10 @@ object LogBundleExporter {
             try {
                 val appLogSrc = StorageUtils.getLogDir(context)
                 if (appLogSrc != null && appLogSrc.exists()) {
+                    val deletedLegacyLogs = RuntimeLogStore.deleteLegacyTextLogFiles(context)
+                    if (deletedLegacyLogs > 0) {
+                        details += "legacy runtime text logs cleared: $deletedLegacyLogs"
+                    }
                     val stagedAppLogDir = File(stagingDir, "app/log")
                     copyDirectory(config.logTag, appLogSrc, stagedAppLogDir)
                     details += "app log: ${appLogSrc.absolutePath}"
@@ -247,7 +251,7 @@ object LogBundleExporter {
     private fun summarizeRuntimeLogFiles(stagedAppLogDir: File): String {
         val runtimeFiles = stagedAppLogDir.listFiles().orEmpty()
             .filter { file ->
-                file.isFile && (file.name == "runtime.log" || file.name.startsWith("runtime."))
+                file.isFile && (file.name == "runtime.jsonl" || (file.name.startsWith("runtime.") && file.name.endsWith(".jsonl")))
             }
             .sortedBy { it.name }
         if (runtimeFiles.isEmpty()) return "runtime log files: 0"

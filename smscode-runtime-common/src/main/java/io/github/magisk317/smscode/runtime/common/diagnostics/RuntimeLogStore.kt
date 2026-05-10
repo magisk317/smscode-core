@@ -3,6 +3,14 @@ package io.github.magisk317.smscode.runtime.common.diagnostics
 import android.content.Context
 import android.util.Log
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -15,11 +23,41 @@ data class RuntimeLogEntry(
     val tag: String,
     val message: String,
     val route: String = RuntimeLogStore.ROUTE_APP,
+    val processName: String = "",
+    val pid: Int = 0,
+    val uid: Int = 0,
+    val threadName: String = "",
+    val threadId: Long = 0L,
+)
+
+data class RuntimeLogFileInfo(
+    val name: String,
+    val sizeBytes: Long,
+    val lineCount: Int,
+    val firstTimestamp: Long?,
+    val lastTimestamp: Long?,
+)
+
+data class RuntimeLogFileSummary(
+    val fileCount: Int,
+    val totalBytes: Long,
+    val entryCount: Int,
+    val firstTimestamp: Long?,
+    val lastTimestamp: Long?,
+    val files: List<RuntimeLogFileInfo>,
+)
+
+data class RuntimeLogFileContent(
+    val name: String,
+    val sizeBytes: Long,
+    val displayedLineCount: Int,
+    val truncated: Boolean,
+    val text: String,
 )
 
 object RuntimeLogStore {
     private const val INTERNAL_TAG = "RuntimeLogStore"
-    private const val LOG_FILE_NAME = "runtime.log"
+    private const val LOG_FILE_NAME = "runtime.jsonl"
     private const val MAX_BUFFER_SIZE = 1200
     private const val DEFAULT_RETENTION_DAYS = 7
     private const val MIN_RETENTION_DAYS = 1
@@ -40,8 +78,13 @@ object RuntimeLogStore {
     private val lock = Any()
     private val buffer = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
     private val pendingFileEntries = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
-    private val dailyRuntimeLogRegex = Regex("""^runtime\.\d{4}-\d{2}-\d{2}\.log$""")
-    private val dailyLogDateRegex = Regex("""^runtime(?:\.[^.]+)?\.(\d{4}-\d{2}-\d{2})\.log$""")
+    private val dailyRuntimeLogRegex = Regex("""^runtime\.\d{4}-\d{2}-\d{2}\.jsonl$""")
+    private val dailyLogDateRegex = Regex("""^runtime(?:\.[^.]+)?\.(\d{4}-\d{2}-\d{2})\.jsonl$""")
+    private val jsonLineParser = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+        isLenient = true
+    }
     private val logExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "runtime-log-flusher").apply { isDaemon = true }
     }
@@ -79,6 +122,7 @@ object RuntimeLogStore {
         appContext = resolvedContext.takeIf { isModuleContext(it) }
         enabled = enableDetailedLogs
         setRetentionDays(readConfiguredRetentionDays(appContext ?: context))
+        deleteLegacyTextLogFiles(appContext ?: context)
         flushPendingIfPossible()
     }
 
@@ -107,12 +151,18 @@ object RuntimeLogStore {
         if (!enabled && !force) return
         runCatching {
             val normalizedRoute = normalizeRoute(route)
+            val thread = Thread.currentThread()
             val entry = RuntimeLogEntry(
                 timestamp = System.currentTimeMillis(),
                 priority = priority,
                 tag = tag,
                 message = message,
                 route = normalizedRoute,
+                processName = currentProcessName(),
+                pid = android.os.Process.myPid(),
+                uid = android.os.Process.myUid(),
+                threadName = thread.name.orEmpty(),
+                threadId = currentThreadId(thread),
             )
             synchronized(lock) {
                 buffer.addLast(entry)
@@ -141,7 +191,7 @@ object RuntimeLogStore {
         val logDir = getLogDir() ?: return
         runCatching {
             logDir.listFiles()
-                ?.filter { isRuntimeLogFileName(it.name) }
+                ?.filter { isRuntimeLogFileName(it.name) || isLegacyTextLogFileName(it.name) }
                 ?.forEach { file ->
                     if (!file.delete()) {
                         file.writeText("")
@@ -153,7 +203,7 @@ object RuntimeLogStore {
     fun query(minutes: Int?, keyword: String?, limit: Int = 600): List<RuntimeLogEntry> {
         val memoryList = synchronized(lock) { buffer.toList() }
         val source = (readFromFiles() + memoryList)
-            .distinctBy { entry -> "${entry.timestamp}:${entry.priority}:${entry.tag}:${entry.message}" }
+            .distinctBy { entry -> "${entry.timestamp}:${entry.priority}:${entry.tag}:${entry.route}:${entry.message}" }
             .sortedBy { it.timestamp }
         val now = System.currentTimeMillis()
         val cutoff = if (minutes == null || minutes <= 0) Long.MIN_VALUE else now - minutes * 60_000L
@@ -195,13 +245,59 @@ object RuntimeLogStore {
         }.getOrNull()
     }
 
+    fun summarizeFiles(): RuntimeLogFileSummary {
+        val files = getRuntimeLogFiles()
+        val infos = files.map { summarizeFile(it) }
+        return RuntimeLogFileSummary(
+            fileCount = infos.size,
+            totalBytes = infos.sumOf { it.sizeBytes },
+            entryCount = infos.sumOf { it.lineCount },
+            firstTimestamp = infos.mapNotNull { it.firstTimestamp }.minOrNull(),
+            lastTimestamp = infos.mapNotNull { it.lastTimestamp }.maxOrNull(),
+            files = infos,
+        )
+    }
+
+    fun readLogFile(name: String, maxLines: Int = MAX_READ_LINES): RuntimeLogFileContent? {
+        val safeName = name.trim()
+        if (safeName.isBlank() || safeName != File(safeName).name) return null
+        val file = getRuntimeLogFiles().firstOrNull { it.name == safeName } ?: return null
+        val lineLimit = maxLines.coerceAtLeast(1)
+        val lines = readRecentLines(file, lineLimit)
+        return RuntimeLogFileContent(
+            name = file.name,
+            sizeBytes = file.length(),
+            displayedLineCount = lines.size,
+            truncated = lines.size >= lineLimit && file.length() > 0L,
+            text = lines.joinToString(separator = "\n"),
+        )
+    }
+
+    fun deleteLegacyTextLogFiles(context: Context? = null): Int {
+        val logDir = context?.let { StorageUtils.getLogDir(it) } ?: getLogDir() ?: return 0
+        var deleted = 0
+        runCatching {
+            logDir.listFiles()
+                .orEmpty()
+                .filter { it.isFile && isLegacyTextLogFileName(it.name) }
+                .forEach { file ->
+                    if (file.delete()) {
+                        deleted += 1
+                    } else {
+                        file.writeText("")
+                        deleted += 1
+                    }
+                }
+        }
+        return deleted
+    }
+
     private fun readFromFiles(): List<RuntimeLogEntry> {
         val files = getPrimaryLogFiles()
         if (files.isEmpty()) return emptyList()
         return runCatching {
             files.flatMap { file ->
-                file.readLines()
-                    .takeLast(MAX_READ_LINES)
+                readRecentLines(file, MAX_READ_LINES)
             }
                 .mapNotNull { decode(it) }
                 .sortedBy { it.timestamp }
@@ -209,13 +305,61 @@ object RuntimeLogStore {
         }.getOrDefault(emptyList())
     }
 
+    private fun readRecentLines(file: File, maxLines: Int): List<String> {
+        return runCatching {
+            val lines = ArrayDeque<String>(maxLines.coerceAtLeast(1))
+            file.bufferedReader().useLines { sequence ->
+                sequence.forEach { line ->
+                    lines.addLast(line)
+                    while (lines.size > maxLines) {
+                        lines.removeFirst()
+                    }
+                }
+            }
+            lines.toList()
+        }.getOrDefault(emptyList())
+    }
+
     private fun getPrimaryLogFiles(): List<File> {
+        return getRuntimeLogFiles()
+            .filter { isPrimaryRuntimeLogFileName(it.name) }
+            .sortedWith(compareBy<File> { runtimeLogSortTime(it) }.thenBy { it.name })
+    }
+
+    private fun getRuntimeLogFiles(): List<File> {
         val context = ensureAppContext() ?: return emptyList()
         val dir = StorageUtils.getLogDir(context) ?: return emptyList()
         return dir.listFiles()
             .orEmpty()
-            .filter { it.isFile && isPrimaryRuntimeLogFileName(it.name) }
+            .filter { it.isFile && isRuntimeLogFileName(it.name) }
             .sortedWith(compareBy<File> { runtimeLogSortTime(it) }.thenBy { it.name })
+    }
+
+    private fun summarizeFile(file: File): RuntimeLogFileInfo {
+        var lineCount = 0
+        var firstTimestamp: Long? = null
+        var lastTimestamp: Long? = null
+        runCatching {
+            file.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    val entry = decode(line) ?: return@forEach
+                    lineCount += 1
+                    if (firstTimestamp == null || entry.timestamp < firstTimestamp!!) {
+                        firstTimestamp = entry.timestamp
+                    }
+                    if (lastTimestamp == null || entry.timestamp > lastTimestamp!!) {
+                        lastTimestamp = entry.timestamp
+                    }
+                }
+            }
+        }
+        return RuntimeLogFileInfo(
+            name = file.name,
+            sizeBytes = file.length(),
+            lineCount = lineCount,
+            firstTimestamp = firstTimestamp,
+            lastTimestamp = lastTimestamp,
+        )
     }
 
     private fun getLogDir(): File? {
@@ -381,17 +525,23 @@ object RuntimeLogStore {
 
     private fun dailyLogFileName(baseFileName: String, timestamp: Long): String {
         val date = fileDateFormatter.get()?.format(Date(timestamp)) ?: timestamp.toString()
-        val stem = baseFileName.removeSuffix(".log")
-        return "$stem.$date.log"
+        val stem = baseFileName
+            .removeSuffix(".jsonl")
+            .removeSuffix(".log")
+        return "$stem.$date.jsonl"
     }
 
     private fun isRuntimeLogFileName(name: String): Boolean {
         return name == LOG_FILE_NAME ||
-            (name.startsWith("runtime.") && (name.endsWith(".log") || name.endsWith(".tmp")))
+            (name.startsWith("runtime.") && name.endsWith(".jsonl"))
     }
 
     private fun isPrimaryRuntimeLogFileName(name: String): Boolean {
         return name == LOG_FILE_NAME || dailyRuntimeLogRegex.matches(name)
+    }
+
+    private fun isLegacyTextLogFileName(name: String): Boolean {
+        return name == "runtime.log" || (name.startsWith("runtime.") && name.endsWith(".log"))
     }
 
     private fun runtimeLogSortTime(file: File): Long {
@@ -404,53 +554,65 @@ object RuntimeLogStore {
     }
 
     private fun encode(entry: RuntimeLogEntry): String {
-        return buildString {
-            append(formatFileTimestamp(entry.timestamp))
-            append('\t')
-            append(entry.timestamp)
-            append('\t')
-            append(entry.priority)
-            append('\t')
-            append(escape(entry.tag))
-            append('\t')
-            append(escape(entry.message))
-        }
+        return buildJsonObject {
+            put("timestamp", entry.timestamp)
+            put("time", formatFileTimestamp(entry.timestamp))
+            put("priority", entry.priority)
+            put("level", priorityName(entry.priority))
+            put("tag", entry.tag)
+            put("message", entry.message)
+            put("route", entry.route)
+            put("process", entry.processName)
+            put("pid", entry.pid)
+            put("uid", entry.uid)
+            put("thread", entry.threadName)
+            put("threadId", entry.threadId)
+        }.toString()
     }
 
     private fun decode(line: String): RuntimeLogEntry? {
-        val parts = line.split('\t')
-        if (parts.size < 4) return null
+        val trimmed = line.trim()
+        if (!trimmed.startsWith("{")) return null
+        return decodeJsonLine(trimmed)
+    }
 
-        val hasFormattedTimestamp = parts.size >= 5 && parts[1].toLongOrNull() != null
-        val tsIndex = if (hasFormattedTimestamp) 1 else 0
-        val priorityIndex = tsIndex + 1
-        val tagIndex = tsIndex + 2
-        val messageIndex = tsIndex + 3
-        if (parts.size <= messageIndex) return null
-
-        val ts = parts[tsIndex].toLongOrNull() ?: return null
-        val priority = parts[priorityIndex].toIntOrNull() ?: Log.INFO
-        val tag = unescape(parts[tagIndex])
-        val message = unescape(parts.subList(messageIndex, parts.size).joinToString("\t"))
-        return RuntimeLogEntry(ts, priority, tag, message, ROUTE_APP)
+    private fun decodeJsonLine(line: String): RuntimeLogEntry? {
+        return runCatching {
+            val jsonObject = jsonLineParser.parseToJsonElement(line).jsonObject
+            val timestamp = jsonObject["timestamp"]?.jsonPrimitive?.longOrNull
+                ?: jsonObject["ts"]?.jsonPrimitive?.longOrNull
+                ?: return null
+            val priority = jsonObject["priority"]?.jsonPrimitive?.intOrNull
+                ?: priorityFromName(jsonObject["level"]?.jsonPrimitive?.contentOrNull)
+                ?: Log.INFO
+            RuntimeLogEntry(
+                timestamp = timestamp,
+                priority = priority,
+                tag = jsonObject["tag"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                message = jsonObject["message"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                route = normalizeRoute(jsonObject["route"]?.jsonPrimitive?.contentOrNull),
+                processName = jsonObject["process"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                pid = jsonObject["pid"]?.jsonPrimitive?.intOrNull ?: 0,
+                uid = jsonObject["uid"]?.jsonPrimitive?.intOrNull ?: 0,
+                threadName = jsonObject["thread"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                threadId = jsonObject["threadId"]?.jsonPrimitive?.longOrNull ?: 0L,
+            )
+        }.getOrNull()
     }
 
     private fun formatFileTimestamp(timestamp: Long): String {
         return fileTimestampFormatter.get()?.format(Date(timestamp)) ?: timestamp.toString()
     }
 
-    private fun escape(value: String): String {
-        return value
-            .replace("\\", "\\\\")
-            .replace("\t", "\\t")
-            .replace("\n", "\\n")
+    private fun currentProcessName(): String {
+        return runCatching {
+            android.app.Application.getProcessName()
+        }.getOrNull().orEmpty()
     }
 
-    private fun unescape(value: String): String {
-        return value
-            .replace("\\n", "\n")
-            .replace("\\t", "\t")
-            .replace("\\\\", "\\")
+    @Suppress("DEPRECATION")
+    private fun currentThreadId(thread: Thread): Long {
+        return thread.id
     }
 
     private fun priorityName(priority: Int): String {
@@ -462,6 +624,18 @@ object RuntimeLogStore {
             Log.ERROR -> "E"
             Log.ASSERT -> "A"
             else -> priority.toString()
+        }
+    }
+
+    private fun priorityFromName(level: String?): Int? {
+        return when (level?.uppercase(Locale.ROOT)) {
+            "V", "VERBOSE" -> Log.VERBOSE
+            "D", "DEBUG" -> Log.DEBUG
+            "I", "INFO" -> Log.INFO
+            "W", "WARN" -> Log.WARN
+            "E", "ERROR" -> Log.ERROR
+            "A", "ASSERT" -> Log.ASSERT
+            else -> level?.toIntOrNull()
         }
     }
 
@@ -483,14 +657,14 @@ object RuntimeLogStore {
 
     private fun routeFileName(route: String): String {
         return when (normalizeRoute(route)) {
-            ROUTE_SMS_HOOK -> "runtime.sms_hook.log"
-            ROUTE_NMS_HOOK -> "runtime.nms_hook.log"
-            ROUTE_SYSTEM_INPUT -> "runtime.system_input.log"
-            ROUTE_PERMISSION_HOOK -> "runtime.permission_hook.log"
-            ROUTE_FORWARD -> "runtime.forward.log"
-            ROUTE_SENDER -> "runtime.sender.log"
-            ROUTE_ROOT_DB -> "runtime.root_db.log"
-            else -> "runtime.app.log"
+            ROUTE_SMS_HOOK -> "runtime.sms_hook.jsonl"
+            ROUTE_NMS_HOOK -> "runtime.nms_hook.jsonl"
+            ROUTE_SYSTEM_INPUT -> "runtime.system_input.jsonl"
+            ROUTE_PERMISSION_HOOK -> "runtime.permission_hook.jsonl"
+            ROUTE_FORWARD -> "runtime.forward.jsonl"
+            ROUTE_SENDER -> "runtime.sender.jsonl"
+            ROUTE_ROOT_DB -> "runtime.root_db.jsonl"
+            else -> "runtime.app.jsonl"
         }
     }
 
