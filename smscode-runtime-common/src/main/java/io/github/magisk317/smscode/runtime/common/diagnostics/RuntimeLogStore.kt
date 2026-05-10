@@ -4,9 +4,8 @@ import android.content.Context
 import android.util.Log
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import java.io.File
-import java.io.FileOutputStream
-import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -22,11 +21,11 @@ object RuntimeLogStore {
     private const val INTERNAL_TAG = "RuntimeLogStore"
     private const val LOG_FILE_NAME = "runtime.log"
     private const val MAX_BUFFER_SIZE = 1200
-    private const val DEFAULT_MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024L
-    private const val BYTES_PER_MB = 1024 * 1024L
-    private const val MAX_SIZE_REFRESH_INTERVAL_MS = 5_000L
+    private const val DEFAULT_RETENTION_DAYS = 7
+    private const val MIN_RETENTION_DAYS = 1
+    private const val RETENTION_REFRESH_INTERVAL_MS = 5_000L
+    private const val RETENTION_PRUNE_INTERVAL_MS = 60_000L
     private const val MAX_READ_LINES = 2000
-    private const val DEFAULT_TRIM_BUFFER_SIZE = 8 * 1024
     const val ROUTE_SMS_HOOK = "sms_hook"
     const val ROUTE_NMS_HOOK = "nms_hook"
     const val ROUTE_SYSTEM_INPUT = "system_input"
@@ -36,15 +35,23 @@ object RuntimeLogStore {
     const val ROUTE_ROOT_DB = "root_db"
     const val ROUTE_APP = "app"
     private const val FILE_TIMESTAMP_PATTERN = "yyyy-MM-dd HH:mm:ss.SSS"
+    private const val FILE_DATE_PATTERN = "yyyy-MM-dd"
 
     private val lock = Any()
     private val buffer = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
     private val pendingFileEntries = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
+    private val dailyRuntimeLogRegex = Regex("""^runtime\.\d{4}-\d{2}-\d{2}\.log$""")
+    private val dailyLogDateRegex = Regex("""^runtime(?:\.[^.]+)?\.(\d{4}-\d{2}-\d{2})\.log$""")
     private val logExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "runtime-log-flusher").apply { isDaemon = true }
     }
     private val fileTimestampFormatter = object : ThreadLocal<SimpleDateFormat>() {
         override fun initialValue(): SimpleDateFormat = SimpleDateFormat(FILE_TIMESTAMP_PATTERN, Locale.getDefault())
+    }
+    private val fileDateFormatter = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat = SimpleDateFormat(FILE_DATE_PATTERN, Locale.US).apply {
+            isLenient = false
+        }
     }
 
     @Volatile
@@ -54,10 +61,13 @@ object RuntimeLogStore {
     private var enabled: Boolean = false
 
     @Volatile
-    private var maxFileSizeBytes: Long = DEFAULT_MAX_FILE_SIZE_BYTES
+    private var retentionDays: Int = DEFAULT_RETENTION_DAYS
 
     @Volatile
-    private var lastSizeRefreshAtMs: Long = 0L
+    private var lastRetentionRefreshAtMs: Long = 0L
+
+    @Volatile
+    private var lastRetentionPruneAtMs: Long = 0L
 
     private fun isModuleContext(context: Context?): Boolean {
         val applicationId = RuntimeDiagnosticsEnvironment.current().applicationId
@@ -68,7 +78,7 @@ object RuntimeLogStore {
         val resolvedContext = resolveModuleContext(context)
         appContext = resolvedContext.takeIf { isModuleContext(it) }
         enabled = enableDetailedLogs
-        setMaxFileSizeMb(readConfiguredMaxFileSizeMb(appContext ?: context))
+        setRetentionDays(readConfiguredRetentionDays(appContext ?: context))
         flushPendingIfPossible()
     }
 
@@ -78,8 +88,13 @@ object RuntimeLogStore {
 
     fun isEnabled(): Boolean = enabled
 
+    fun setRetentionDays(days: Int) {
+        retentionDays = days.coerceAtLeast(MIN_RETENTION_DAYS)
+    }
+
+    @Deprecated("Use setRetentionDays; runtime logs now rotate by day.")
     fun setMaxFileSizeMb(sizeMb: Int) {
-        maxFileSizeBytes = sizeMb.coerceAtLeast(1).toLong() * BYTES_PER_MB
+        setRetentionDays(sizeMb)
     }
 
     fun append(
@@ -126,14 +141,20 @@ object RuntimeLogStore {
         val logDir = getLogDir() ?: return
         runCatching {
             logDir.listFiles()
-                ?.filter { it.name.startsWith("runtime.") || it.name == LOG_FILE_NAME }
-                ?.forEach { it.writeText("") }
+                ?.filter { isRuntimeLogFileName(it.name) }
+                ?.forEach { file ->
+                    if (!file.delete()) {
+                        file.writeText("")
+                    }
+                }
         }
     }
 
     fun query(minutes: Int?, keyword: String?, limit: Int = 600): List<RuntimeLogEntry> {
         val memoryList = synchronized(lock) { buffer.toList() }
-        val source = if (memoryList.isNotEmpty()) memoryList else readFromFile()
+        val source = (readFromFiles() + memoryList)
+            .distinctBy { entry -> "${entry.timestamp}:${entry.priority}:${entry.tag}:${entry.message}" }
+            .sortedBy { it.timestamp }
         val now = System.currentTimeMillis()
         val cutoff = if (minutes == null || minutes <= 0) Long.MIN_VALUE else now - minutes * 60_000L
         val normalizedKeyword = keyword?.trim()?.lowercase(Locale.ROOT).orEmpty()
@@ -174,20 +195,27 @@ object RuntimeLogStore {
         }.getOrNull()
     }
 
-    private fun readFromFile(): List<RuntimeLogEntry> {
-        val file = getLogFile() ?: return emptyList()
-        if (!file.exists()) return emptyList()
+    private fun readFromFiles(): List<RuntimeLogEntry> {
+        val files = getPrimaryLogFiles()
+        if (files.isEmpty()) return emptyList()
         return runCatching {
-            file.readLines()
-                .takeLast(MAX_READ_LINES)
+            files.flatMap { file ->
+                file.readLines()
+                    .takeLast(MAX_READ_LINES)
+            }
                 .mapNotNull { decode(it) }
+                .sortedBy { it.timestamp }
+                .takeLast(MAX_READ_LINES)
         }.getOrDefault(emptyList())
     }
 
-    private fun getLogFile(): File? {
-        val context = ensureAppContext() ?: return null
-        val dir = StorageUtils.getLogDir(context) ?: return null
-        return File(dir, LOG_FILE_NAME)
+    private fun getPrimaryLogFiles(): List<File> {
+        val context = ensureAppContext() ?: return emptyList()
+        val dir = StorageUtils.getLogDir(context) ?: return emptyList()
+        return dir.listFiles()
+            .orEmpty()
+            .filter { it.isFile && isPrimaryRuntimeLogFileName(it.name) }
+            .sortedWith(compareBy<File> { runtimeLogSortTime(it) }.thenBy { it.name })
     }
 
     private fun getLogDir(): File? {
@@ -250,11 +278,11 @@ object RuntimeLogStore {
             if (appContext == null) {
                 appContext = context
             }
-            maybeRefreshMaxFileSizeLocked(context)
+            maybeRefreshRetentionLocked(context)
             val logDir = StorageUtils.getLogDir(context) ?: return false
             val line = encode(entry) + "\n"
-            writeLineToFile(File(logDir, LOG_FILE_NAME), line)
-            writeLineToFile(File(logDir, routeFileName(entry.route)), line)
+            writeLineToFile(logDir, LOG_FILE_NAME, entry.timestamp, line)
+            writeLineToFile(logDir, routeFileName(entry.route), entry.timestamp, line)
             true
         }.onFailure {
             Log.w(
@@ -278,13 +306,14 @@ object RuntimeLogStore {
             if (appContext == null) {
                 appContext = context
             }
-            maybeRefreshMaxFileSizeLocked(context)
+            maybeRefreshRetentionLocked(context)
             val logDir = StorageUtils.getLogDir(context) ?: return
+            maybePruneExpiredLogsLocked(logDir, System.currentTimeMillis())
             while (pendingFileEntries.isNotEmpty()) {
                 val entry = pendingFileEntries.removeFirst()
                 val line = encode(entry) + "\n"
-                writeLineToFile(File(logDir, LOG_FILE_NAME), line)
-                writeLineToFile(File(logDir, routeFileName(entry.route)), line)
+                writeLineToFile(logDir, LOG_FILE_NAME, entry.timestamp, line)
+                writeLineToFile(logDir, routeFileName(entry.route), entry.timestamp, line)
             }
         }.onFailure {
             Log.w(
@@ -294,11 +323,11 @@ object RuntimeLogStore {
         }
     }
 
-    private fun writeLineToFile(file: File, line: String) {
+    private fun writeLineToFile(logDir: File, baseFileName: String, timestamp: Long, line: String) {
         runCatching {
+            val file = File(logDir, dailyLogFileName(baseFileName, timestamp))
             ensureParentDir(file)
             file.appendText(line)
-            trimIfTooLarge(file)
             StorageUtils.setFileWorldReadable(file, 2)
             StorageUtils.setFileWorldWritable(file, 1)
         }
@@ -309,54 +338,69 @@ object RuntimeLogStore {
         if (!parent.exists()) parent.mkdirs()
     }
 
-    private fun maybeRefreshMaxFileSizeLocked(context: Context) {
+    private fun maybeRefreshRetentionLocked(context: Context) {
         val now = System.currentTimeMillis()
-        if (now - lastSizeRefreshAtMs < MAX_SIZE_REFRESH_INTERVAL_MS) return
-        lastSizeRefreshAtMs = now
-        setMaxFileSizeMb(readConfiguredMaxFileSizeMb(context))
+        if (now - lastRetentionRefreshAtMs < RETENTION_REFRESH_INTERVAL_MS) return
+        lastRetentionRefreshAtMs = now
+        setRetentionDays(readConfiguredRetentionDays(context))
     }
 
-    private fun readConfiguredMaxFileSizeMb(context: Context): Int {
-        return RuntimeDiagnosticsEnvironment.current().maxLogFileSizeMbProvider?.invoke(context) ?: 2
+    private fun readConfiguredRetentionDays(context: Context): Int {
+        val config = RuntimeDiagnosticsEnvironment.current()
+        @Suppress("DEPRECATION")
+        return config.logRetentionDaysProvider?.invoke(context)
+            ?: config.maxLogFileSizeMbProvider?.invoke(context)
+            ?: DEFAULT_RETENTION_DAYS
     }
 
-    private fun trimIfTooLarge(file: File) {
-        val limitBytes = maxFileSizeBytes
-        if (!file.exists() || limitBytes <= 0L) return
-        val length = file.length()
-        if (length <= limitBytes) return
-        val keepBytes = limitBytes.coerceAtLeast(1L)
-        val startOffset = length - keepBytes
-        val parent = file.parentFile ?: return
-        val tmp = File(parent, "${file.name}.tmp")
-        runCatching {
-            RandomAccessFile(file, "r").use { input ->
-                input.seek(startOffset)
-                FileOutputStream(tmp, false).use { output ->
-                    val buffer = ByteArray(DEFAULT_TRIM_BUFFER_SIZE)
-                    var remaining = keepBytes
-                    while (remaining > 0L) {
-                        val toRead = minOf(buffer.size.toLong(), remaining).toInt()
-                        val read = input.read(buffer, 0, toRead)
-                        if (read <= 0) break
-                        output.write(buffer, 0, read)
-                        remaining -= read.toLong()
-                    }
-                    output.fd.sync()
+    private fun maybePruneExpiredLogsLocked(logDir: File, now: Long) {
+        if (now - lastRetentionPruneAtMs < RETENTION_PRUNE_INTERVAL_MS) return
+        lastRetentionPruneAtMs = now
+        val cutoff = retentionCutoffStartMs(now)
+        logDir.listFiles()
+            .orEmpty()
+            .filter { it.isFile && isRuntimeLogFileName(it.name) }
+            .forEach { file ->
+                val fileTime = dailyLogDateStartMs(file.name) ?: file.lastModified()
+                if (fileTime > 0L && fileTime < cutoff) {
+                    runCatching { file.delete() }
                 }
             }
-            if (file.exists() && !file.delete()) {
-                tmp.copyTo(file, overwrite = true)
-                tmp.delete()
-            } else if (!tmp.renameTo(file)) {
-                tmp.copyTo(file, overwrite = true)
-                tmp.delete()
-            }
-            StorageUtils.setFileWorldReadable(file, 2)
-            StorageUtils.setFileWorldWritable(file, 1)
-        }.onFailure {
-            runCatching { if (tmp.exists()) tmp.delete() }
-        }
+    }
+
+    private fun retentionCutoffStartMs(now: Long): Long {
+        return Calendar.getInstance().apply {
+            timeInMillis = now
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            add(Calendar.DAY_OF_YEAR, -(retentionDays.coerceAtLeast(MIN_RETENTION_DAYS) - 1))
+        }.timeInMillis
+    }
+
+    private fun dailyLogFileName(baseFileName: String, timestamp: Long): String {
+        val date = fileDateFormatter.get()?.format(Date(timestamp)) ?: timestamp.toString()
+        val stem = baseFileName.removeSuffix(".log")
+        return "$stem.$date.log"
+    }
+
+    private fun isRuntimeLogFileName(name: String): Boolean {
+        return name == LOG_FILE_NAME ||
+            (name.startsWith("runtime.") && (name.endsWith(".log") || name.endsWith(".tmp")))
+    }
+
+    private fun isPrimaryRuntimeLogFileName(name: String): Boolean {
+        return name == LOG_FILE_NAME || dailyRuntimeLogRegex.matches(name)
+    }
+
+    private fun runtimeLogSortTime(file: File): Long {
+        return dailyLogDateStartMs(file.name) ?: file.lastModified()
+    }
+
+    private fun dailyLogDateStartMs(fileName: String): Long? {
+        val value = dailyLogDateRegex.matchEntire(fileName)?.groupValues?.getOrNull(1) ?: return null
+        return runCatching { fileDateFormatter.get()?.parse(value)?.time }.getOrNull()
     }
 
     private fun encode(entry: RuntimeLogEntry): String {

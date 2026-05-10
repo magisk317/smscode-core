@@ -12,6 +12,8 @@ data class RuntimeDiagnosticsConfig(
     val stagingDirPrefix: String = ".tmp_runtime_logs_",
     val legacyActivationFileName: String = "module_activated",
     val legacyActivationMaxActiveAgeMs: Long = 24 * 60 * 60 * 1000L,
+    val logRetentionDaysProvider: ((Context) -> Int)? = null,
+    @Deprecated("Use logRetentionDaysProvider; runtime logs now rotate by day.")
     val maxLogFileSizeMbProvider: ((Context) -> Int)? = null,
     val runtimeConnectedProvider: () -> Boolean = { false },
     val activationStatusResolver: ((Context, ActivationDiagnosticsSnapshot, ActivationStatusInputs) -> Boolean)? = null,
