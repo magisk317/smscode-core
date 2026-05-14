@@ -305,7 +305,6 @@ class SystemInputInjectorHook : BaseHook() {
                     val autoEnter = intent.getBooleanExtra("autoEnter", false)
                     val inputIntervalMs = intent.getLongExtra("inputIntervalMs", 0L).coerceAtLeast(0L)
                     val attemptId = intent.getLongExtra("attemptId", -1L).takeIf { it >= 0L }
-                    val accessibilityResult = resolveAccessibilityOrderedResult(this)
                     XLog.w(
                         "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
                         sendingUid,
@@ -313,48 +312,31 @@ class SystemInputInjectorHook : BaseHook() {
                         autoEnter,
                         inputIntervalMs,
                     )
-                    accessibilityResult?.let { result ->
-                        XLog.w(
-                            "Diag system receiver observed accessibility result: attemptId=%d success=%s strategy=%s reason=%s windowPkg=%s",
-                            attemptId ?: -1L,
-                            result.success,
-                            result.strategy.ifBlank { "<none>" },
-                            result.reason.ifBlank { "<none>" },
-                            result.windowPackage.ifBlank { "<none>" },
-                        )
-                        if (shouldSkipFallbackAfterAccessibility(context, result)) {
-                            XLog.w(
-                                "SystemServer fallback skipped after accessibility result: attemptId=%d reason=%s windowPkg=%s",
-                                attemptId ?: -1L,
-                                result.reason.ifBlank { "<none>" },
-                                result.windowPackage.ifBlank { "<none>" },
-                            )
-                            sendAutoInputResult(
-                                context,
-                                attemptId,
-                                success = result.success,
-                                reason = result.reason.takeIf { it.isNotBlank() } ?: "accessibility_result",
-                            )
-                            return
-                        }
-                    }
-                    if (!code.isNullOrEmpty()) {
-                        XLog.i(
-                            "SystemServer received input request: %s, autoEnter: %s, inputIntervalMs: %d",
-                            code,
-                            autoEnter,
-                            inputIntervalMs,
-                        )
-                        injectText(context, code, autoEnter, inputIntervalMs, attemptId)
-                    } else {
+                    if (code.isNullOrEmpty()) {
                         XLog.w("SystemServer received input request with empty code")
                         sendAutoInputResult(context, attemptId, success = false, reason = "empty_code")
+                        return
+                    }
+                    val result = performInjectText(code, autoEnter, inputIntervalMs)
+                    sendAutoInputResult(context, attemptId, result.success, result.failReason)
+                    if (result.success) {
+                        XLog.i(
+                            "SystemServer injection success, aborting broadcast to prevent accessibility fallback: attemptId=%d",
+                            attemptId ?: -1L,
+                        )
+                        abortBroadcast()
+                    } else {
+                        XLog.w(
+                            "SystemServer injection failed, allowing broadcast to continue for accessibility fallback: attemptId=%d reason=%s",
+                            attemptId ?: -1L,
+                            result.failReason ?: "unknown",
+                        )
                     }
                 }
             }
             val filter = IntentFilter(resolveActionAutoInput())
             filter.addAction(resolveActionShowToast())
-            filter.priority = RECEIVER_PRIORITY_SYSTEM_FALLBACK
+            filter.priority = RECEIVER_PRIORITY_SYSTEM_PRIMARY
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
             } else {
@@ -682,6 +664,58 @@ class SystemInputInjectorHook : BaseHook() {
         }
     }
 
+    private data class InjectResult(
+        val success: Boolean,
+        val failReason: String?,
+    )
+
+    private fun performInjectText(
+        text: String,
+        autoEnter: Boolean = false,
+        inputIntervalMs: Long = 0L,
+    ): InjectResult {
+        val managerPair = getInputManagerGlobal() ?: return InjectResult(false, "manager_unresolved")
+        val (manager, method) = managerPair
+        val mode = 0 // InputManager.INJECT_INPUT_EVENT_MODE_ASYNC
+        var injectedCount = 0
+        val keyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
+        text.forEachIndexed { index, char ->
+            val events = keyCharacterMap.getEvents(charArrayOf(char))
+            if (events == null) {
+                XLog.w("Failed to create key events for char: %s", char.toString())
+                return@forEachIndexed
+            }
+            for (event in events) {
+                val result = invokeInject(manager, method, event, mode)
+                if (result) injectedCount += 1
+            }
+            if (inputIntervalMs > 0L && index < text.lastIndex) {
+                Thread.sleep(inputIntervalMs)
+            }
+        }
+        XLog.w("Injected key characters from System Server, count=%d", injectedCount)
+
+        var success = injectedCount > 0
+        var failReason: String? = null
+        if (autoEnter) {
+            val now = android.os.SystemClock.uptimeMillis()
+            val downEvent = android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER, 0)
+            val upEvent = android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER, 0)
+
+            val downResult = invokeInject(manager, method, downEvent, mode)
+            val upResult = invokeInject(manager, method, upEvent, mode)
+
+            if (downResult && upResult) {
+                XLog.w("Injected KEYCODE_ENTER from System Server")
+            } else {
+                XLog.e("Failed to inject KEYCODE_ENTER: down=$downResult, up=$upResult")
+                failReason = "enter_failed"
+                success = false
+            }
+        }
+        return InjectResult(success, failReason)
+    }
+
     private fun injectText(
         context: Context,
         text: String,
@@ -690,55 +724,10 @@ class SystemInputInjectorHook : BaseHook() {
         attemptId: Long? = null,
     ) {
         getInputHandler().post {
-            var success = false
-            var failReason: String? = null
-	            runNonFatalCatching {
-	                val managerPair = getInputManagerGlobal() ?: return@post
-                val (manager, method) = managerPair
-                val mode = 0 // InputManager.INJECT_INPUT_EVENT_MODE_ASYNC
-                var injectedCount = 0
-                val keyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
-                text.forEachIndexed { index, char ->
-                    val events = keyCharacterMap.getEvents(charArrayOf(char))
-                    if (events == null) {
-                        XLog.w("Failed to create key events for char: %s", char.toString())
-                        return@forEachIndexed
-                    }
-                    for (event in events) {
-                        val result = invokeInject(manager, method, event, mode)
-                        if (result) injectedCount += 1
-                    }
-                    if (inputIntervalMs > 0L && index < text.lastIndex) {
-                        Thread.sleep(inputIntervalMs)
-                    }
-                }
-                XLog.w("Injected key characters from System Server, count=%d", injectedCount)
-
-                if (autoEnter) {
-                    val now = android.os.SystemClock.uptimeMillis()
-                    val downEvent = android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER, 0)
-                    val upEvent = android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_ENTER, 0)
-
-                    val downResult = invokeInject(manager, method, downEvent, mode)
-                    val upResult = invokeInject(manager, method, upEvent, mode)
-
-                    if (downResult && upResult) {
-                        XLog.w("Injected KEYCODE_ENTER from System Server")
-                        success = injectedCount > 0
-                    } else {
-                        XLog.e("Failed to inject KEYCODE_ENTER: down=$downResult, up=$upResult")
-                        failReason = "enter_failed"
-                    }
-	                } else {
-	                    success = injectedCount > 0
-	                }
-	            }.onFailure { t ->
-	                XLog.e("Failed to inject text/enter from System Server", t)
-	                failReason = "inject_exception"
-	            }
-	            sendAutoInputResult(context, attemptId, success, failReason)
-	        }
-	    }
+            val result = performInjectText(text, autoEnter, inputIntervalMs)
+            sendAutoInputResult(context, attemptId, result.success, result.failReason)
+        }
+    }
 
     private fun sendAutoInputResult(
         context: Context,
@@ -786,7 +775,7 @@ class SystemInputInjectorHook : BaseHook() {
         private const val DELAY_REGISTER = 500L
         private const val MAX_REGISTER_ATTEMPTS = 10
         private const val CACHED_UID_TTL_MS = 10_000L
-        private const val RECEIVER_PRIORITY_SYSTEM_FALLBACK = -1000
+        private const val RECEIVER_PRIORITY_SYSTEM_PRIMARY = 2000
         private const val MATCH_DEFAULT_ONLY_FALLBACK = 0x00010000
 
         @Suppress("unused")
