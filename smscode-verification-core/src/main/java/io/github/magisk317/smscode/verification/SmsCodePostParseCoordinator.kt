@@ -73,7 +73,7 @@ object SmsCodePostParseCoordinator {
         eventId: String,
         plan: ParsedSmsPlan,
         uiDispatcher: (Handler, Context, Context, M, UiPlan) -> Unit,
-        autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean) -> Unit,
+        autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean, Long?) -> Unit,
         notificationScheduler: (ScheduledExecutorService, Context, Context, M, NotificationPlan) -> Unit,
         recordScheduler: (ScheduledExecutorService, Context, Context, M, String, Boolean) -> Unit,
         operateSmsScheduler: (ScheduledExecutorService, Context, Context, M, List<Long>) -> Unit,
@@ -101,8 +101,8 @@ object SmsCodePostParseCoordinator {
         smsMsg: M,
         eventId: String,
         plan: ObservedSmsPlan,
-        autoInputRunner: (Context, Context, M, Boolean) -> Unit,
-        autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean) -> Unit,
+        autoInputRunner: (Context, Context, M, Boolean, Long?) -> Unit,
+        autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean, Long?) -> Unit,
         recordRunner: (Context, Context, M, String, Boolean) -> Unit,
     ) {
         SmsCodeActionDispatcher.dispatchObservedSmsActions(

@@ -14,7 +14,7 @@ object SmsCodeActionDispatcher {
         eventId: String,
         plan: SmsCodePostParseCoordinator.ParsedSmsPlan,
         uiDispatcher: (Handler, Context, Context, M, SmsCodePostParseCoordinator.UiPlan) -> Unit,
-        autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean) -> Unit,
+        autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean, Long?) -> Unit,
         notificationScheduler: (ScheduledExecutorService, Context, Context, M, SmsCodePostParseCoordinator.NotificationPlan) -> Unit,
         recordScheduler: (ScheduledExecutorService, Context, Context, M, String, Boolean) -> Unit,
         operateSmsScheduler: (ScheduledExecutorService, Context, Context, M, List<Long>) -> Unit,
@@ -28,6 +28,7 @@ object SmsCodeActionDispatcher {
         )
 
         plan.autoInputDelayMs?.let { delayMs ->
+            val attemptId = System.currentTimeMillis()
             autoInputScheduler(
                 executor,
                 pluginContext,
@@ -35,6 +36,7 @@ object SmsCodeActionDispatcher {
                 smsMsg,
                 delayMs,
                 plan.deduplicateSmsEnabled,
+                attemptId,
             )
         }
 
@@ -75,13 +77,14 @@ object SmsCodeActionDispatcher {
         smsMsg: M,
         eventId: String,
         plan: SmsCodePostParseCoordinator.ObservedSmsPlan,
-        autoInputRunner: (Context, Context, M, Boolean) -> Unit,
-        autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean) -> Unit,
+        autoInputRunner: (Context, Context, M, Boolean, Long?) -> Unit,
+        autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean, Long?) -> Unit,
         recordRunner: (Context, Context, M, String, Boolean) -> Unit,
     ) {
         if (plan.autoInputEnabled) {
             val delayMs = plan.autoInputDelayMs ?: 0L
             if (delayMs > 0L && executor != null) {
+                val attemptId = System.currentTimeMillis()
                 autoInputScheduler(
                     executor,
                     pluginContext,
@@ -89,13 +92,16 @@ object SmsCodeActionDispatcher {
                     smsMsg,
                     delayMs,
                     plan.deduplicateSmsEnabled,
+                    attemptId,
                 )
             } else {
+                val attemptId = System.currentTimeMillis()
                 autoInputRunner(
                     pluginContext,
                     phoneContext,
                     smsMsg,
                     plan.deduplicateSmsEnabled,
+                    attemptId,
                 )
             }
         }
