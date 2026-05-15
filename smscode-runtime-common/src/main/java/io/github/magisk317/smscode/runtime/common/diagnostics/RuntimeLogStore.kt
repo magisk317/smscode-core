@@ -59,7 +59,7 @@ object RuntimeLogStore {
     private const val INTERNAL_TAG = "RuntimeLogStore"
     private const val LOG_FILE_NAME = "runtime.jsonl"
     private const val MAX_BUFFER_SIZE = 1200
-    private const val DEFAULT_RETENTION_DAYS = 7
+    private const val DEFAULT_RETENTION_DAYS = 2
     private const val MIN_RETENTION_DAYS = 1
     private const val RETENTION_REFRESH_INTERVAL_MS = 5_000L
     private const val RETENTION_PRUNE_INTERVAL_MS = 60_000L
