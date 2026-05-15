@@ -304,6 +304,7 @@ class SystemInputInjectorHook : BaseHook() {
                     val code = intent.getStringExtra("code")
                     val autoEnter = intent.getBooleanExtra("autoEnter", false)
                     val inputIntervalMs = intent.getLongExtra("inputIntervalMs", 0L).coerceAtLeast(0L)
+                    val safeInputIntervalMs = inputIntervalMs.coerceAtMost(MAX_SYNC_INPUT_INTERVAL_MS)
                     val attemptId = intent.getLongExtra("attemptId", -1L).takeIf { it >= 0L }
                     XLog.w(
                         "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
@@ -317,7 +318,19 @@ class SystemInputInjectorHook : BaseHook() {
                         sendAutoInputResult(context, attemptId, success = false, reason = "empty_code")
                         return
                     }
-                    val result = performInjectText(code, autoEnter, inputIntervalMs)
+                    if (safeInputIntervalMs != inputIntervalMs) {
+                        XLog.w(
+                            "SystemServer input interval clamped: requested=%d applied=%d",
+                            inputIntervalMs,
+                            safeInputIntervalMs,
+                        )
+                    }
+                    val result = runNonFatalCatching {
+                        performInjectText(code, autoEnter, safeInputIntervalMs)
+                    }.getOrElse { error ->
+                        XLog.e("SystemServer performInjectText failed", error)
+                        InjectResult(success = false, failReason = "inject_exception")
+                    }
                     sendAutoInputResult(context, attemptId, result.success, result.failReason)
                     if (result.success) {
                         XLog.i(
@@ -775,6 +788,7 @@ class SystemInputInjectorHook : BaseHook() {
         private const val DELAY_REGISTER = 500L
         private const val MAX_REGISTER_ATTEMPTS = 10
         private const val CACHED_UID_TTL_MS = 10_000L
+        private const val MAX_SYNC_INPUT_INTERVAL_MS = 200L
         private const val RECEIVER_PRIORITY_SYSTEM_PRIMARY = 2000
         private const val MATCH_DEFAULT_ONLY_FALLBACK = 0x00010000
 
