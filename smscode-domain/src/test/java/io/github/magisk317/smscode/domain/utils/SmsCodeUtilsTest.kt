@@ -71,4 +71,46 @@ class SmsCodeUtilsTest {
         assertEquals("246810", result.code)
         assertEquals(SmsCodeMatchedRuleSource.CUSTOM, result.matchedRule?.source)
     }
+
+    @Test
+    fun `parse can fallback to custom rule when company token is missing`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【验证密码】领奖验证码:2108，5分钟有效；请前往移动云盘APP领取。",
+            keywordsRegex = "验证码",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "中国移动云盘",
+                    codeKeyword = "领奖验证码",
+                    codeRegex = "(?<=领奖验证码[:：])\\d{4,8}",
+                ),
+            ),
+        )
+
+        assertEquals("2108", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.CUSTOM, result.matchedRule?.source)
+    }
+
+    @Test
+    fun `parse prefers strict company hit over relaxed fallback candidate`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】验证码:246810",
+            keywordsRegex = "验证码",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "Other",
+                    codeKeyword = "验证码",
+                    codeRegex = "\\d{4}",
+                ),
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "验证码",
+                    codeRegex = "(?<=验证码:)\\d{6}",
+                ),
+            ),
+        )
+
+        assertEquals("246810", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.CUSTOM, result.matchedRule?.source)
+        assertEquals(2, result.matchedRule?.ordinal)
+    }
 }

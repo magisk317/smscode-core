@@ -254,24 +254,28 @@ object SmsCodeUtils {
 
     private fun parseByCustomRules(content: String, rules: List<SmsCodeRuleSpec>): ParseCandidate {
         val lowerContent = content.lowercase()
+        var fallbackCandidate: ParseCandidate? = null
         for ((index, rule) in rules.withIndex()) {
-            if (lowerContent.contains(rule.company?.lowercase() ?: "") &&
-                lowerContent.contains(rule.codeKeyword.lowercase())
-            ) {
-                val matcher = runCatching {
-                    Pattern.compile(rule.codeRegex).matcher(content)
-                }.getOrNull() ?: continue
-                if (matcher.find()) {
-                    return ParseCandidate(
-                        code = matcher.group(),
-                        matchedRule = SmsCodeMatchedRule(
-                            source = SmsCodeMatchedRuleSource.CUSTOM,
-                            ordinal = index + 1,
-                        ),
-                    )
-                }
+            if (!lowerContent.contains(rule.codeKeyword.lowercase())) continue
+            val matcher = runCatching {
+                Pattern.compile(rule.codeRegex).matcher(content)
+            }.getOrNull() ?: continue
+            if (!matcher.find()) continue
+
+            val candidate = ParseCandidate(
+                code = matcher.group(),
+                matchedRule = SmsCodeMatchedRule(
+                    source = SmsCodeMatchedRuleSource.CUSTOM,
+                    ordinal = index + 1,
+                ),
+            )
+            val company = rule.company?.trim().orEmpty()
+            val companyMatched = company.isBlank() || lowerContent.contains(company.lowercase())
+            if (companyMatched) return candidate
+            if (fallbackCandidate == null) {
+                fallbackCandidate = candidate
             }
         }
-        return ParseCandidate(code = "")
+        return fallbackCandidate ?: ParseCandidate(code = "")
     }
 }
