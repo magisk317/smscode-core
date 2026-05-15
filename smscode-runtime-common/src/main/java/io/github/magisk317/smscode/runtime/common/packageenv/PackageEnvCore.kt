@@ -11,20 +11,11 @@ import android.os.SystemClock
 import androidx.core.content.pm.PackageInfoCompat
 import io.github.magisk317.smscode.runtime.common.diagnostics.ActivationDiagnosticsStore
 import io.github.magisk317.smscode.runtime.common.diagnostics.RuntimeLogStore
+import io.github.magisk317.smscode.runtime.contract.packageenv.PackageState
+import io.github.magisk317.smscode.runtime.contract.packageenv.PackageVersionInfo
 import io.github.magisk317.smscode.runtime.common.utils.FrameworkCompatibilityMonitor
 import io.github.magisk317.smscode.runtime.common.utils.FrameworkInfo
 import io.github.magisk317.smscode.runtime.common.utils.FrameworkInfoResolver
-
-enum class PackageState {
-    NOT_INSTALLED,
-    DISABLED,
-    ENABLED,
-}
-
-data class PackageVersionInfo(
-    val versionName: String,
-    val versionCode: Long,
-)
 
 object PackageEnvCore {
 

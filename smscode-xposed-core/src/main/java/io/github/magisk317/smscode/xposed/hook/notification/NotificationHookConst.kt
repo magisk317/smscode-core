@@ -7,6 +7,7 @@ object NotificationHookConst {
         get() = "${resolveNamespace()}.ACTION_FORWARD_SMS"
 
     const val KEY_IPC_TOKEN = "ipc_token"
+    const val EXTRA_IPC_TOKEN = KEY_IPC_TOKEN
     const val KEY_FORCE_STOP_RECOVERY = "pref_force_stop_recovery"
     const val KEY_FORCE_STOP_RECOVERY_RELAUNCH_ONCE = "pref_force_stop_recovery_relaunch_once"
     const val KEY_SENSITIVE_DEBUG_LOG_MODE = "pref_sensitive_debug_log_mode"

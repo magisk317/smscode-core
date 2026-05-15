@@ -13,7 +13,7 @@ class AutoInputActionHelper<M : SmsMessage>(
     private val deduplicateEnabled: Boolean? = null,
     private val dispatchDelayMs: Long = 0L,
     private val deduplicateReader: (Context) -> Boolean,
-    private val sharedGateClaimer: (Context, String, String, Long, Int) -> ClaimResult,
+    private val sharedGateClaimer: (Context, String, List<String>, Long, Int) -> ClaimResult,
     private val packageBlockedChecker: (String) -> Boolean,
     private val autoEnterReader: (Context) -> Boolean,
     private val inputIntervalReader: (Context) -> Long,
@@ -48,6 +48,7 @@ class AutoInputActionHelper<M : SmsMessage>(
     data class ClaimResult(
         val claimed: Boolean,
         val ageMs: Long? = null,
+        val key: String? = null,
     )
 
     fun run() {
@@ -116,20 +117,20 @@ class AutoInputActionHelper<M : SmsMessage>(
     }
 
     private fun shouldSkipByRecentAutoInput(): Boolean {
-        val key = SmsMessageDedupKeys.buildMessageKey(smsMsg)
-        if (key.isBlank()) return false
+        val keys = SmsMessageDedupKeys.buildAutoInputKeys(smsMsg)
+        if (keys.isEmpty()) return false
         val dedupWindowMs = resolveAutoInputDedupWindowMs()
         val sharedClaim = sharedGateClaimer(
             pluginContext,
             SHARED_AUTO_INPUT_FILE_NAME,
-            key,
+            keys,
             dedupWindowMs,
             MAX_AUTO_INPUT_CACHE_SIZE,
         )
         if (!sharedClaim.claimed) {
             XLog.w(
                 "Diag auto-input dedup skip: key=%s ageMs=%d source=shared_store",
-                key,
+                sharedClaim.key ?: keys.first(),
                 sharedClaim.ageMs ?: -1L,
             )
             return true
@@ -143,17 +144,23 @@ class AutoInputActionHelper<M : SmsMessage>(
                     iterator.remove()
                 }
             }
-            val last = recentAutoInputs[key]
-            if (last != null && now - last <= dedupWindowMs) {
+            val blockedKey = keys.firstOrNull { key ->
+                val last = recentAutoInputs[key]
+                last != null && now - last <= dedupWindowMs
+            }
+            if (blockedKey != null) {
+                val last = recentAutoInputs[blockedKey]
                 XLog.w(
                     "Diag auto-input dedup skip: key=%s ageMs=%d",
-                    key,
-                    now - last,
+                    blockedKey,
+                    if (last == null) -1L else now - last,
                 )
                 return true
             }
-            recentAutoInputs[key] = now
-            while (recentAutoInputs.size > MAX_AUTO_INPUT_CACHE_SIZE) {
+            keys.forEach { key ->
+                recentAutoInputs[key] = now
+            }
+            while (recentAutoInputs.size > MAX_AUTO_INPUT_CACHE_SIZE * MAX_KEYS_PER_AUTO_INPUT) {
                 val firstKey = recentAutoInputs.entries.firstOrNull()?.key ?: break
                 recentAutoInputs.remove(firstKey)
             }
@@ -228,6 +235,7 @@ class AutoInputActionHelper<M : SmsMessage>(
         private const val AUTO_INPUT_DEDUP_WINDOW_MS = 5_000L
         private const val AUTO_INPUT_DEDUP_EXTRA_MS = 5_000L
         private const val MAX_AUTO_INPUT_CACHE_SIZE = 128
+        private const val MAX_KEYS_PER_AUTO_INPUT = 2
         private val AUTO_INPUT_CACHE_LOCK = Any()
         private val recentAutoInputs = LinkedHashMap<String, Long>(MAX_AUTO_INPUT_CACHE_SIZE, 0.75f, true)
     }

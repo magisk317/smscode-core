@@ -30,7 +30,13 @@ dependencies {
     } else {
         ":smscode-domain"
     }
+    val runtimeContractProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:smscode-runtime-contract"
+    } else {
+        ":smscode-runtime-contract"
+    }
     implementation(project(domainProjectPath))
+    api(project(runtimeContractProjectPath))
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.core.ktx)
     implementation(libs.okhttp)

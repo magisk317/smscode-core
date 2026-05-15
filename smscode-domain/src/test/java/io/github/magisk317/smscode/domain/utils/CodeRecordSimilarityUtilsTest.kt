@@ -123,7 +123,7 @@ class CodeRecordSimilarityUtilsTest {
         val deduped = CodeRecordSimilarityUtils.deduplicateRecords(
             records = records,
             projection = {
-                CodeRecordSimilarityUtils.Projection(
+                CodeRecordSimilarityUtilsProjection(
                     code = it.code,
                     body = it.body,
                     company = it.company,

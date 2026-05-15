@@ -13,22 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class ActivationDiagnosticsSnapshot(
-    val lastServiceBindAtMs: Long = 0L,
-    val lastServiceFrameworkName: String = "",
-    val lastServiceFrameworkVersion: String = "",
-    val lastHookAtMs: Long = 0L,
-    val lastHookPackage: String = "",
-    val lastHookProcess: String = "",
-    val lastHookSource: String = "",
-)
-
-data class ActivationStatusState(
-    val isEnabled: Boolean = false,
-    val runtimeConnected: Boolean = false,
-    val diagnostics: ActivationDiagnosticsSnapshot = ActivationDiagnosticsSnapshot(),
-)
-
 object ActivationDiagnosticsStore {
     private const val FILE_NAME = "activation_diagnostics"
     private const val KEY_LAST_SERVICE_BIND_AT_MS = "last_service_bind_at_ms"

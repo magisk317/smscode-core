@@ -1,0 +1,41 @@
+package io.github.magisk317.smscode.runtime.contract.update
+
+import kotlinx.serialization.Serializable
+
+data class GithubReleaseInfo(
+    val versionName: String,
+    val htmlUrl: String,
+)
+
+@Serializable
+data class VersionLog(
+    val name: String = "",
+    val code: Long = 0L,
+    val desc: String = "",
+)
+
+@Serializable
+data class UpgradeApkAsset(
+    val abi: String = "",
+    val downloadUrl: String = "",
+    val fileSize: Long = 0L,
+    val sha256: String = "",
+    val xposedApiFlavor: String = "",
+)
+
+@Serializable
+data class UpgradeInfo(
+    val versionCode: Long = 0L,
+    val versionName: String = "",
+    val htmlUrl: String = "",
+    val changelog: String = "",
+    val versionLogs: List<VersionLog> = emptyList(),
+    val apks: List<UpgradeApkAsset> = emptyList(),
+    val signingCertSha256: String = "",
+)
+
+data class GithubUpdateConfig(
+    val latestReleaseApiUrl: String,
+    val defaultReleaseHtmlUrl: String,
+    val userAgent: String,
+)

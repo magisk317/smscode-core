@@ -1,16 +1,7 @@
+@file:Suppress("unused")
+
 package io.github.magisk317.smscode.domain.model
 
-enum class SmsCodeMatchedRuleSource {
-    BUILTIN,
-    CUSTOM,
-}
-
-data class SmsCodeMatchedRule(
-    val source: SmsCodeMatchedRuleSource,
-    val ordinal: Int,
-)
-
-data class SmsCodeParseResult(
-    val code: String,
-    val matchedRule: SmsCodeMatchedRule? = null,
-)
+typealias SmsCodeMatchedRuleSource = io.github.magisk317.smscode.rule.model.SmsCodeMatchedRuleSource
+typealias SmsCodeMatchedRule = io.github.magisk317.smscode.rule.model.SmsCodeMatchedRule
+typealias SmsCodeParseResult = io.github.magisk317.smscode.rule.model.SmsCodeParseResult

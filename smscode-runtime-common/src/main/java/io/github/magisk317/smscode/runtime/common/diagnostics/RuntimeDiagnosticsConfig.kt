@@ -1,12 +1,9 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
-
-data class ActivationStatusInputs(
-    val runtimeConnected: Boolean,
-    val hasHookHeartbeat: Boolean,
-    val hasLegacyActivationMarker: Boolean,
-)
+typealias ActivationDiagnosticsSnapshot = io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationDiagnosticsSnapshot
+typealias ActivationStatusInputs = io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationStatusInputs
+typealias ActivationStatusState = io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationStatusState
 
 data class RuntimeDiagnosticsConfig(
     val applicationId: String = "",
@@ -15,6 +12,8 @@ data class RuntimeDiagnosticsConfig(
     val stagingDirPrefix: String = ".tmp_runtime_logs_",
     val legacyActivationFileName: String = "module_activated",
     val legacyActivationMaxActiveAgeMs: Long = 24 * 60 * 60 * 1000L,
+    val logRetentionDaysProvider: ((Context) -> Int)? = null,
+    @Deprecated("Use logRetentionDaysProvider; runtime logs now rotate by day.")
     val maxLogFileSizeMbProvider: ((Context) -> Int)? = null,
     val runtimeConnectedProvider: () -> Boolean = { false },
     val activationStatusResolver: ((Context, ActivationDiagnosticsSnapshot, ActivationStatusInputs) -> Boolean)? = null,

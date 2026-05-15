@@ -76,6 +76,15 @@ object CodeNotificationPayload {
             (sdkInt < API_LEVEL_34 && sentFromUid == null)
     }
 
+    fun shouldAllowSmsHookTokenBypass(
+        expectedToken: String?,
+        sentFromUid: Int?,
+        sdkInt: Int = Build.VERSION.SDK_INT,
+    ): Boolean {
+        return expectedToken.isNullOrBlank() &&
+            shouldAllowSmsHookTokenBypass(sentFromUid = sentFromUid, sdkInt = sdkInt)
+    }
+
     private const val API_LEVEL_34 = 34
     private const val SYSTEM_UID = 1000
     private const val PHONE_UID = 1001

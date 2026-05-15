@@ -12,6 +12,7 @@ object SharedRuntimeGate {
     data class ClaimResult(
         val claimed: Boolean,
         val ageMs: Long? = null,
+        val key: String? = null,
     )
 
     fun claimWithinWindow(
@@ -21,19 +22,51 @@ object SharedRuntimeGate {
         windowMs: Long,
         maxEntries: Int = DEFAULT_MAX_ENTRIES,
     ): ClaimResult {
-        if (key.isBlank()) {
+        return claimAllWithinWindow(
+            context = context,
+            fileName = fileName,
+            keys = listOf(key),
+            windowMs = windowMs,
+            maxEntries = maxEntries,
+        )
+    }
+
+    fun claimAllWithinWindow(
+        context: Context,
+        fileName: String,
+        keys: Collection<String>,
+        windowMs: Long,
+        maxEntries: Int = DEFAULT_MAX_ENTRIES,
+    ): ClaimResult {
+        val normalizedKeys = keys
+            .asSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .toList()
+        if (normalizedKeys.isEmpty()) {
             return ClaimResult(claimed = true)
         }
         val now = System.currentTimeMillis()
         val result = withFileLock(context, fileName) { raf ->
             val entries = readEntries(raf)
             trimExpired(entries, now, windowMs)
-            val last = entries[key]
-            if (last != null && now - last <= windowMs) {
-                writeEntries(raf, entries)
-                return@withFileLock ClaimResult(claimed = false, ageMs = now - last)
+            val blockedKey = normalizedKeys.firstOrNull { key ->
+                val last = entries[key]
+                last != null && now - last <= windowMs
             }
-            entries[key] = now
+            if (blockedKey != null) {
+                val last = entries[blockedKey]
+                writeEntries(raf, entries)
+                return@withFileLock ClaimResult(
+                    claimed = false,
+                    ageMs = if (last == null) null else now - last,
+                    key = blockedKey,
+                )
+            }
+            normalizedKeys.forEach { key ->
+                entries[key] = now
+            }
             trimSize(entries, maxEntries)
             writeEntries(raf, entries)
             ClaimResult(claimed = true)

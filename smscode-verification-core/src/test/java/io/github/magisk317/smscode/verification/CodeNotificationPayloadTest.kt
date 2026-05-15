@@ -20,4 +20,12 @@ class CodeNotificationPayloadTest {
         assertFalse(CodeNotificationPayload.shouldAllowSmsHookTokenBypass(2000, sdkInt = 34))
         assertTrue(CodeNotificationPayload.shouldAllowSmsHookTokenBypass(null, sdkInt = 33))
     }
+
+    @Test
+    fun shouldAllowSmsHookTokenBypass_requiresEmptyExpectedTokenForCompatPath() {
+        assertTrue(CodeNotificationPayload.shouldAllowSmsHookTokenBypass("", null, sdkInt = 33))
+        assertTrue(CodeNotificationPayload.shouldAllowSmsHookTokenBypass(null, 1001, sdkInt = 34))
+        assertFalse(CodeNotificationPayload.shouldAllowSmsHookTokenBypass("initialized", null, sdkInt = 33))
+        assertFalse(CodeNotificationPayload.shouldAllowSmsHookTokenBypass("initialized", 1001, sdkInt = 34))
+    }
 }

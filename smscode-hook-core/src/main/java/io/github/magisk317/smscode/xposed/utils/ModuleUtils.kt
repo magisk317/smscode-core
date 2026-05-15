@@ -9,7 +9,7 @@ object ModuleUtils {
     @Volatile
     private var moduleVersionFailureLogged = false
     @Volatile
-    internal var moduleVersionResolverForTesting: (() -> Int)? = null
+    var moduleVersionResolverForTesting: (() -> Int)? = null
 
     /**
      * 标记当前运行时是否已连接到 Xposed Service。

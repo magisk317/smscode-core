@@ -6,6 +6,7 @@ Shared verification and Xposed infrastructure for the Magisk317 Android app fami
 
 ### `smscode-domain`
 - Pure verification models and parsing utilities.
+- Rule protocol objects, rule-set index models, and mapping helpers for shared repositories.
 - Intended consumers:
   - `core` UI/view-model layers
   - `runtime` data/runtime layers
@@ -15,6 +16,10 @@ Recommended public surface:
 - `io.github.magisk317.smscode.domain.model`
 - `io.github.magisk317.smscode.domain.utils`
 - `io.github.magisk317.smscode.domain.constant`
+
+### `smscode-runtime-contract`
+- Pure protocol/value-object layer shared by parent repositories.
+- Intended for update payloads, package-environment DTOs, rule import/export contracts, and lightweight diagnostics formats.
 
 ### `smscode-verification-core`
 - Shared SMS verification orchestration.
@@ -26,6 +31,7 @@ Recommended public surface:
 ### `smscode-xposed-core`
 - Shared Xposed/libxposed compatibility layer and runtime glue.
 - Owns hook API abstractions, base hook classes, runtime logging/policy, and system input fallback helpers.
+- Hook-side shared configuration must be provided by parent repos via `io.github.magisk317.smscode.xposed.prefs.CorePrefs`.
 
 Recommended public surface:
 - `io.github.magisk317.smscode.xposed.hookapi`
@@ -38,13 +44,15 @@ Recommended public surface:
 Consumers should treat the modules as layered APIs instead of a bag of source files:
 
 1. Prefer `smscode-domain` for stateless parsing, rule specs, and shared value objects.
-2. Prefer `smscode-verification-core` for SMS-code pipeline orchestration.
-3. Prefer `smscode-xposed-core` for hook/runtime infrastructure only.
+2. Prefer `smscode-runtime-contract` for protocol/value-object sharing across repositories.
+3. Prefer `smscode-verification-core` for SMS-code pipeline orchestration.
+4. Prefer `smscode-xposed-core` for hook/runtime infrastructure only.
 
 Boundary rules:
 - Do not import `smscode-xposed-core` from pure UI modules unless the code is genuinely hook/runtime facing.
 - Do not duplicate verification orchestration in parent repositories when the behavior already exists in `smscode-verification-core`.
 - Keep Android process/runtime side effects out of `smscode-domain`.
+- Parent repositories must install `CorePrefsAccess` before shared hooks read module settings.
 
 ## Compatibility
 
