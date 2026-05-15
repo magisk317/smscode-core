@@ -91,6 +91,25 @@ class SmsCodeUtilsTest {
     }
 
     @Test
+    fun `parse marks official rule hit as official source`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】验证码:246810",
+            keywordsRegex = "验证码",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "验证码",
+                    codeRegex = "(?<=验证码:)\\d{6}",
+                    source = SmsCodeMatchedRuleSource.OFFICIAL,
+                ),
+            ),
+        )
+
+        assertEquals("246810", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.OFFICIAL, result.matchedRule?.source)
+    }
+
+    @Test
     fun `parse prefers strict company hit over relaxed fallback candidate`() = runBlocking {
         val result = SmsCodeUtils.parseSmsCodeResultIfExists(
             content = "【Acme】验证码:246810",

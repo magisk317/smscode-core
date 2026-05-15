@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.rule.model
 
 enum class SmsCodeMatchedRuleSource {
     BUILTIN,
+    OFFICIAL,
     CUSTOM,
 }
 

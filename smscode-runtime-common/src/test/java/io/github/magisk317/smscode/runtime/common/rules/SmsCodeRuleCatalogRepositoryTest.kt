@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.runtime.common.rules
 
+import io.github.magisk317.smscode.domain.model.SmsCodeMatchedRuleSource
 import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
 import io.github.magisk317.smscode.domain.utils.SmsCodeUtils
 import kotlinx.coroutines.runBlocking
@@ -75,7 +76,9 @@ class SmsCodeRuleCatalogRepositoryTest {
         )
 
         assertEquals("4321", userResult.code)
+        assertEquals(SmsCodeMatchedRuleSource.CUSTOM, userResult.matchedRule?.source)
         assertEquals("12345", officialResult.code)
+        assertEquals(SmsCodeMatchedRuleSource.OFFICIAL, officialResult.matchedRule?.source)
     }
 
     @Test

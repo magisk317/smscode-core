@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.rules
 
 import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
+import io.github.magisk317.smscode.domain.model.SmsCodeMatchedRuleSource
 import kotlinx.serialization.Serializable
 
 const val DEFAULT_SMS_CODE_RULES_REPOSITORY = "magisk317/smscode-rules"
@@ -68,6 +69,7 @@ data class SmsCodeRuleDocument(
         senderRegex = senderRegex?.takeIf { it.isNotBlank() },
         packageNameHint = packageNameHint?.takeIf { it.isNotBlank() },
         priority = priority,
+        source = SmsCodeMatchedRuleSource.OFFICIAL,
     )
 }
 
@@ -100,6 +102,7 @@ data class OfficialSmsCodeRule(
         senderRegex = senderRegex?.takeIf { it.isNotBlank() },
         packageNameHint = packageNameHint?.takeIf { it.isNotBlank() },
         priority = priority,
+        source = SmsCodeMatchedRuleSource.OFFICIAL,
     )
 }
 

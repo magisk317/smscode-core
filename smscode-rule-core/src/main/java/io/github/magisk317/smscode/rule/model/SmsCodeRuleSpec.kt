@@ -7,4 +7,5 @@ data class SmsCodeRuleSpec(
     val senderRegex: String? = null,
     val packageNameHint: String? = null,
     val priority: Int = 0,
+    val source: SmsCodeMatchedRuleSource = SmsCodeMatchedRuleSource.CUSTOM,
 )

@@ -265,7 +265,7 @@ object SmsCodeUtils {
             val candidate = ParseCandidate(
                 code = matcher.group(),
                 matchedRule = SmsCodeMatchedRule(
-                    source = SmsCodeMatchedRuleSource.CUSTOM,
+                    source = rule.source,
                     ordinal = index + 1,
                 ),
             )
