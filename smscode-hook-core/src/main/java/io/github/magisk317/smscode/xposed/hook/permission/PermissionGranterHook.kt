@@ -1,8 +1,10 @@
 package io.github.magisk317.smscode.xposed.hook.permission
 
 import android.os.Build
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.hook.BaseHook
 import io.github.magisk317.smscode.xposed.hookapi.LoadParam
+import io.github.magisk317.smscode.xposed.utils.XLog
 
 /**
  * Hook com.android.server.pm.PackageManagerService to grant permissions.
@@ -10,12 +12,18 @@ import io.github.magisk317.smscode.xposed.hookapi.LoadParam
 class PermissionGranterHook : BaseHook() {
 
     override fun onLoadPackage(lpparam: LoadParam) {
+        XLog.withRoute(LogRoute.PERMISSION_HOOK) {
+            onLoadPackageRouted(lpparam)
+        }
+    }
+
+    private fun onLoadPackageRouted(lpparam: LoadParam) {
         if (
             ANDROID_PACKAGE == lpparam.packageName &&
             (ANDROID_PACKAGE == lpparam.processName || SYSTEM_SERVER_PROCESS == lpparam.processName)
         ) {
             val classLoader = lpparam.classLoader ?: run {
-                io.github.magisk317.smscode.xposed.utils.XLog.w(
+                XLog.w(
                     "PermissionGranterHook skip: classLoader is null for pkg=%s process=%s",
                     lpparam.packageName,
                     lpparam.processName,

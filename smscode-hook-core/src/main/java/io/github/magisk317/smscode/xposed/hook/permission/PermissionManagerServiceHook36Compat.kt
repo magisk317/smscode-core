@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.xposed.hook.permission
 
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
@@ -151,7 +152,7 @@ class PermissionManagerServiceHook36Compat(classLoader: ClassLoader) : BaseSubHo
         methods.forEach { method ->
             HookBridge.hookMethod(
                 method,
-                object : MethodHookWrapper() {
+                object : MethodHookWrapper(LogRoute.PERMISSION_HOOK) {
                     override fun after(param: MethodHookParam) {
                         afterHook(param)
                     }

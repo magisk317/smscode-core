@@ -12,6 +12,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.Process
 import android.os.UserHandle
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.hook.BaseHook
 import io.github.magisk317.smscode.xposed.hookapi.HookBridge
 import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
@@ -70,6 +71,12 @@ class NotificationManagerHook : BaseHook() {
             lpparam.processName == "system_server"
         if (!isSystemPackage || !isSystemProcess) return
 
+        XLog.withRoute(LogRoute.NMS_HOOK) {
+            onLoadPackageRouted(lpparam)
+        }
+    }
+
+    private fun onLoadPackageRouted(lpparam: LoadParam) {
         runNonFatalCatching {
             val nmsClass = HookHelpers.findClass("com.android.server.notification.NotificationManagerService", lpparam.classLoader)
 
@@ -84,10 +91,12 @@ class NotificationManagerHook : BaseHook() {
                     method,
                     object : MethodHook() {
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            runNonFatalCatching {
-                                handleEnqueueNotificationInternal(param)
-                            }.onFailure { t ->
-                                XLog.e("NotificationManagerHook error", t)
+                            XLog.withRoute(LogRoute.NMS_HOOK) {
+                                runNonFatalCatching {
+                                    handleEnqueueNotificationInternal(param)
+                                }.onFailure { t ->
+                                    XLog.e("NotificationManagerHook error", t)
+                                }
                             }
                         }
                     },

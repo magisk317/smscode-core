@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.xposed.hook.permission
 import android.os.Build
 import android.os.UserHandle
 import androidx.annotation.RequiresApi
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
@@ -45,7 +46,7 @@ class PermissionManagerServiceHook33(classLoader: ClassLoader) : BaseSubHook(cla
         }
         HookBridge.hookMethod(
             method,
-            object : MethodHookWrapper() {
+            object : MethodHookWrapper(LogRoute.PERMISSION_HOOK) {
                 @Throws(Throwable::class)
                 override fun after(param: MethodHookParam) {
                     afterRestorePermissionStateSinceAndroid13(param)

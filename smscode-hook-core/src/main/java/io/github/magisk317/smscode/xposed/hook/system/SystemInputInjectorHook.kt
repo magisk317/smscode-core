@@ -16,6 +16,7 @@ import android.os.SystemClock
 import android.view.InputEvent
 import android.view.KeyCharacterMap
 import android.widget.Toast
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.runtime.CoreHookPolicyHolder
 import io.github.magisk317.smscode.xposed.helper.XposedWrapper
@@ -69,6 +70,12 @@ class SystemInputInjectorHook : BaseHook() {
     override fun hookInitZygote(): Boolean = true
 
     override fun initZygote(startupParam: ZygoteParam) {
+        XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+            initZygoteRouted()
+        }
+    }
+
+    private fun initZygoteRouted() {
         runNonFatalCatching {
             // Redmi K60 Ultra (Redmi 23078RKD5C) Android 16 feedback:
             // system_server starts very early, ActivityThread.systemMain might be missed.
@@ -78,17 +85,19 @@ class SystemInputInjectorHook : BaseHook() {
                 "systemMain",
                 object : MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        XLog.i("XSmsCode: ActivityThread.systemMain hook triggered")
-                        val activityThreadClass = HookHelpers.findClass("android.app.ActivityThread", null)
-                        val activityThread = HookHelpers.callStaticMethod(
-                            activityThreadClass,
-                            "currentActivityThread",
-                        )
-                        val systemContext = HookHelpers.callMethod(activityThread, "getSystemContext") as? Context
-                        if (systemContext != null) {
-                            scheduleRegister(systemContext)
-                        } else {
-                            HookBridge.log("XSmsCode: systemContext is null in ActivityThread.systemMain hook")
+                        XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                            XLog.i("XSmsCode: ActivityThread.systemMain hook triggered")
+                            val activityThreadClass = HookHelpers.findClass("android.app.ActivityThread", null)
+                            val activityThread = HookHelpers.callStaticMethod(
+                                activityThreadClass,
+                                "currentActivityThread",
+                            )
+                            val systemContext = HookHelpers.callMethod(activityThread, "getSystemContext") as? Context
+                            if (systemContext != null) {
+                                scheduleRegister(systemContext)
+                            } else {
+                                HookBridge.log("XSmsCode: systemContext is null in ActivityThread.systemMain hook")
+                            }
                         }
                     }
                 },
@@ -108,6 +117,12 @@ class SystemInputInjectorHook : BaseHook() {
             return
         }
 
+        XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+            onLoadPackageRouted(lpparam)
+        }
+    }
+
+    private fun onLoadPackageRouted(lpparam: LoadParam) {
         // Fallback for Redmi K60 Ultra (Android 16): 
         // If systemMain was already executed, try immediate initialization or hook systemReady.
         XLog.i("XSmsCode: SystemInputInjectorHook loading for android package")
@@ -153,16 +168,18 @@ class SystemInputInjectorHook : BaseHook() {
                     method,
                     object : MethodHook() {
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            if (receiverRegistered) return
-                            XLog.i("XSmsCode: ActivityManagerService.systemReady hook triggered")
-                            val context = resolveSystemContext(param.thisObject)
-                            if (context != null) {
-                                if (CoreHookPolicyHolder.shouldSuppressSystemHooks(context, "SystemInputInjectorHook#systemReady")) {
-                                    logSuppressedOnce("systemReady")
-                                    receiverRegistered = true
-                                    return
+                            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                                if (receiverRegistered) return@withRoute
+                                XLog.i("XSmsCode: ActivityManagerService.systemReady hook triggered")
+                                val context = resolveSystemContext(param.thisObject)
+                                if (context != null) {
+                                    if (CoreHookPolicyHolder.shouldSuppressSystemHooks(context, "SystemInputInjectorHook#systemReady")) {
+                                        logSuppressedOnce("systemReady")
+                                        receiverRegistered = true
+                                        return@withRoute
+                                    }
+                                    scheduleRegister(context)
                                 }
-                                scheduleRegister(context)
                             }
                         }
                     },
@@ -184,7 +201,7 @@ class SystemInputInjectorHook : BaseHook() {
     private fun scheduleRegister(context: Context) {
         if (receiverRegistered) return
         getMainHandler().postDelayed(
-            { registerReceiver(context) },
+            { XLog.withRoute(LogRoute.SYSTEM_INPUT) { registerReceiver(context) } },
             DELAY_REGISTER,
         )
     }
@@ -211,22 +228,26 @@ class SystemInputInjectorHook : BaseHook() {
                     method,
                     object : MethodHook() {
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            val record = param.args.firstOrNull() ?: return
-                            val intent = extractBroadcastIntent(record) ?: return
-                            val action = intent.action ?: return
-                            if (action != resolveActionAutoInput() && action != resolveActionShowToast()) return
-                            val (uid, pkg) = extractCallerInfo(record)
-                            if (uid >= 0) {
-                                lastAutoInputCallerUid = uid
-                                lastAutoInputCallerUidAt = SystemClock.elapsedRealtime()
+                            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                                val record = param.args.firstOrNull() ?: return@withRoute
+                                val intent = extractBroadcastIntent(record) ?: return@withRoute
+                                val action = intent.action ?: return@withRoute
+                                if (action != resolveActionAutoInput() && action != resolveActionShowToast()) {
+                                    return@withRoute
+                                }
+                                val (uid, pkg) = extractCallerInfo(record)
+                                if (uid >= 0) {
+                                    lastAutoInputCallerUid = uid
+                                    lastAutoInputCallerUidAt = SystemClock.elapsedRealtime()
+                                }
+                                XLog.w(
+                                    "Diag broadcast enqueue: action=%s callerUid=%d callerPkg=%s record=%s",
+                                    action,
+                                    uid,
+                                    pkg ?: "unknown",
+                                    record.javaClass.name,
+                                )
                             }
-                            XLog.w(
-                                "Diag broadcast enqueue: action=%s callerUid=%d callerPkg=%s record=%s",
-                                action,
-                                uid,
-                                pkg ?: "unknown",
-                                record.javaClass.name,
-                            )
                         }
                     },
                 )
@@ -277,13 +298,14 @@ class SystemInputInjectorHook : BaseHook() {
             }
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
+                    XLog.withRoute(LogRoute.SYSTEM_INPUT) {
                     val sendingUid = resolveSendingUid(this)
                     val appUid = context.applicationInfo.uid
                     if (sendingUid != -1 && sendingUid != Process.SYSTEM_UID && sendingUid != Process.PHONE_UID &&
                         sendingUid != appUid
                     ) {
                         XLog.w("SystemServer input request rejected from uid=%d", sendingUid)
-                        return
+                        return@withRoute
                     }
                     if (intent.action == resolveActionShowToast()) {
                         val text = intent.getStringExtra("text")
@@ -296,10 +318,10 @@ class SystemInputInjectorHook : BaseHook() {
                         )
                         if (text.isNullOrEmpty()) {
                             XLog.w("SystemServer toast request ignored: empty text")
-                            return
+                            return@withRoute
                         }
                         showToast(context, text, duration)
-                        return
+                        return@withRoute
                     }
                     val code = intent.getStringExtra("code")
                     val autoEnter = intent.getBooleanExtra("autoEnter", false)
@@ -316,7 +338,7 @@ class SystemInputInjectorHook : BaseHook() {
                     if (code.isNullOrEmpty()) {
                         XLog.w("SystemServer received input request with empty code")
                         sendAutoInputResult(context, attemptId, success = false, reason = "empty_code")
-                        return
+                        return@withRoute
                     }
                     if (safeInputIntervalMs != inputIntervalMs) {
                         XLog.w(
@@ -345,6 +367,7 @@ class SystemInputInjectorHook : BaseHook() {
                             result.failReason ?: "unknown",
                         )
                     }
+                    }
                 }
             }
             val filter = IntentFilter(resolveActionAutoInput())
@@ -372,25 +395,27 @@ class SystemInputInjectorHook : BaseHook() {
 
     private fun showToast(context: Context, text: String, duration: Int) {
         getMainHandler().post {
-            runNonFatalCatching {
-                val toast = Toast.makeText(context, text, duration)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    toast.addCallback(
-                        object : Toast.Callback() {
-                            override fun onToastShown() {
-                                XLog.w("Diag system toast shown: text_len=%d", text.length)
-                            }
+            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                runNonFatalCatching {
+                    val toast = Toast.makeText(context, text, duration)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        toast.addCallback(
+                            object : Toast.Callback() {
+                                override fun onToastShown() {
+                                    XLog.w("Diag system toast shown: text_len=%d", text.length)
+                                }
 
-                            override fun onToastHidden() {
-                                XLog.w("Diag system toast hidden: text_len=%d", text.length)
-                            }
-                        },
-                    )
+                                override fun onToastHidden() {
+                                    XLog.w("Diag system toast hidden: text_len=%d", text.length)
+                                }
+                            },
+                        )
+                    }
+                    toast.show()
+                    XLog.w("SystemServer toast show invoked: text_len=%d duration=%d", text.length, duration)
+                }.onFailure { t ->
+                    XLog.e("Failed to show toast from System Server", t)
                 }
-                toast.show()
-                XLog.w("SystemServer toast show invoked: text_len=%d duration=%d", text.length, duration)
-            }.onFailure { t ->
-                XLog.e("Failed to show toast from System Server", t)
             }
         }
     }
@@ -737,8 +762,10 @@ class SystemInputInjectorHook : BaseHook() {
         attemptId: Long? = null,
     ) {
         getInputHandler().post {
-            val result = performInjectText(text, autoEnter, inputIntervalMs)
-            sendAutoInputResult(context, attemptId, result.success, result.failReason)
+            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                val result = performInjectText(text, autoEnter, inputIntervalMs)
+                sendAutoInputResult(context, attemptId, result.success, result.failReason)
+            }
         }
     }
 

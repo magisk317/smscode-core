@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.xposed.hook.permission
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
@@ -88,7 +89,7 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
 
         HookBridge.hookMethod(
             method,
-            object : MethodHookWrapper() {
+            object : MethodHookWrapper(LogRoute.PERMISSION_HOOK) {
                 override fun after(param: MethodHookParam) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         grantPermissionsLPwSinceM(param)
