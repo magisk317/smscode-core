@@ -29,7 +29,7 @@ dependencies {
     } else {
         ":smscode-runtime-contract"
     }
-    implementation(project(runtimeContractProjectPath))
+    api(project(runtimeContractProjectPath))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.junit.jupiter)
