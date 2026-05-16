@@ -1,9 +1,9 @@
 package io.github.magisk317.smscode.xposed.utils
 
 import android.util.Log
+import io.github.magisk317.smscode.runtime.contract.logging.LogFormatter
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSinkHolder
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
-import java.util.IllegalFormatException
 
 object XLog {
 
@@ -25,44 +25,19 @@ object XLog {
         val runtime = CoreRuntime.access
         val logTag = runtime.logTag
 
-        // Write to the default log tag
-        val lastArg = args.lastOrNull()
-        val logMessage = if (lastArg is Throwable) {
-            message + '\n' + Log.getStackTraceString(lastArg)
-        } else {
-            if (args.isNotEmpty()) {
-                try {
-                    String.format(message, *args)
-                } catch (_: IllegalFormatException) {
-                    message
-                }
-            } else {
-                message
-            }
-        }
-        Log.println(priority, logTag, logMessage)
+        val logMessage = LogFormatter.formatArgs(message, args)
+        runCatching { Log.println(priority, logTag, logMessage) }
 
         // Duplicate to the Xposed log if enabled
         if (runtime.logToXposed) {
-            Log.println(priority, "LSPosed-Bridge", "$logTag: $logMessage")
+            runCatching { Log.println(priority, "LSPosed-Bridge", "$logTag: $logMessage") }
         }
 
         CoreLogSinkHolder.append(priority, logTag, logMessage)
     }
 
     private fun formatMessageForTest(message: String, args: Array<out Any?>): String {
-        val lastArg = args.lastOrNull()
-        return if (lastArg is Throwable) {
-            message + '\n' + lastArg.stackTraceToString()
-        } else if (args.isNotEmpty()) {
-            try {
-                String.format(message, *args)
-            } catch (_: IllegalFormatException) {
-                message
-            }
-        } else {
-            message
-        }
+        return LogFormatter.formatArgs(message, args)
     }
 
     @JvmStatic

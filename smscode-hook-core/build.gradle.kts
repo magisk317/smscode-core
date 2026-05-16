@@ -24,6 +24,12 @@ android {
 }
 
 dependencies {
+    val runtimeContractProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:smscode-runtime-contract"
+    } else {
+        ":smscode-runtime-contract"
+    }
+    implementation(project(runtimeContractProjectPath))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.junit.jupiter)

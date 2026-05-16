@@ -2,6 +2,11 @@ package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
 import android.util.Log
+import io.github.magisk317.smscode.runtime.contract.logging.LogEvent
+import io.github.magisk317.smscode.runtime.contract.logging.LogLevel
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.smscode.runtime.contract.logging.LogSanitizer
+import io.github.magisk317.smscode.runtime.contract.logging.NoopLogSanitizer
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
@@ -181,6 +186,24 @@ object RuntimeLogStore {
                 "append skipped due to storage exception: ${it.message ?: it.javaClass.simpleName}",
             )
         }
+    }
+
+    fun append(
+        event: LogEvent,
+        sanitizer: LogSanitizer = NoopLogSanitizer,
+    ) {
+        val safeMessage = if (event.sensitive) {
+            sanitizer.sanitize(event.message)
+        } else {
+            event.message
+        }
+        append(
+            priority = event.priority,
+            tag = event.tag,
+            message = safeMessage,
+            force = event.force,
+            route = event.route,
+        )
     }
 
     fun clear() {
@@ -616,43 +639,15 @@ object RuntimeLogStore {
     }
 
     private fun priorityName(priority: Int): String {
-        return when (priority) {
-            Log.VERBOSE -> "V"
-            Log.DEBUG -> "D"
-            Log.INFO -> "I"
-            Log.WARN -> "W"
-            Log.ERROR -> "E"
-            Log.ASSERT -> "A"
-            else -> priority.toString()
-        }
+        return LogLevel.priorityName(priority)
     }
 
     private fun priorityFromName(level: String?): Int? {
-        return when (level?.uppercase(Locale.ROOT)) {
-            "V", "VERBOSE" -> Log.VERBOSE
-            "D", "DEBUG" -> Log.DEBUG
-            "I", "INFO" -> Log.INFO
-            "W", "WARN" -> Log.WARN
-            "E", "ERROR" -> Log.ERROR
-            "A", "ASSERT" -> Log.ASSERT
-            else -> level?.toIntOrNull()
-        }
+        return LogLevel.fromName(level)?.priority
     }
 
     private fun normalizeRoute(route: String?): String {
-        val normalized = route?.trim()?.lowercase(Locale.ROOT).orEmpty()
-        return when (normalized) {
-            ROUTE_SMS_HOOK,
-            ROUTE_NMS_HOOK,
-            ROUTE_SYSTEM_INPUT,
-            ROUTE_PERMISSION_HOOK,
-            ROUTE_FORWARD,
-            ROUTE_SENDER,
-            ROUTE_ROOT_DB,
-            ROUTE_APP,
-            -> normalized
-            else -> ROUTE_APP
-        }
+        return LogRoute.normalize(route)
     }
 
     private fun routeFileName(route: String): String {
