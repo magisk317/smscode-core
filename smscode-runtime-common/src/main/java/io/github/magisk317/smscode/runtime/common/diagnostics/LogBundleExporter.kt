@@ -7,6 +7,11 @@ import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -65,6 +70,7 @@ object LogBundleExporter {
                     }
                     val stagedAppLogDir = File(stagingDir, "app/log")
                     copyDirectory(config.logTag, appLogSrc, stagedAppLogDir)
+                    writeRuntimeLogSummaryFile(stagedAppLogDir)
                     details += "app log: ${appLogSrc.absolutePath}"
                     details += summarizeRuntimeLogFiles(stagedAppLogDir)
                 } else {
@@ -260,6 +266,49 @@ object LogBundleExporter {
         if (runtimeFiles.isEmpty()) return "runtime log files: 0"
         val names = runtimeFiles.joinToString(", ") { "${it.name}(${it.length()}B)" }
         return "runtime log files: ${runtimeFiles.size} [$names]"
+    }
+
+    private fun writeRuntimeLogSummaryFile(stagedAppLogDir: File) {
+        runCatching {
+            val summary = RuntimeLogStore.summarizeFiles()
+            val content = buildJsonObject {
+                put("fileCount", summary.fileCount)
+                put("totalBytes", summary.totalBytes)
+                put("entryCount", summary.entryCount)
+                if (summary.firstTimestamp == null) {
+                    put("firstTimestamp", JsonNull)
+                } else {
+                    put("firstTimestamp", summary.firstTimestamp)
+                }
+                if (summary.lastTimestamp == null) {
+                    put("lastTimestamp", JsonNull)
+                } else {
+                    put("lastTimestamp", summary.lastTimestamp)
+                }
+                putJsonArray("files") {
+                    summary.files.forEach { file ->
+                        add(
+                            buildJsonObject {
+                                put("name", file.name)
+                                put("sizeBytes", file.sizeBytes)
+                                put("lineCount", file.lineCount)
+                                if (file.firstTimestamp == null) {
+                                    put("firstTimestamp", JsonNull)
+                                } else {
+                                    put("firstTimestamp", file.firstTimestamp)
+                                }
+                                if (file.lastTimestamp == null) {
+                                    put("lastTimestamp", JsonNull)
+                                } else {
+                                    put("lastTimestamp", file.lastTimestamp)
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+            File(stagedAppLogDir, "runtime_summary.json").writeText(content.toString())
+        }
     }
 
     private data class ShellResult(
