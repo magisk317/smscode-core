@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.xposed.utils
 
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSink
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSinkHolder
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -57,6 +58,93 @@ class XLogTest {
         assertFalse(captured?.force ?: true)
         assertEquals(null, captured?.route)
         assertTrue(captured?.sensitive ?: false)
+    }
+
+    @Test
+    fun routeScopeAppliesExplicitRouteAndForcePolicy() {
+        var captured: CapturedLog? = null
+        XLog.setLogLevel(2)
+        CoreLogSinkHolder.install(
+            object : CoreLogSink {
+                override fun append(
+                    priority: Int,
+                    tag: String,
+                    message: String,
+                    force: Boolean,
+                    route: String?,
+                    sensitive: Boolean,
+                ) {
+                    captured = CapturedLog(priority, tag, message, force, route, sensitive)
+                }
+            },
+        )
+
+        XLog.withRoute(LogRoute.SMS_HOOK) {
+            XLog.w("sms hook failed")
+        }
+
+        assertEquals(5, captured?.priority)
+        assertEquals("sms_hook", captured?.route)
+        assertTrue(captured?.force ?: false)
+    }
+
+    @Test
+    fun explicitRouteOverloadsWinOverRouteScope() {
+        var captured: CapturedLog? = null
+        XLog.setLogLevel(2)
+        CoreLogSinkHolder.install(
+            object : CoreLogSink {
+                override fun append(
+                    priority: Int,
+                    tag: String,
+                    message: String,
+                    force: Boolean,
+                    route: String?,
+                    sensitive: Boolean,
+                ) {
+                    captured = CapturedLog(priority, tag, message, force, route, sensitive)
+                }
+            },
+        )
+
+        XLog.withRoute(LogRoute.SMS_HOOK) {
+            XLog.i(LogRoute.FORWARD, "forward event")
+        }
+
+        assertEquals(4, captured?.priority)
+        assertEquals("forward", captured?.route)
+        assertFalse(captured?.force ?: true)
+    }
+
+    @Test
+    fun routeScopeRestoresPreviousRouteAfterNestedBlock() {
+        val captured = mutableListOf<CapturedLog>()
+        XLog.setLogLevel(2)
+        CoreLogSinkHolder.install(
+            object : CoreLogSink {
+                override fun append(
+                    priority: Int,
+                    tag: String,
+                    message: String,
+                    force: Boolean,
+                    route: String?,
+                    sensitive: Boolean,
+                ) {
+                    captured += CapturedLog(priority, tag, message, force, route, sensitive)
+                }
+            },
+        )
+
+        XLog.withRoute(LogRoute.SMS_HOOK) {
+            XLog.i("outer")
+            XLog.withRoute(LogRoute.FORWARD) {
+                XLog.i("inner")
+            }
+            XLog.i("outer again")
+        }
+        XLog.i("no route")
+
+        assertEquals(listOf("sms_hook", "forward", "sms_hook", null), captured.map { it.route })
     }
 
     private data class CapturedLog(
