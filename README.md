@@ -4,7 +4,7 @@ Shared verification and Xposed infrastructure for the Magisk317 Android app fami
 
 ## Modules
 
-### `smscode-domain`
+### `domain`
 - Pure verification models and parsing utilities.
 - Rule protocol objects, rule-set index models, and mapping helpers for shared repositories.
 - Intended consumers:
@@ -17,18 +17,18 @@ Recommended public surface:
 - `io.github.magisk317.smscode.domain.utils`
 - `io.github.magisk317.smscode.domain.constant`
 
-### `smscode-runtime-contract`
+### `contract`
 - Pure protocol/value-object layer shared by parent repositories.
 - Intended for update payloads, package-environment DTOs, rule import/export contracts, and lightweight diagnostics formats.
 
-### `smscode-verification-core`
+### `verification`
 - Shared SMS verification orchestration.
 - Owns notification payload, inbox observation decisions, dispatch coordination, and post-parse helpers.
 
 Recommended public surface:
 - `io.github.magisk317.smscode.verification`
 
-### `smscode-xposed-core`
+### `xposed`
 - Shared Xposed/libxposed compatibility layer and runtime glue.
 - Owns hook API abstractions, base hook classes, runtime logging/policy, and system input fallback helpers.
 - Hook-side shared configuration must be provided by parent repos via `io.github.magisk317.smscode.xposed.prefs.CorePrefs`.
@@ -43,15 +43,15 @@ Recommended public surface:
 
 Consumers should treat the modules as layered APIs instead of a bag of source files:
 
-1. Prefer `smscode-domain` for stateless parsing, rule specs, and shared value objects.
-2. Prefer `smscode-runtime-contract` for protocol/value-object sharing across repositories.
-3. Prefer `smscode-verification-core` for SMS-code pipeline orchestration.
-4. Prefer `smscode-xposed-core` for hook/runtime infrastructure only.
+1. Prefer `domain` for stateless parsing, rule specs, and shared value objects.
+2. Prefer `contract` for protocol/value-object sharing across repositories.
+3. Prefer `verification` for SMS-code pipeline orchestration.
+4. Prefer `xposed` for hook/runtime infrastructure only.
 
 Boundary rules:
-- Do not import `smscode-xposed-core` from pure UI modules unless the code is genuinely hook/runtime facing.
-- Do not duplicate verification orchestration in parent repositories when the behavior already exists in `smscode-verification-core`.
-- Keep Android process/runtime side effects out of `smscode-domain`.
+- Do not import `xposed` from pure UI modules unless the code is genuinely hook/runtime facing.
+- Do not duplicate verification orchestration in parent repositories when the behavior already exists in `verification`.
+- Keep Android process/runtime side effects out of `domain`.
 - Parent repositories must install `CorePrefsAccess` before shared hooks read module settings.
 
 ## Compatibility
@@ -83,6 +83,6 @@ This is the expected compatibility mode. If one parent needs a newer core behavi
 
 ## Testing
 
-- `smscode-domain` should keep pure parsing and dedup logic covered by JVM tests.
-- `smscode-verification-core` and `smscode-xposed-core` should keep orchestration and hook-policy decisions covered by JVM tests.
+- `domain` should keep pure parsing and dedup logic covered by JVM tests.
+- `verification` and `xposed` should keep orchestration and hook-policy decisions covered by JVM tests.
 - New shared APIs should land with tests in this repository before parent repos adopt them.

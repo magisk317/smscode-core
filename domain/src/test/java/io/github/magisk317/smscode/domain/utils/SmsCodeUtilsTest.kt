@@ -1,0 +1,135 @@
+package io.github.magisk317.smscode.domain.utils
+
+import io.github.magisk317.smscode.domain.model.SmsCodeMatchedRuleSource
+import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Test
+
+class SmsCodeUtilsTest {
+
+    @Test
+    fun `parse prefers custom rule when available`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】login code is Z9X8, valid for five minutes",
+            keywordsRegex = "code",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "login",
+                    codeRegex = "[A-Z0-9]{4}",
+                ),
+            ),
+        )
+
+        assertEquals("Z9X8", result.code)
+        assertNotNull(result.matchedRule)
+        assertEquals(SmsCodeMatchedRuleSource.CUSTOM, result.matchedRule?.source)
+    }
+
+    @Test
+    fun `parse ignores date like tokens and keeps nearby verification code`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】2026年03月28日验证码123456，请勿泄露。",
+            keywordsRegex = "验证码",
+        )
+
+        assertEquals("123456", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.BUILTIN, result.matchedRule?.source)
+    }
+
+    @Test
+    fun `parse ignores url domain token even when custom keyword is too broad`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "请点击 br.pingan.com/zYR 完成后续操作。",
+            keywordsRegex = "pin",
+        )
+
+        assertEquals("", result.code)
+    }
+
+    @Test
+    fun `parse skips invalid custom rule and keeps later matching rule`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】验证码:246810",
+            keywordsRegex = "验证码",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "验证码",
+                    codeRegex = "[",
+                ),
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "验证码",
+                    codeRegex = "(?<=验证码:)\\d{6}",
+                ),
+            ),
+        )
+
+        assertEquals("246810", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.CUSTOM, result.matchedRule?.source)
+    }
+
+    @Test
+    fun `parse can fallback to custom rule when company token is missing`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【验证密码】领奖验证码:2108，5分钟有效；请前往移动云盘APP领取。",
+            keywordsRegex = "验证码",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "中国移动云盘",
+                    codeKeyword = "领奖验证码",
+                    codeRegex = "(?<=领奖验证码[:：])\\d{4,8}",
+                ),
+            ),
+        )
+
+        assertEquals("2108", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.CUSTOM, result.matchedRule?.source)
+    }
+
+    @Test
+    fun `parse marks official rule hit as official source`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】验证码:246810",
+            keywordsRegex = "验证码",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "验证码",
+                    codeRegex = "(?<=验证码:)\\d{6}",
+                    source = SmsCodeMatchedRuleSource.OFFICIAL,
+                ),
+            ),
+        )
+
+        assertEquals("246810", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.OFFICIAL, result.matchedRule?.source)
+    }
+
+    @Test
+    fun `parse prefers strict company hit over relaxed fallback candidate`() = runBlocking {
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】验证码:246810",
+            keywordsRegex = "验证码",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = "Other",
+                    codeKeyword = "验证码",
+                    codeRegex = "\\d{4}",
+                ),
+                SmsCodeRuleSpec(
+                    company = "Acme",
+                    codeKeyword = "验证码",
+                    codeRegex = "(?<=验证码:)\\d{6}",
+                ),
+            ),
+        )
+
+        assertEquals("246810", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.CUSTOM, result.matchedRule?.source)
+        assertEquals(2, result.matchedRule?.ordinal)
+    }
+}
