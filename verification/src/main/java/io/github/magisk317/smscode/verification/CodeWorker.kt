@@ -64,7 +64,7 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
             val plan = planFactory(settings)
             val moduleEnabled = moduleEnabledReader(pluginContext)
             val verboseLog = verboseLogReader(pluginContext)
-            XLog.w(
+            XLog.i(
                 "Diag settings: event_id=%s enabled=%s, verbose=%s, showNotif=%s, autoCancel=%s, " +
                     "retentionSec=%d, autoInput=%s, copy=%s, toast=%s, record=%s, " +
                     "block=%s, markRead=%s, delete=%s, dedup=%s",
@@ -94,7 +94,7 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
             } else {
                 logLevelSetter(defaultLogLevel)
             }
-            XLog.w(
+            XLog.i(
                 "Diag log mode: verboseSetting=%s, activeLevel=%d, defaultLevel=%d",
                 verboseLog,
                 currentLogLevelReader(),

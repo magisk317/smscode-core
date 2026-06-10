@@ -1,7 +1,9 @@
 package io.github.magisk317.smscode.verification
 
+import android.annotation.SuppressLint
 import android.app.BroadcastOptions
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -25,6 +27,14 @@ object CodeNotificationDeliveryHelper {
         val smallIconResId: Int,
         val largeIconResId: Int,
         val accentColorResId: Int,
+    )
+
+    data class PhoneOwnedNotificationPlan(
+        val title: String,
+        val smsCode: String?,
+        val notificationId: Int,
+        val autoCancelEnabled: Boolean,
+        val retentionTimeMs: Long,
     )
 
     fun <M : SmsMessage> requestAppOwnedNotification(
@@ -77,6 +87,116 @@ object CodeNotificationDeliveryHelper {
         return result
     }
 
+    fun <M : SmsMessage, R> requestAppOwnedNotificationOrFallback(
+        context: Context,
+        request: NotifyActionHelper.AppOwnedNotificationRequest<M>,
+        intentFactory: (
+            sender: String?,
+            company: String?,
+            smsCode: String?,
+            notificationId: Int,
+            autoCancelEnabled: Boolean,
+            retentionTimeMs: Long,
+            token: String?,
+        ) -> Intent,
+        fallbackNotifier: (NotifyActionHelper.PhoneOwnedNotificationRequest<M>) -> R?,
+    ): R? {
+        val deliveryResult = requestAppOwnedNotification(
+            context = context,
+            smsMsg = request.smsMsg,
+            notificationId = request.notificationId,
+            autoCancelEnabled = request.autoCancelEnabled,
+            retentionTimeMs = request.retentionTimeMs,
+            token = request.token,
+            intentFactory = intentFactory,
+        )
+        if (!deliveryResult.success) {
+            XLog.w(
+                "App-owned code notification request failed, fallback to phone-owned: reason=%s",
+                deliveryResult.reason,
+            )
+            return fallbackNotifier(
+                NotifyActionHelper.PhoneOwnedNotificationRequest(
+                    smsMsg = request.smsMsg,
+                    notificationId = request.notificationId,
+                    autoCancelEnabled = request.autoCancelEnabled,
+                    retentionTimeMs = request.retentionTimeMs,
+                ),
+            )
+        }
+        return null
+    }
+
+    fun <M : SmsMessage> createPhoneOwnedNotificationPlan(
+        request: NotifyActionHelper.PhoneOwnedNotificationRequest<M>,
+        fallbackTitle: String,
+    ): PhoneOwnedNotificationPlan {
+        return PhoneOwnedNotificationPlan(
+            title = CodeNotificationPayload.resolveTitle(
+                message = request.smsMsg,
+                fallbackTitle = fallbackTitle,
+            ),
+            smsCode = request.smsMsg.smsCode,
+            notificationId = request.notificationId,
+            autoCancelEnabled = request.autoCancelEnabled,
+            retentionTimeMs = request.retentionTimeMs,
+        )
+    }
+
+    @SuppressLint("NotificationPermission")
+    fun <M : SmsMessage> showPhoneOwnedNotification(
+        phoneContext: Context,
+        pluginContext: Context,
+        request: NotifyActionHelper.PhoneOwnedNotificationRequest<M>,
+        visualConfig: VisualConfig,
+        fallbackTitle: String,
+        contentTextProvider: (String?) -> String,
+        copyCodeIntentFactory: (Context, String?, Int) -> Intent,
+        autoCancelIntentFactory: (Context, Int) -> Intent,
+    ): Boolean {
+        val manager = phoneContext.getSystemService(
+            Context.NOTIFICATION_SERVICE,
+        ) as NotificationManager? ?: return false
+        val plan = createPhoneOwnedNotificationPlan(
+            request = request,
+            fallbackTitle = fallbackTitle,
+        )
+        val copyCodeIntent = copyCodeIntentFactory(pluginContext, plan.smsCode, plan.notificationId)
+        val contentIntent = CodeNotificationActionPayload.createBroadcastPendingIntent(
+            context = phoneContext,
+            requestCode = plan.notificationId,
+            intent = copyCodeIntent,
+        )
+        val notification = buildCodeNotification(
+            context = pluginContext,
+            visualConfig = visualConfig,
+            title = plan.title,
+            smsCode = plan.smsCode,
+            contentIntent = contentIntent,
+            contentTextProvider = contentTextProvider,
+            autoCancelEnabled = plan.autoCancelEnabled,
+            retentionTimeMs = plan.retentionTimeMs,
+        )
+        CodeNotificationAutoCancelScheduler.logSchedule(
+            CodeNotificationAutoCancelScheduler.schedule(
+                context = pluginContext,
+                notificationId = plan.notificationId,
+                autoCancelEnabled = plan.autoCancelEnabled,
+                retentionTimeMs = plan.retentionTimeMs,
+                intentFactory = autoCancelIntentFactory,
+            ),
+        )
+
+        showNotification(manager, plan.notificationId, notification)
+        XLog.i(
+            "Posted phone-owned code notification id=%d autoCancel=%s retentionMs=%d",
+            plan.notificationId,
+            plan.autoCancelEnabled,
+            plan.retentionTimeMs,
+        )
+        return true
+    }
+
     fun buildCodeNotification(
         context: Context,
         visualConfig: VisualConfig,
@@ -101,6 +221,32 @@ object CodeNotificationDeliveryHelper {
             builder.setTimeoutAfter(retentionTimeMs)
         }
         return builder.build()
+    }
+
+    @SuppressLint("NotificationPermission")
+    fun showNotification(
+        manager: NotificationManager,
+        notificationId: Int,
+        notification: Notification,
+    ) {
+        manager.notify(notificationId, notification)
+    }
+
+    fun logReceiverRejected(
+        source: String,
+        request: CodeNotificationPayload.ReceiverRequest.Rejected,
+    ) {
+        if (request.resultData == CodeNotificationPayload.RESULT_DATA_BLANK_CODE) {
+            XLog.w("%s ignored blank smsCode", source)
+            return
+        }
+        XLog.w(
+            "%s rejected token. expectedEmpty=%s receivedEmpty=%s sentFromUid=%d",
+            source,
+            request.expectedTokenEmpty,
+            request.receivedTokenEmpty,
+            request.sentFromUid ?: -1,
+        )
     }
 
     private fun sendOrderedNotificationRequest(
@@ -140,18 +286,24 @@ object CodeNotificationDeliveryHelper {
                     reason = CodeNotificationPayload.RESULT_DATA_TIMEOUT,
                 )
             }
-        } catch (error: RuntimeException) {
-            XLog.w(
-                "App-owned code notification broadcast failed: %s",
-                error.message ?: error.javaClass.simpleName,
-            )
-            CodeNotificationPayload.DeliveryResult(
-                success = false,
-                reason = CodeNotificationPayload.RESULT_DATA_SEND_FAILED,
-            )
+        } catch (error: SecurityException) {
+            broadcastFailureResult(error)
+        } catch (error: IllegalArgumentException) {
+            broadcastFailureResult(error)
         } finally {
             callbackThread.quitSafely()
         }
+    }
+
+    private fun broadcastFailureResult(error: RuntimeException): CodeNotificationPayload.DeliveryResult {
+        XLog.w(
+            "App-owned code notification broadcast failed: %s",
+            error.message ?: error.javaClass.simpleName,
+        )
+        return CodeNotificationPayload.DeliveryResult(
+            success = false,
+            reason = CodeNotificationPayload.RESULT_DATA_SEND_FAILED,
+        )
     }
 
     private fun sendOrderedBroadcastWithIdentity(

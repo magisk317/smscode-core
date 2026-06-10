@@ -1,6 +1,8 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
+import android.app.Application
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import io.github.magisk317.smscode.runtime.contract.logging.LogEvent
 import io.github.magisk317.smscode.runtime.contract.logging.LogLevel
@@ -603,8 +605,20 @@ object RuntimeLogStore {
     }
 
     private fun currentProcessName(): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val processName = runCatching {
+                Application.getProcessName()
+            }.getOrNull().orEmpty()
+            if (processName.isNotBlank()) {
+                return processName
+            }
+        }
+        return readProcessNameFromProc()
+    }
+
+    private fun readProcessNameFromProc(): String {
         return runCatching {
-            android.app.Application.getProcessName()
+            File("/proc/self/cmdline").readText().substringBefore('\u0000').trim()
         }.getOrNull().orEmpty()
     }
 

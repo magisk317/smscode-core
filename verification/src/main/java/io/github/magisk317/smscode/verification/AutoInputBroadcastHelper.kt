@@ -3,12 +3,11 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
+import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.utils.XLog
 
 object AutoInputBroadcastHelper {
-    const val EXTRA_IPC_TOKEN = "ipc_token"
-
     fun sendText(
         context: Context,
         text: String?,
@@ -16,20 +15,26 @@ object AutoInputBroadcastHelper {
         inputIntervalMs: Long = 0L,
         attemptId: Long? = null,
         actionResolver: () -> String,
-        tokenProvider: () -> String = { CorePrefs.getString(EXTRA_IPC_TOKEN, "") },
+        tokenProvider: () -> String = {
+            CorePrefs.getString(AutoInputBroadcastContract.EXTRA_IPC_TOKEN, "")
+        },
         broadcaster: (Context, Intent) -> Unit = { senderContext, intent ->
             senderContext.sendOrderedBroadcast(intent, null)
         },
     ) {
         if (text == null) return
         val resolvedAttemptId = attemptId ?: SystemClock.elapsedRealtimeNanos()
-        val intent = Intent(actionResolver()).apply {
-            putExtra("code", text)
-            putExtra("autoEnter", autoEnter)
-            putExtra("inputIntervalMs", inputIntervalMs)
-            putExtra("attemptId", resolvedAttemptId)
-            normalizeIpcToken(tokenProvider())?.let { putExtra(EXTRA_IPC_TOKEN, it) }
-        }
+        val request = AutoInputBroadcastContract.Request(
+            code = text,
+            autoEnter = autoEnter,
+            inputIntervalMs = inputIntervalMs,
+            attemptId = resolvedAttemptId,
+        )
+        val intent = AutoInputBroadcastContract.buildRequestIntent(
+            action = actionResolver(),
+            request = request,
+            token = tokenProvider(),
+        )
         broadcaster(context, intent)
         XLog.i(
             "Dispatched ACTION_AUTO_INPUT request: attemptId=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
@@ -40,5 +45,26 @@ object AutoInputBroadcastHelper {
         )
     }
 
-    fun normalizeIpcToken(token: String?): String? = token?.trim()?.takeIf { it.isNotEmpty() }
+    fun readReceiverRequest(
+        intent: Intent,
+        expectedAction: String,
+    ): AutoInputBroadcastContract.ReceiverRequest =
+        AutoInputBroadcastContract.readReceiverRequest(intent, expectedAction)
+
+    fun logReceiverRequest(
+        request: AutoInputBroadcastContract.Request,
+        ordered: Boolean,
+    ) {
+        XLog.w(
+            "Accessibility auto input request received: attemptId=%d code_len=%d autoEnter=%s inputIntervalMs=%d ordered=%s",
+            request.attemptId ?: -1L,
+            request.code.length,
+            request.autoEnter,
+            request.inputIntervalMs,
+            ordered,
+        )
+    }
+
+    fun normalizeIpcToken(token: String?): String? =
+        AutoInputBroadcastContract.normalizeIpcToken(token)
 }

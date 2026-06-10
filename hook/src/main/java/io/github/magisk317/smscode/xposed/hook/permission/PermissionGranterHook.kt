@@ -31,29 +31,28 @@ class PermissionGranterHook : BaseHook() {
                 return
             }
 
-            val sdkInt = Build.VERSION.SDK_INT
             when {
-                sdkInt >= ANDROID_16 -> { // Android 16+
+                Build.VERSION.SDK_INT >= ANDROID_16 -> { // Android 16+
                     PermissionManagerServiceHook36Compat(classLoader).startHook()
                 }
 
-                sdkInt >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
                     PermissionManagerServiceHook34(classLoader).startHook()
                 }
 
-                sdkInt >= Build.VERSION_CODES.TIRAMISU -> { // Android 13+
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> { // Android 13+
                     PermissionManagerServiceHook33(classLoader).startHook()
                 }
 
-                sdkInt >= Build.VERSION_CODES.S -> { // Android 12~12L
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> { // Android 12~12L
                     PermissionManagerServiceHook31(classLoader).startHook()
                 }
 
-                sdkInt >= Build.VERSION_CODES.R -> { // Android 11
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> { // Android 11
                     PermissionManagerServiceHook30(classLoader).startHook()
                 }
 
-                sdkInt >= Build.VERSION_CODES.P -> { // Android 9.0~10
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> { // Android 9.0~10
                     PermissionManagerServiceHook(classLoader).startHook()
                 }
 

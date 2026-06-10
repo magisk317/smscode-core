@@ -44,9 +44,9 @@ class SmsDispatchIntentProcessor<M : SmsMessage>(
 
         val parseResult = codeParser(pluginContext, phoneContext, intent, eventId)
         if (parseResult == null) {
-            XLog.w("Diag parse result is null: event_id=%s no code matched or parse failed", eventId)
+            XLog.d("Diag parse result is null: event_id=%s no code matched or parse failed", eventId)
         } else {
-            XLog.w("Diag parse result: event_id=%s blockSms=%s", eventId, parseResult.isBlockSms)
+            XLog.i("Diag parse result: event_id=%s blockSms=%s", eventId, parseResult.isBlockSms)
         }
 
         val decision = decisionEvaluator(

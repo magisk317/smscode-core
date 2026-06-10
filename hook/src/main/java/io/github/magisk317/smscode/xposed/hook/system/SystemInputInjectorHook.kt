@@ -16,6 +16,9 @@ import android.os.SystemClock
 import android.view.InputEvent
 import android.view.KeyCharacterMap
 import android.widget.Toast
+import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputAccessibilityResultContract
+import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
+import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.runtime.CoreHookPolicyHolder
@@ -323,23 +326,42 @@ class SystemInputInjectorHook : BaseHook() {
                         showToast(context, text, duration)
                         return@withRoute
                     }
-                    val code = intent.getStringExtra("code")
-                    val autoEnter = intent.getBooleanExtra("autoEnter", false)
-                    val inputIntervalMs = intent.getLongExtra("inputIntervalMs", 0L).coerceAtLeast(0L)
+                    val request = when (
+                        val receiverRequest = AutoInputBroadcastContract.readReceiverRequest(
+                            intent = intent,
+                            expectedAction = resolveActionAutoInput(),
+                        )
+                    ) {
+                        AutoInputBroadcastContract.ReceiverRequest.Ignored -> return@withRoute
+                        is AutoInputBroadcastContract.ReceiverRequest.BlankCode -> {
+                            val request = receiverRequest.request
+                            XLog.w(
+                                "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
+                                sendingUid,
+                                request.code.length,
+                                request.autoEnter,
+                                request.inputIntervalMs,
+                            )
+                            XLog.w("SystemServer received input request with empty code")
+                            sendAutoInputResult(
+                                context = context,
+                                attemptId = request.attemptId,
+                                success = false,
+                                reason = "empty_code",
+                            )
+                            return@withRoute
+                        }
+                        is AutoInputBroadcastContract.ReceiverRequest.Accepted -> receiverRequest.request
+                    }
+                    val inputIntervalMs = request.inputIntervalMs
                     val safeInputIntervalMs = inputIntervalMs.coerceAtMost(MAX_SYNC_INPUT_INTERVAL_MS)
-                    val attemptId = intent.getLongExtra("attemptId", -1L).takeIf { it >= 0L }
                     XLog.w(
                         "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
                         sendingUid,
-                        code?.length ?: 0,
-                        autoEnter,
+                        request.code.length,
+                        request.autoEnter,
                         inputIntervalMs,
                     )
-                    if (code.isNullOrEmpty()) {
-                        XLog.w("SystemServer received input request with empty code")
-                        sendAutoInputResult(context, attemptId, success = false, reason = "empty_code")
-                        return@withRoute
-                    }
                     if (safeInputIntervalMs != inputIntervalMs) {
                         XLog.w(
                             "SystemServer input interval clamped: requested=%d applied=%d",
@@ -348,22 +370,22 @@ class SystemInputInjectorHook : BaseHook() {
                         )
                     }
                     val result = runNonFatalCatching {
-                        performInjectText(code, autoEnter, safeInputIntervalMs)
+                        performInjectText(request.code, request.autoEnter, safeInputIntervalMs)
                     }.getOrElse { error ->
                         XLog.e("SystemServer performInjectText failed", error)
                         InjectResult(success = false, failReason = "inject_exception")
                     }
-                    sendAutoInputResult(context, attemptId, result.success, result.failReason)
+                    sendAutoInputResult(context, request.attemptId, result.success, result.failReason)
                     if (result.success) {
                         XLog.i(
                             "SystemServer injection success, aborting broadcast to prevent accessibility fallback: attemptId=%d",
-                            attemptId ?: -1L,
+                            request.attemptId ?: -1L,
                         )
                         abortBroadcast()
                     } else {
                         XLog.w(
                             "SystemServer injection failed, allowing broadcast to continue for accessibility fallback: attemptId=%d reason=%s",
-                            attemptId ?: -1L,
+                            request.attemptId ?: -1L,
                             result.failReason ?: "unknown",
                         )
                     }
@@ -420,27 +442,16 @@ class SystemInputInjectorHook : BaseHook() {
         }
     }
 
-    private data class AccessibilityOrderedResult(
-        val success: Boolean,
-        val strategy: String,
-        val reason: String,
-        val windowPackage: String,
-    )
-
-    private fun resolveAccessibilityOrderedResult(receiver: BroadcastReceiver): AccessibilityOrderedResult? {
+    private fun resolveAccessibilityOrderedResult(
+        receiver: BroadcastReceiver,
+    ): AutoInputAccessibilityResultContract.OrderedResult? {
         val extras = runNonFatalOrNull { receiver.getResultExtras(false) } ?: return null
-        if (!extras.getBoolean(EXTRA_ACCESSIBILITY_HANDLED, false)) return null
-        return AccessibilityOrderedResult(
-            success = extras.getBoolean(EXTRA_ACCESSIBILITY_SUCCESS, false),
-            strategy = extras.getString(EXTRA_ACCESSIBILITY_STRATEGY).orEmpty(),
-            reason = extras.getString(EXTRA_ACCESSIBILITY_REASON).orEmpty(),
-            windowPackage = extras.getString(EXTRA_ACCESSIBILITY_WINDOW_PACKAGE).orEmpty(),
-        )
+        return AutoInputAccessibilityResultContract.readOrderedResult(extras)
     }
 
     private fun shouldSkipFallbackAfterAccessibility(
         context: Context,
-        result: AccessibilityOrderedResult,
+        result: AutoInputAccessibilityResultContract.OrderedResult,
     ): Boolean {
         return AutoInputFallbackPolicy.shouldSkipFallbackAfterAccessibility(
             success = result.success,
@@ -777,21 +788,20 @@ class SystemInputInjectorHook : BaseHook() {
     ) {
         if (attemptId == null) return
         runNonFatalCatching {
-            val intent = Intent(resolveActionAutoInputResult())
             val appId = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.applicationId
-            if (appId.isNotBlank()) {
-                intent.setPackage(appId)
-            }
-            intent.putExtra("attemptId", attemptId)
-            intent.putExtra("success", success)
-            if (!success && !reason.isNullOrBlank()) {
-                intent.putExtra("reason", reason)
-            }
             val token = normalizeIpcToken(CorePrefs.getString(KEY_IPC_TOKEN, ""))
+            val intent = AutoInputResultBroadcastContract.buildResultIntent(
+                action = resolveActionAutoInputResult(),
+                packageName = appId,
+                result = AutoInputResultBroadcastContract.Result(
+                    attemptId = attemptId,
+                    success = success,
+                    reason = reason?.takeIf { it.isNotBlank() },
+                ),
+                token = token,
+            )
             if (token == null) {
                 XLog.w("Auto input result ipc token empty; intent sent without security token")
-            } else {
-                intent.putExtra(EXTRA_IPC_TOKEN, token)
             }
             context.sendBroadcast(intent)
             XLog.w(
@@ -828,15 +838,22 @@ class SystemInputInjectorHook : BaseHook() {
         fun resolveActionAutoInputResult(): String =
             "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT_RESULT"
 
-        const val KEY_IPC_TOKEN = "ipc_token"
-        const val EXTRA_IPC_TOKEN = KEY_IPC_TOKEN
-        const val EXTRA_ACCESSIBILITY_HANDLED = "accessibility_handled"
-        const val EXTRA_ACCESSIBILITY_SUCCESS = "accessibility_success"
-        const val EXTRA_ACCESSIBILITY_REASON = "accessibility_reason"
-        const val EXTRA_ACCESSIBILITY_STRATEGY = "accessibility_strategy"
-        const val EXTRA_ACCESSIBILITY_WINDOW_PACKAGE = "accessibility_window_package"
+        val KEY_IPC_TOKEN: String
+            get() = AutoInputBroadcastContract.EXTRA_IPC_TOKEN
+        val EXTRA_IPC_TOKEN: String
+            get() = AutoInputBroadcastContract.EXTRA_IPC_TOKEN
+        val EXTRA_ACCESSIBILITY_HANDLED: String
+            get() = AutoInputAccessibilityResultContract.EXTRA_HANDLED
+        val EXTRA_ACCESSIBILITY_SUCCESS: String
+            get() = AutoInputAccessibilityResultContract.EXTRA_SUCCESS
+        val EXTRA_ACCESSIBILITY_REASON: String
+            get() = AutoInputAccessibilityResultContract.EXTRA_REASON
+        val EXTRA_ACCESSIBILITY_STRATEGY: String
+            get() = AutoInputAccessibilityResultContract.EXTRA_STRATEGY
+        val EXTRA_ACCESSIBILITY_WINDOW_PACKAGE: String
+            get() = AutoInputAccessibilityResultContract.EXTRA_WINDOW_PACKAGE
 
-        fun normalizeIpcToken(token: String?): String? = token?.trim()?.takeIf { it.isNotEmpty() }
+        fun normalizeIpcToken(token: String?): String? = AutoInputBroadcastContract.normalizeIpcToken(token)
 
         private fun isSystemServerProcess(processName: String): Boolean {
             return processName == ANDROID_PACKAGE ||

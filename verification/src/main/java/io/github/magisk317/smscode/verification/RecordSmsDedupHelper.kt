@@ -3,6 +3,20 @@ package io.github.magisk317.smscode.verification
 import io.github.magisk317.smscode.xposed.utils.XLog
 
 object RecordSmsDedupHelper {
+    fun <E, I> hasCrossSourceCodeDuplicate(
+        incoming: I,
+        candidates: List<E>,
+        scorer: (existing: E, incoming: I) -> Int,
+    ): Boolean {
+        return candidates
+            .sortedByDescending { existing ->
+                scorer(existing, incoming)
+            }
+            .any { existing ->
+                scorer(existing, incoming) > 0
+            }
+    }
+
     fun <M : SmsMessage> shouldSkipByWindow(
         smsMsg: M,
         eventLabel: String,
@@ -21,25 +35,25 @@ object RecordSmsDedupHelper {
         val code = smsMsg.smsCode
         if (!code.isNullOrBlank()) {
             if (hasCodeDuplicateInWindow(code, from, to)) {
-                XLog.w("Diag record dedup skip: reason=code_window event_id=%s", eventLabel)
+                XLog.d("Diag record dedup skip: reason=code_window event_id=%s", eventLabel)
                 return true
             }
 
             val pkg = smsMsg.packageName
             if (!pkg.isNullOrBlank() && hasCodeDuplicateByPackage(code, pkg, from, to)) {
-                XLog.w("Diag record dedup skip: reason=code_package event_id=%s", eventLabel)
+                XLog.d("Diag record dedup skip: reason=code_package event_id=%s", eventLabel)
                 return true
             }
 
             val company = smsMsg.company
             if (!company.isNullOrBlank() && hasCodeDuplicateByCompany(code, company, from, to)) {
-                XLog.w("Diag record dedup skip: reason=code_company event_id=%s", eventLabel)
+                XLog.d("Diag record dedup skip: reason=code_company event_id=%s", eventLabel)
                 return true
             }
         }
 
         if (!sender.isNullOrBlank() && !body.isNullOrBlank() && hasFingerprintDuplicate(sender, body, from, to)) {
-            XLog.w("Diag record dedup skip: reason=fingerprint_window event_id=%s", eventLabel)
+            XLog.d("Diag record dedup skip: reason=fingerprint_window event_id=%s", eventLabel)
             return true
         }
 

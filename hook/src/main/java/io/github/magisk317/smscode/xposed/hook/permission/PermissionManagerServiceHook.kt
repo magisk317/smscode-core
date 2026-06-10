@@ -87,10 +87,11 @@ class PermissionManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(class
                 /* PermissionCallback callback */
                 callbackClass,
             )
-        if (method == null) { // method restorePermissionState() not found
-            val methods = HookHelpers.findMethodsByExactParameters(
-                pmsClass,
-                Void.TYPE,
+
+            if (method == null) { // method restorePermissionState() not found
+                val methods = HookHelpers.findMethodsByExactParameters(
+                    pmsClass,
+                    Void.TYPE,
                     /* PackageParser.Package pkg   */
                     packageClass,
                     /* boolean replace             */

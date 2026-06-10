@@ -28,7 +28,7 @@ object ToastActionHelper {
         val toastKey = SmsMessageDedupKeys.buildMessageKey(smsMsg)
         val ownerToken = acquireToastOwner(toastKey) ?: return
         val toast = Toast.makeText(phoneContext, text, duration)
-        XLog.w(
+        XLog.i(
             "Diag toast request: key=%s pkg=%s uid=%d code_len=%d text_len=%d",
             toastKey.ifBlank { "<none>" },
             phoneContext.packageName,
@@ -44,7 +44,7 @@ object ToastActionHelper {
                     override fun onToastShown() {
                         shown.set(true)
                         touchToastOwner(toastKey, ownerToken)
-                        XLog.w(
+                        XLog.d(
                             "Diag toast shown: key=%s pkg=%s code_len=%d",
                             toastKey.ifBlank { "<none>" },
                             phoneContext.packageName,
@@ -53,7 +53,7 @@ object ToastActionHelper {
                     }
 
                     override fun onToastHidden() {
-                        XLog.w(
+                        XLog.d(
                             "Diag toast hidden: key=%s pkg=%s code_len=%d",
                             toastKey.ifBlank { "<none>" },
                             phoneContext.packageName,
@@ -66,7 +66,7 @@ object ToastActionHelper {
                 {
                     if (!shown.get() && ownsToastOwner(toastKey, ownerToken)) {
                         touchToastOwner(toastKey, ownerToken)
-                        XLog.w(
+                        XLog.i(
                             "Diag toast fallback via system receiver: key=%s pkg=%s code_len=%d",
                             toastKey.ifBlank { "<none>" },
                             phoneContext.packageName,
@@ -91,7 +91,7 @@ object ToastActionHelper {
             trimToastCache(now)
             val last = recentToasts[key]
             if (last != null && now - last.timestamp <= TOAST_DEDUP_WINDOW_MS) {
-                XLog.w(
+                XLog.d(
                     "Diag toast dedup skip: key=%s ageMs=%d",
                     key,
                     now - last.timestamp,

@@ -10,6 +10,10 @@ interface SmsMsgRecord {
     val smsCode: String?
     val packageName: String?
     val notifyChannelId: String
+    val simSlot: Int
+        get() = -1
+    val subId: Int
+        get() = 0
     val forwardStatus: Int
     val forwardTarget: String?
     val forwardMessage: String?

@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.verification
 
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Intent
 import android.os.Build
 
@@ -40,6 +41,55 @@ object CodeNotificationPayload {
         val token: String?,
     )
 
+    data class BroadcastContract(
+        val applicationId: String,
+        val receiverClassName: String,
+    ) {
+        val actionShowCodeNotification: String =
+            showNotificationAction(applicationId)
+
+        fun createIntent(
+            sender: String?,
+            company: String?,
+            smsCode: String?,
+            notificationId: Int,
+            autoCancelEnabled: Boolean,
+            retentionTimeMs: Long,
+            token: String?,
+            intentFactory: (String) -> Intent = ::Intent,
+        ): Intent =
+            createBroadcastIntent(
+                applicationId = applicationId,
+                receiverClassName = receiverClassName,
+                payload = Payload(
+                    sender = sender,
+                    company = company,
+                    smsCode = smsCode,
+                    notificationId = notificationId,
+                    autoCancelEnabled = autoCancelEnabled,
+                    retentionTimeMs = retentionTimeMs,
+                    token = token,
+                ),
+                intentFactory = intentFactory,
+            )
+    }
+
+    sealed class ReceiverRequest {
+        object Ignored : ReceiverRequest()
+
+        data class Rejected(
+            val resultData: String,
+            val expectedTokenEmpty: Boolean,
+            val receivedTokenEmpty: Boolean,
+            val sentFromUid: Int?,
+        ) : ReceiverRequest()
+
+        data class Accepted(
+            val payload: Payload,
+            val smsCode: String,
+        ) : ReceiverRequest()
+    }
+
     fun fillIntent(intent: Intent, payload: Payload): Intent =
         intent.apply {
             putExtra(EXTRA_SENDER, payload.sender)
@@ -52,6 +102,24 @@ object CodeNotificationPayload {
                 putExtra(EXTRA_IPC_TOKEN, payload.token)
             }
         }
+
+    fun showNotificationAction(applicationId: String): String {
+        return "$applicationId.ACTION_SHOW_CODE_NOTIFICATION"
+    }
+
+    fun createBroadcastIntent(
+        applicationId: String,
+        receiverClassName: String,
+        payload: Payload,
+        intentFactory: (String) -> Intent = ::Intent,
+    ): Intent {
+        return fillIntent(
+            intentFactory(showNotificationAction(applicationId)).apply {
+                setClassName(applicationId, receiverClassName)
+            },
+            payload,
+        )
+    }
 
     fun readPayload(intent: Intent): Payload {
         val smsCode = intent.getStringExtra(EXTRA_SMS_CODE).orEmpty()
@@ -66,6 +134,43 @@ object CodeNotificationPayload {
         )
     }
 
+    fun readReceiverRequest(
+        intent: Intent,
+        expectedAction: String,
+        expectedToken: String?,
+        sentFromUid: Int?,
+    ): ReceiverRequest {
+        if (intent.action != expectedAction) return ReceiverRequest.Ignored
+        val payload = readPayload(intent)
+        val smsCode = payload.smsCode.orEmpty()
+        if (smsCode.isBlank()) {
+            return ReceiverRequest.Rejected(
+                resultData = RESULT_DATA_BLANK_CODE,
+                expectedTokenEmpty = expectedToken.isNullOrBlank(),
+                receivedTokenEmpty = payload.token.isNullOrBlank(),
+                sentFromUid = sentFromUid,
+            )
+        }
+
+        val tokenMatched = !expectedToken.isNullOrBlank() && payload.token == expectedToken
+        val allowSystemBypass = shouldAllowSmsHookTokenBypass(
+            expectedToken = expectedToken,
+            sentFromUid = sentFromUid,
+        )
+        if (!tokenMatched && !allowSystemBypass) {
+            return ReceiverRequest.Rejected(
+                resultData = RESULT_DATA_REJECTED_TOKEN,
+                expectedTokenEmpty = expectedToken.isNullOrBlank(),
+                receivedTokenEmpty = payload.token.isNullOrBlank(),
+                sentFromUid = sentFromUid,
+            )
+        }
+        return ReceiverRequest.Accepted(
+            payload = payload,
+            smsCode = smsCode,
+        )
+    }
+
     fun resolveTitle(
         company: String?,
         sender: String?,
@@ -74,6 +179,17 @@ object CodeNotificationPayload {
         return company?.takeIf { it.isNotBlank() }
             ?: sender?.takeIf { it.isNotBlank() }
             ?: fallbackTitle
+    }
+
+    fun resolveTitle(
+        message: SmsMessage,
+        fallbackTitle: String,
+    ): String {
+        return resolveTitle(
+            company = message.company,
+            sender = message.sender,
+            fallbackTitle = fallbackTitle,
+        )
     }
 
     fun pendingIntentImmutableFlag(): Int {
@@ -97,6 +213,32 @@ object CodeNotificationPayload {
             success = resultCode == RESULT_CODE_APP_NOTIFICATION_POSTED,
             reason = reason,
         )
+    }
+
+    fun finishOrderedResult(
+        receiver: BroadcastReceiver,
+        reason: String,
+        success: Boolean = false,
+    ): Boolean {
+        if (!receiver.isOrderedBroadcast) return false
+        receiver.setResult(resultCodeFor(success), reason, null)
+        return true
+    }
+
+    fun resultCodeFor(success: Boolean): Int {
+        return if (success) {
+            RESULT_CODE_APP_NOTIFICATION_POSTED
+        } else {
+            RESULT_CODE_APP_NOTIFICATION_FAILED
+        }
+    }
+
+    fun resolveSentFromUidCompat(
+        sdkInt: Int = Build.VERSION.SDK_INT,
+        sentFromUidProvider: () -> Int,
+    ): Int? {
+        if (sdkInt < API_LEVEL_34) return null
+        return runCatching(sentFromUidProvider).getOrNull()
     }
 
     fun shouldAllowSmsHookTokenBypass(

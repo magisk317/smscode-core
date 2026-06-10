@@ -11,6 +11,8 @@ object SmsMsgCursorContract {
         "sms_code",
         "package_name",
         "notify_channel_id",
+        "sim_slot",
+        "sub_id",
         "msg_type",
         "call_type",
         "forward_status",
@@ -30,6 +32,8 @@ object SmsMsgCursorContract {
             "sms_code" -> record.smsCode
             "package_name" -> record.packageName
             "notify_channel_id" -> record.notifyChannelId
+            "sim_slot" -> record.simSlot
+            "sub_id" -> record.subId
             "msg_type" -> record.msgType
             "call_type" -> record.callType
             "forward_status" -> record.forwardStatus

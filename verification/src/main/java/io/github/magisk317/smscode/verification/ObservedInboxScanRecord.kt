@@ -8,4 +8,6 @@ data class ObservedInboxScanRecord(
     val date: Long,
     val read: Boolean,
     val code: String,
+    val simSlot: Int = -1,
+    val subId: Int = 0,
 )

@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.xposed.hook.notification
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -941,6 +942,7 @@ class NotificationManagerHook : BaseHook() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun sendBroadcastAsUser(
         systemContext: Context,
         intent: Intent,

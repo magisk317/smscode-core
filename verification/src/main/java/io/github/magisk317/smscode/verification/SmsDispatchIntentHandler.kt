@@ -91,7 +91,7 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
             return Outcome(stopReason = StopReason.SMS_BLOCKED)
         }
         if (decision.shouldAllowSystemPersist) {
-            XLog.w(
+            XLog.i(
                 "Diag allow system inbox persist: event_id=%s sender_hash=%s body_len=%d",
                 eventId,
                 senderHash(smsMsg?.sender),

@@ -7,4 +7,8 @@ interface SmsMessage {
     val smsCode: String?
     val packageName: String?
     val company: String?
+    val simSlot: Int
+        get() = -1
+    val subId: Int
+        get() = 0
 }

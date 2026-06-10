@@ -36,11 +36,13 @@ class SmsParseAction<M>(
     fun parse(): Outcome<M>? {
         val intent = smsIntent ?: return null
         val smsMsg = incomingSmsParser(intent)
-        XLog.w(
-            "Diag SMS parsed from intent: senderPresent=%s, bodyLength=%d, timestamp=%d",
+        XLog.i(
+            "Diag SMS parsed from intent: senderPresent=%s, bodyLength=%d, timestamp=%d simSlot=%d subId=%d",
             !smsMsg.sender.isNullOrBlank(),
             smsMsg.body?.length ?: 0,
             smsMsg.date,
+            smsMsg.simSlot,
+            smsMsg.subId,
         )
 
         val sender = smsMsg.sender
@@ -56,7 +58,7 @@ class SmsParseAction<M>(
         }
 
         val timestamp = if (smsMsg.date > 0) smsMsg.date else System.currentTimeMillis()
-        XLog.w("Diag SMS body: %s", summarizeBody(sensitiveDebugLog, msgBody))
+        XLog.d("Diag SMS body: %s", summarizeBody(sensitiveDebugLog, msgBody))
 
         if (deduplicateEnabled) {
             val duplicated = runBlocking { duplicateChecker(sender, msgBody, timestamp) }
@@ -75,7 +77,7 @@ class SmsParseAction<M>(
                 timestamp,
             )
         } ?: run {
-            XLog.w(
+            XLog.d(
                 "Diag SMS parsed but no code matched, body=%s",
                 summarizeBody(sensitiveDebugLog, msgBody),
             )
@@ -83,12 +85,14 @@ class SmsParseAction<M>(
         }
 
         val smsCode = resolvedSmsMsg.smsCode.orEmpty()
-        XLog.w(
-            "Diag SMS code matched: companyPresent=%s, codeLength=%d, code=%s, body=%s",
+        XLog.i(
+            "Diag SMS code matched: companyPresent=%s, codeLength=%d, code=%s, body=%s simSlot=%d subId=%d",
             !resolvedSmsMsg.company.isNullOrBlank(),
             smsCode.length,
             summarizeCode(sensitiveDebugLog, smsCode),
             summarizeBody(sensitiveDebugLog, msgBody),
+            resolvedSmsMsg.simSlot,
+            resolvedSmsMsg.subId,
         )
         return Outcome(
             smsMsg = resolvedSmsMsg,

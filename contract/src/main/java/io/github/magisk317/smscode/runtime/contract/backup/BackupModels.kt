@@ -45,6 +45,10 @@ data class BackupSmsRecord(
     val smsCode: String? = null,
     @SerialName("packageName")
     val packageName: String? = null,
+    @SerialName("simSlot")
+    val simSlot: Int = -1,
+    @SerialName("subId")
+    val subId: Int = 0,
     @SerialName("msgType")
     val msgType: Int = 0,
     @SerialName("callType")

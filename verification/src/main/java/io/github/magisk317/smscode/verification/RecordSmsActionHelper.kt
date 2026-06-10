@@ -30,12 +30,14 @@ class RecordSmsActionHelper<M : SmsMessage>(
 
     private fun recordSmsMsg(smsMsg: M) {
         val eventLabel = eventId.ifBlank { "<none>" }
-        XLog.w(
-            "Diag record start: event_id=%s sender_hash=%s body_len=%d code_present=%s",
+        XLog.i(
+            "Diag record start: event_id=%s sender_hash=%s body_len=%d code_present=%s simSlot=%d subId=%d",
             eventLabel,
             senderHash(smsMsg.sender),
             smsMsg.body?.length ?: 0,
             !smsMsg.smsCode.isNullOrBlank(),
+            smsMsg.simSlot,
+            smsMsg.subId,
         )
         if (deduplicateEnabled) {
             val locked = withFileLock(pluginContext, SHARED_RECORD_DEDUP_FILE_NAME) {
@@ -58,7 +60,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
     private fun persistSmsMsg(smsMsg: M, eventLabel: String) {
         val insertResult = primaryInserter(smsMsg)
         if (insertResult.success) {
-            XLog.w(
+            XLog.i(
                 "Diag record provider insert success: event_id=%s %s",
                 eventLabel,
                 insertResult.detail ?: "",
@@ -71,7 +73,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
             insertResult.error ?: insertResult.detail ?: "unknown",
         )
         if (fallbackExporter(smsMsg)) {
-            XLog.w("Diag record file fallback success: event_id=%s", eventLabel)
+            XLog.i("Diag record file fallback success: event_id=%s", eventLabel)
         } else {
             XLog.w("Diag record file fallback failed: event_id=%s", eventLabel)
         }

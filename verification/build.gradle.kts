@@ -6,6 +6,10 @@ val smscodeXposedCorePath = parent?.path
     ?.takeUnless { it == ":" }
     ?.let { "$it:xposed" }
     ?: ":xposed"
+val runtimeContractProjectPath = parent?.path
+    ?.takeUnless { it == ":" }
+    ?.let { "$it:contract" }
+    ?: ":contract"
 
 android {
     namespace = "io.github.magisk317.smscode.verification"
@@ -29,6 +33,7 @@ android {
 }
 
 dependencies {
+    implementation(project(runtimeContractProjectPath))
     implementation(project(smscodeXposedCorePath))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)

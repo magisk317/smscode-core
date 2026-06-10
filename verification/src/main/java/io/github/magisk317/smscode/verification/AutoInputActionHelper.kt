@@ -128,7 +128,7 @@ class AutoInputActionHelper<M : SmsMessage>(
             MAX_AUTO_INPUT_CACHE_SIZE,
         )
         if (!sharedClaim.claimed) {
-            XLog.w(
+            XLog.d(
                 "Diag auto-input dedup skip: key=%s ageMs=%d source=shared_store",
                 sharedClaim.key ?: keys.first(),
                 sharedClaim.ageMs ?: -1L,
@@ -150,7 +150,7 @@ class AutoInputActionHelper<M : SmsMessage>(
             }
             if (blockedKey != null) {
                 val last = recentAutoInputs[blockedKey]
-                XLog.w(
+                XLog.d(
                     "Diag auto-input dedup skip: key=%s ageMs=%d",
                     blockedKey,
                     if (last == null) -1L else now - last,
