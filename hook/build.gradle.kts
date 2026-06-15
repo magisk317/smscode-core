@@ -32,6 +32,7 @@ dependencies {
     api(project(runtimeContractProjectPath))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)
+    testImplementation(libs.libxposed.api)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
 }

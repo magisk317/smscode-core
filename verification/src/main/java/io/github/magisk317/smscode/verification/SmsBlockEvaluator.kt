@@ -43,7 +43,29 @@ class SmsBlockEvaluator<M : SmsMessage>(
                 blacklistResult.actionBlock,
             )
         }
+        val deleteOnlyBlacklist = blacklistResult.matched && blacklistResult.actionDelete
+        val body = smsMsg?.body.orEmpty()
+        val shouldParseCode =
+            body.isNotBlank() && (blacklistResult.actionBlock || blockSmsEnabledReader(pluginContext))
+        val smsCode = if (shouldParseCode) {
+            runBlocking { smsCodeParser(pluginContext, body) }.orEmpty()
+        } else {
+            ""
+        }
         if (blacklistResult.actionBlock) {
+            if (smsCode.isNotBlank()) {
+                XLog.w(
+                    "Diag %s blacklist block contains code: event_id=%s codeLength=%d",
+                    source,
+                    eventId,
+                    smsCode.length,
+                )
+                return Result(
+                    smsMsg = smsMsg,
+                    blockReason = SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK,
+                    blacklistDeleteOnly = false,
+                )
+            }
             return Result(
                 smsMsg = smsMsg,
                 blockReason = SmsHandlerDispatchDecision.BlockReason.BLACKLIST,
@@ -51,8 +73,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
             )
         }
 
-        val deleteOnlyBlacklist = blacklistResult.matched && blacklistResult.actionDelete
-        if (!blockSmsEnabledReader(pluginContext)) {
+        if (!shouldParseCode) {
             return Result(
                 smsMsg = smsMsg,
                 blockReason = null,
@@ -60,16 +81,6 @@ class SmsBlockEvaluator<M : SmsMessage>(
             )
         }
 
-        val body = smsMsg?.body.orEmpty()
-        if (body.isBlank()) {
-            return Result(
-                smsMsg = smsMsg,
-                blockReason = null,
-                blacklistDeleteOnly = deleteOnlyBlacklist,
-            )
-        }
-
-        val smsCode = runBlocking { smsCodeParser(pluginContext, body) }.orEmpty()
         if (smsCode.isBlank()) {
             return Result(
                 smsMsg = smsMsg,

@@ -48,7 +48,9 @@ object DefaultLogSanitizer : LogSanitizer {
             text = queryRegex.replace(text) { match ->
                 match.groupValues[1] + summarizer(match.groupValues[2])
             }
-            val jsonRegex = Regex("(?i)(\"$field\"\\s*:\\s*\")([^\"]*)(\")")
+            // 值匹配必须跳过转义序列（如 \"、\\），否则对已序列化的 JSON 行（如导出的
+            // .jsonl）做替换时会在值内第一个 \" 处截断，产生非法 JSON 并泄漏剩余内容。
+            val jsonRegex = Regex("(?i)(\"$field\"\\s*:\\s*\")((?:[^\"\\\\]|\\\\.)*)(\")")
             text = jsonRegex.replace(text) { match ->
                 match.groupValues[1] + summarizer(match.groupValues[2]) + match.groupValues[3]
             }

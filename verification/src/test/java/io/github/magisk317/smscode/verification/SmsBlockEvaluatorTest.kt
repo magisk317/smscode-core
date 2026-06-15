@@ -36,7 +36,7 @@ class SmsBlockEvaluatorTest {
     }
 
     @Test
-    fun evaluate_prioritizesBlacklistBlock() {
+    fun evaluate_treatsBlacklistBlockWithCodeAsPrefBlock() {
         stubXLog()
         val sms = TestSmsMessage(sender = "1068", body = "otp 123456")
         val evaluator = evaluator(
@@ -53,6 +53,31 @@ class SmsBlockEvaluatorTest {
         )
 
         val result = requireNotNull(evaluator.evaluate(mockk(relaxed = true), smsIntent(), "evt-1", "test"))
+
+        assertSame(sms, result.smsMsg)
+        assertEquals(SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK, result.blockReason)
+        assertEquals("pref_block_sms", result.blockReasonWireValue)
+        assertFalse(result.blacklistDeleteOnly)
+    }
+
+    @Test
+    fun evaluate_keepsBlacklistBlockWhenNoCodeExists() {
+        stubXLog()
+        val sms = TestSmsMessage(sender = "1068", body = "hello")
+        val evaluator = evaluator(
+            sms = sms,
+            blacklistResult = BlacklistMatchResult(
+                matched = true,
+                matchType = "sender",
+                pattern = "1068",
+                actionDelete = true,
+                actionBlock = true,
+            ),
+            blockSmsEnabled = true,
+            parsedCode = "",
+        )
+
+        val result = requireNotNull(evaluator.evaluate(mockk(relaxed = true), smsIntent(), "evt-1b", "test"))
 
         assertSame(sms, result.smsMsg)
         assertEquals(SmsHandlerDispatchDecision.BlockReason.BLACKLIST, result.blockReason)
