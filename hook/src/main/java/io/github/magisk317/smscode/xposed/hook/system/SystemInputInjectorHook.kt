@@ -48,6 +48,15 @@ class SystemInputInjectorHook : BaseHook() {
     private var inputHandler: Handler? = null
 
     @Volatile
+    private var inputThread: HandlerThread? = null
+
+    @Volatile
+    private var registeredReceiverContext: Context? = null
+
+    @Volatile
+    private var registeredReceiver: BroadcastReceiver? = null
+
+    @Volatile
     private var inputManagerGlobal: Any? = null
 
     @Volatile
@@ -86,7 +95,7 @@ class SystemInputInjectorHook : BaseHook() {
                 "android.app.ActivityThread",
                 null,
                 "systemMain",
-                object : MethodHook() {
+                object : MethodHook("system_input.activity_thread_system_main") {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         XLog.withRoute(LogRoute.SYSTEM_INPUT) {
                             XLog.i("XSmsCode: ActivityThread.systemMain hook triggered")
@@ -169,7 +178,7 @@ class SystemInputInjectorHook : BaseHook() {
             methods.forEach { method ->
                 HookBridge.hookMethod(
                     method,
-                    object : MethodHook() {
+                    object : MethodHook("system_input.ams_system_ready") {
                         override fun afterHookedMethod(param: MethodHookParam) {
                             XLog.withRoute(LogRoute.SYSTEM_INPUT) {
                                 if (receiverRegistered) return@withRoute
@@ -229,7 +238,7 @@ class SystemInputInjectorHook : BaseHook() {
             methods.forEach { method ->
                 HookBridge.hookMethod(
                     method,
-                    object : MethodHook() {
+                    object : MethodHook("system_input.broadcast_enqueue_caller_uid") {
                         override fun afterHookedMethod(param: MethodHookParam) {
                             XLog.withRoute(LogRoute.SYSTEM_INPUT) {
                                 val record = param.args.firstOrNull() ?: return@withRoute
@@ -400,6 +409,8 @@ class SystemInputInjectorHook : BaseHook() {
             } else {
                 context.registerReceiver(receiver, filter)
             }
+            registeredReceiverContext = context
+            registeredReceiver = receiver
             receiverRegistered = true
             XLog.w("SystemInputInjectorReceiver registered")
             HookBridge.log("XSmsCode: SystemInputInjectorReceiver registered")
@@ -582,6 +593,7 @@ class SystemInputInjectorHook : BaseHook() {
             } else {
                 val thread = HandlerThread("xsmscode-input")
                 thread.start()
+                inputThread = thread
                 Handler(thread.looper).also { inputHandler = it }
             }
         }
@@ -763,6 +775,31 @@ class SystemInputInjectorHook : BaseHook() {
             }
         }
         return InjectResult(success, failReason)
+    }
+
+    override fun onHotReloading() {
+        XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+            registeredReceiver?.let { receiver ->
+                runNonFatalCatching {
+                    registeredReceiverContext?.unregisterReceiver(receiver)
+                    XLog.w("SystemInputInjectorReceiver unregistered for hot reload")
+                }.onFailure { t ->
+                    XLog.w("SystemInputInjectorReceiver unregister failed: %s", t.message ?: t.javaClass.simpleName)
+                }
+            }
+            mainHandler?.removeCallbacksAndMessages(null)
+            inputHandler?.removeCallbacksAndMessages(null)
+            inputThread?.quitSafely()
+            registeredReceiver = null
+            registeredReceiverContext = null
+            receiverRegistered = false
+            inputHandler = null
+            inputThread = null
+            mainHandler = null
+            inputManagerGlobal = null
+            injectMethod = null
+            injectMethodParamCount = 0
+        }
     }
 
     private fun injectText(

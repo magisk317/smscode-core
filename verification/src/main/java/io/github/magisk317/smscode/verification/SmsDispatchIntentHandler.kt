@@ -12,6 +12,8 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
     private val conflictNotifier: (Context, Context, String, String) -> Unit,
     private val suppressionLogger: (String) -> Unit = {},
     private val blacklistDeleteScheduler: (Context, Context, M) -> Unit = { _, _, _ -> },
+    private val blacklistHitRecorder: (Context, Context, M?, BlacklistMatchResult, SmsHandlerDispatchDecision.Decision, String) -> Unit =
+        { _, _, _, _, _, _ -> },
     private val inboundBlocker: (Any, Any, String, String) -> Unit = { _, _, _, _ -> },
     private val gateEvaluator: (Boolean, Boolean) -> DispatchGateDecision = ::defaultGateDecision,
 ) {
@@ -71,6 +73,16 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
         val dispatchOutcome = dispatchProcessor(pluginContext, phoneContext, intent, eventId)
         val smsMsg = dispatchOutcome.smsMsg
         val decision = dispatchOutcome.decision
+        if (dispatchOutcome.blacklistResult.matched) {
+            blacklistHitRecorder(
+                pluginContext,
+                phoneContext,
+                smsMsg,
+                dispatchOutcome.blacklistResult,
+                decision,
+                eventId,
+            )
+        }
         if (decision.shouldDeleteByBlacklist && smsMsg != null) {
             blacklistDeleteScheduler(pluginContext, phoneContext, smsMsg)
         }

@@ -44,6 +44,52 @@ class LibXposedHookApiTest {
     }
 
     @Test
+    fun hotReloadReplacesOldHookByExecutableSignatureWhenCallbackIdChanged() {
+        val framework = RecordingFramework()
+        val api = LibXposedHookApi(testModule(framework))
+        api.hookMethod(targetMethod, MethodHook())
+        val currentId = framework.builders.single().id.orEmpty()
+        framework.builders.clear()
+        framework.hookCalls = 0
+        val oldHandle = RecordingHookHandle(
+            targetMethod,
+            id = "smscode:old.module.Callback@${currentId.substringAfter('@')}",
+        )
+
+        api.beginHotReload(listOf(oldHandle))
+        val replacement = api.hookMethod(targetMethod, MethodHook())
+
+        assertNotNull(replacement)
+        assertEquals(1, oldHandle.replaceCalls)
+        assertEquals(0, framework.hookCalls)
+        assertEquals(0, api.finishHotReload())
+    }
+
+    @Test
+    fun hotReloadReplacesOldHookByLegacyCallbackClassWhenStableIdIsAdded() {
+        val framework = RecordingFramework()
+        val api = LibXposedHookApi(testModule(framework))
+        val oldCallback = StableTestHook()
+        api.hookMethod(targetMethod, oldCallback)
+        val oldHandle = RecordingHookHandle(targetMethod, id = framework.builders.single().id)
+        framework.builders.clear()
+        framework.hookCalls = 0
+
+        api.beginHotReload(listOf(oldHandle))
+        val replacement = api.hookMethod(
+            targetMethod,
+            StableTestHook("stable.callback.id"),
+        )
+
+        assertNotNull(replacement)
+        assertEquals(1, oldHandle.replaceCalls)
+        assertEquals(0, framework.hookCalls)
+        assertEquals(0, api.finishHotReload())
+    }
+
+    private class StableTestHook(stableId: String? = null) : MethodHook(stableId)
+
+    @Test
     fun beginHotReloadHandlesEmptyId() {
         val framework = RecordingFramework()
         val api = LibXposedHookApi(testModule(framework))

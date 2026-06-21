@@ -34,8 +34,16 @@ abstract class BaseLibXposedHookApi(
     }
 
     protected fun buildHookId(executable: Executable, callback: MethodHook): String {
+        return "smscode:${callback.stableId ?: callback.javaClass.name}@${buildExecutableSignature(executable)}"
+    }
+
+    protected fun buildLegacyHookId(executable: Executable, callback: MethodHook): String {
+        return "smscode:${callback.javaClass.name}@${buildExecutableSignature(executable)}"
+    }
+
+    protected fun buildExecutableSignature(executable: Executable): String {
         val params = executable.parameterTypes.joinToString(",") { it.name }
-        return "smscode:${callback.javaClass.name}@${executable.declaringClass.name}#${executable.name}($params)"
+        return "${executable.declaringClass.name}#${executable.name}($params)"
     }
 
     private fun createHooker(member: Member, callback: MethodHook): XposedInterface.Hooker {

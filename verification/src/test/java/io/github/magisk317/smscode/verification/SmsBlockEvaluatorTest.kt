@@ -57,6 +57,8 @@ class SmsBlockEvaluatorTest {
         assertSame(sms, result.smsMsg)
         assertEquals(SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK, result.blockReason)
         assertEquals("pref_block_sms", result.blockReasonWireValue)
+        assertEquals("sender", result.blacklistResult.matchType)
+        assertEquals("1068", result.blacklistResult.pattern)
         assertFalse(result.blacklistDeleteOnly)
     }
 

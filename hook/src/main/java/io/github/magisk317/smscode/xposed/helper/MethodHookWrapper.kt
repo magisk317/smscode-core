@@ -9,7 +9,8 @@ import io.github.magisk317.smscode.xposed.utils.rethrowIfFatal
 
 abstract class MethodHookWrapper(
     private val route: LogRoute? = null,
-) : MethodHook() {
+    stableId: String? = route?.id,
+) : MethodHook(stableId) {
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
         val activeRoute = route

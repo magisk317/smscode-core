@@ -155,6 +155,61 @@ class SmsDispatchIntentHandlerTest {
         assertEquals("1068", deletedSender)
     }
 
+    @Test
+    fun handle_recordsMatchedBlacklistBeforeActions() {
+        stubXLog()
+        val runtime = runtime()
+        val smsMsg = TestSmsMessage(
+            sender = "1068",
+            body = "otp 123456",
+            date = 100L,
+        )
+        val blacklistResult = BlacklistMatchResult(
+            matched = true,
+            matchType = "sender",
+            pattern = "1068",
+            actionDelete = true,
+            actionBlock = true,
+        )
+        var recordedEventId: String? = null
+        var recordedResult: BlacklistMatchResult? = null
+        var recordedDecision: SmsHandlerDispatchDecision.Decision? = null
+        val handler = SmsDispatchIntentHandler(
+            runtimeResolver = { runtime },
+            moduleEnabledReader = { true },
+            conflictSuppressor = { _, _ -> false },
+            dispatchProcessor = { _, _, _, _ ->
+                SmsDispatchIntentProcessor.Outcome(
+                    smsMsg = smsMsg,
+                    blacklistResult = blacklistResult,
+                    parseResult = null,
+                    decision = SmsHandlerDispatchDecision.Decision(
+                        shouldDeleteByBlacklist = true,
+                        blockReason = SmsHandlerDispatchDecision.BlockReason.BLACKLIST,
+                    ),
+                )
+            },
+            conflictNotifier = { _, _, _, _ -> },
+            blacklistHitRecorder = { _, _, _, result, decision, eventId ->
+                recordedEventId = eventId
+                recordedResult = result
+                recordedDecision = decision
+            },
+        )
+
+        val outcome = handler.handle(
+            intent = Intent(),
+            eventId = "evt-hit",
+            inboundSmsHandler = null,
+            receiver = null,
+        )
+
+        assertEquals(SmsDispatchIntentHandler.StopReason.SMS_BLOCKED, outcome.stopReason)
+        assertEquals("evt-hit", recordedEventId)
+        assertEquals(blacklistResult, recordedResult)
+        assertEquals(SmsHandlerDispatchDecision.BlockReason.BLACKLIST, recordedDecision?.blockReason)
+    }
+
     private fun runtime(): VerificationRuntimeContext {
         return object : VerificationRuntimeContext {
             override val pluginContext: Context = mockk(relaxed = true)

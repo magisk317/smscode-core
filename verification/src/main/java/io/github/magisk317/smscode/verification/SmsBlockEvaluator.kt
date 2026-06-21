@@ -15,6 +15,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
         val smsMsg: M?,
         val blockReason: SmsHandlerDispatchDecision.BlockReason?,
         val blacklistDeleteOnly: Boolean,
+        val blacklistResult: BlacklistMatchResult,
     ) {
         val blockReasonWireValue: String?
             get() = blockReason?.wireValue
@@ -64,12 +65,14 @@ class SmsBlockEvaluator<M : SmsMessage>(
                     smsMsg = smsMsg,
                     blockReason = SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK,
                     blacklistDeleteOnly = false,
+                    blacklistResult = blacklistResult,
                 )
             }
             return Result(
                 smsMsg = smsMsg,
                 blockReason = SmsHandlerDispatchDecision.BlockReason.BLACKLIST,
                 blacklistDeleteOnly = false,
+                blacklistResult = blacklistResult,
             )
         }
 
@@ -78,6 +81,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
                 smsMsg = smsMsg,
                 blockReason = null,
                 blacklistDeleteOnly = deleteOnlyBlacklist,
+                blacklistResult = blacklistResult,
             )
         }
 
@@ -86,6 +90,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
                 smsMsg = smsMsg,
                 blockReason = null,
                 blacklistDeleteOnly = deleteOnlyBlacklist,
+                blacklistResult = blacklistResult,
             )
         }
 
@@ -99,6 +104,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
             smsMsg = smsMsg,
             blockReason = SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK,
             blacklistDeleteOnly = deleteOnlyBlacklist,
+            blacklistResult = blacklistResult,
         )
     }
 }

@@ -11,6 +11,15 @@ object SmsIntentHookSupport {
     private const val RAW_TABLE_DELETE_WHERE_FIELD = "mDeleteWhere"
     private const val RAW_TABLE_DELETE_WHERE_ARGS_FIELD = "mDeleteWhereArgs"
 
+    /**
+     * Check if the intent action is an SMS action.
+     *
+     * Android 17 (API 37) Impact:
+     * - OTP messages (WebOTP format) are delayed by 3 hours for non-expected receivers
+     * - This affects SMS_RECEIVED_ACTION broadcasts
+     * - Xposed hooks in the SMS app process will receive the delayed broadcast
+     * - Use SmsContentObserver as a fallback for OTP messages
+     */
     fun isSmsAction(action: String?): Boolean {
         return action == Telephony.Sms.Intents.SMS_DELIVER_ACTION ||
             action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION

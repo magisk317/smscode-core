@@ -3,7 +3,9 @@ package io.github.magisk317.smscode.xposed.hookapi
 import java.lang.reflect.Member
 import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
 
-open class MethodHook {
+open class MethodHook(
+    open val stableId: String? = null,
+) {
     @Throws(Throwable::class)
     open fun beforeHookedMethod(param: MethodHookParam) {
     }

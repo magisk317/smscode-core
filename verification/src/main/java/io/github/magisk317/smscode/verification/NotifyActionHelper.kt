@@ -44,10 +44,7 @@ class NotifyActionHelper<M : SmsMessage, R>(
         return when (ownerReader(pluginContext)) {
             phoneOwnedValue -> showPhoneOwnedNotification()
             appOwnedValue -> showAppOwnedNotification()
-            else -> {
-                XLog.w("Skip code notification: owner not selected")
-                null
-            }
+            else -> showPhoneOwnedNotification()
         }
     }
 

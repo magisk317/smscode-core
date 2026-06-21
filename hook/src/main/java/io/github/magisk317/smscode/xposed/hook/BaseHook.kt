@@ -16,4 +16,8 @@ open class BaseHook : IHook {
     }
 
     open fun hookOnLoadPackage(): Boolean = true
+
+    @Throws(Throwable::class)
+    open fun onHotReloading() {
+    }
 }
