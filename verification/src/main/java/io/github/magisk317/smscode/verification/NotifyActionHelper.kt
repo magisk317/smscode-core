@@ -7,17 +7,12 @@ class NotifyActionHelper<M : SmsMessage, R>(
     private val pluginContext: Context,
     private val smsMsg: M,
     private val enabled: Boolean,
-    private val ownerReader: (Context) -> String,
-    private val appOwnedValue: String,
-    private val phoneOwnedValue: String,
     private val autoCancelEnabledProvider: (Context) -> Boolean,
     private val retentionTimeMsProvider: (Context) -> Long,
     private val tokenProvider: (Context) -> String? = { null },
-    private val appOwnedChannelInitializer: (Context) -> Unit = {},
-    private val phoneOwnedChannelInitializer: (Context) -> Unit = {},
-    private val appOwnedDiagnostics: (Context) -> DeliveryDiagnostics = { DeliveryDiagnostics(canPost = true) },
-    private val appOwnedNotifier: (AppOwnedNotificationRequest<M>) -> R?,
-    private val phoneOwnedNotifier: (PhoneOwnedNotificationRequest<M>) -> R?,
+    private val channelInitializer: (Context) -> Unit = {},
+    private val diagnostics: (Context) -> DeliveryDiagnostics = { DeliveryDiagnostics(canPost = true) },
+    private val notifier: (AppOwnedNotificationRequest<M>) -> R?,
 ) {
     data class DeliveryDiagnostics(
         val canPost: Boolean,
@@ -32,51 +27,24 @@ class NotifyActionHelper<M : SmsMessage, R>(
         val token: String?,
     )
 
-    data class PhoneOwnedNotificationRequest<M : SmsMessage>(
-        val smsMsg: M,
-        val notificationId: Int,
-        val autoCancelEnabled: Boolean,
-        val retentionTimeMs: Long,
-    )
-
     fun run(): R? {
         if (!enabled) return null
-        return when (ownerReader(pluginContext)) {
-            phoneOwnedValue -> showPhoneOwnedNotification()
-            appOwnedValue -> showAppOwnedNotification()
-            else -> showPhoneOwnedNotification()
-        }
-    }
-
-    private fun showAppOwnedNotification(): R? {
-        appOwnedChannelInitializer(pluginContext)
-        val diagnostics = appOwnedDiagnostics(pluginContext)
-        if (!diagnostics.canPost) {
+        channelInitializer(pluginContext)
+        val diag = diagnostics(pluginContext)
+        if (!diag.canPost) {
             XLog.w(
-                "App-owned code notification unavailable, fallback to phone-owned: %s",
-                diagnostics.summary,
+                "Code notification unavailable: %s",
+                diag.summary,
             )
-            return showPhoneOwnedNotification()
+            return null
         }
-        return appOwnedNotifier(
+        return notifier(
             AppOwnedNotificationRequest(
                 smsMsg = smsMsg,
                 notificationId = smsMsg.hashCode(),
                 autoCancelEnabled = autoCancelEnabledProvider(pluginContext),
                 retentionTimeMs = retentionTimeMsProvider(pluginContext),
                 token = tokenProvider(pluginContext),
-            ),
-        )
-    }
-
-    private fun showPhoneOwnedNotification(): R? {
-        phoneOwnedChannelInitializer(pluginContext)
-        return phoneOwnedNotifier(
-            PhoneOwnedNotificationRequest(
-                smsMsg = smsMsg,
-                notificationId = smsMsg.hashCode(),
-                autoCancelEnabled = autoCancelEnabledProvider(pluginContext),
-                retentionTimeMs = retentionTimeMsProvider(pluginContext),
             ),
         )
     }

@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.verification
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
@@ -32,6 +33,7 @@ object CodeNotificationAutoCancelScheduler {
         val intentFactory: (Context, Int) -> Intent,
     )
 
+    @SuppressLint("NewApi")
     data class Environment(
         val nowProvider: () -> Long = System::currentTimeMillis,
         val sdkInt: Int = Build.VERSION.SDK_INT,

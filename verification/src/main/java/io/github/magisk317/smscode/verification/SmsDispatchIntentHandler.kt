@@ -88,6 +88,10 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
         }
         decision.blockReason?.let { blockReason ->
             XLog.w("Diag sms block reason=%s event_id=%s", blockReason.wireValue, eventId)
+            // Delete SMS from database so it doesn't appear in the inbox
+            if (smsMsg != null) {
+                blacklistDeleteScheduler(pluginContext, phoneContext, smsMsg)
+            }
             if (inboundSmsHandler != null && receiver != null) {
                 inboundBlocker(
                     inboundSmsHandler,

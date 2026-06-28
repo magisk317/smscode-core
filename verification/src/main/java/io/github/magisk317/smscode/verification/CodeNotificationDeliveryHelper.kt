@@ -29,14 +29,6 @@ object CodeNotificationDeliveryHelper {
         val accentColorResId: Int,
     )
 
-    data class PhoneOwnedNotificationPlan(
-        val title: String,
-        val smsCode: String?,
-        val notificationId: Int,
-        val autoCancelEnabled: Boolean,
-        val retentionTimeMs: Long,
-    )
-
     fun <M : SmsMessage> requestAppOwnedNotification(
         context: Context,
         smsMsg: M,
@@ -85,116 +77,6 @@ object CodeNotificationDeliveryHelper {
             result.reason,
         )
         return result
-    }
-
-    fun <M : SmsMessage, R> requestAppOwnedNotificationOrFallback(
-        context: Context,
-        request: NotifyActionHelper.AppOwnedNotificationRequest<M>,
-        intentFactory: (
-            sender: String?,
-            company: String?,
-            smsCode: String?,
-            notificationId: Int,
-            autoCancelEnabled: Boolean,
-            retentionTimeMs: Long,
-            token: String?,
-        ) -> Intent,
-        fallbackNotifier: (NotifyActionHelper.PhoneOwnedNotificationRequest<M>) -> R?,
-    ): R? {
-        val deliveryResult = requestAppOwnedNotification(
-            context = context,
-            smsMsg = request.smsMsg,
-            notificationId = request.notificationId,
-            autoCancelEnabled = request.autoCancelEnabled,
-            retentionTimeMs = request.retentionTimeMs,
-            token = request.token,
-            intentFactory = intentFactory,
-        )
-        if (!deliveryResult.success) {
-            XLog.w(
-                "App-owned code notification request failed, fallback to phone-owned: reason=%s",
-                deliveryResult.reason,
-            )
-            return fallbackNotifier(
-                NotifyActionHelper.PhoneOwnedNotificationRequest(
-                    smsMsg = request.smsMsg,
-                    notificationId = request.notificationId,
-                    autoCancelEnabled = request.autoCancelEnabled,
-                    retentionTimeMs = request.retentionTimeMs,
-                ),
-            )
-        }
-        return null
-    }
-
-    fun <M : SmsMessage> createPhoneOwnedNotificationPlan(
-        request: NotifyActionHelper.PhoneOwnedNotificationRequest<M>,
-        fallbackTitle: String,
-    ): PhoneOwnedNotificationPlan {
-        return PhoneOwnedNotificationPlan(
-            title = CodeNotificationPayload.resolveTitle(
-                message = request.smsMsg,
-                fallbackTitle = fallbackTitle,
-            ),
-            smsCode = request.smsMsg.smsCode,
-            notificationId = request.notificationId,
-            autoCancelEnabled = request.autoCancelEnabled,
-            retentionTimeMs = request.retentionTimeMs,
-        )
-    }
-
-    @SuppressLint("NotificationPermission")
-    fun <M : SmsMessage> showPhoneOwnedNotification(
-        phoneContext: Context,
-        pluginContext: Context,
-        request: NotifyActionHelper.PhoneOwnedNotificationRequest<M>,
-        visualConfig: VisualConfig,
-        fallbackTitle: String,
-        contentTextProvider: (String?) -> String,
-        copyCodeIntentFactory: (Context, String?, Int) -> Intent,
-        autoCancelIntentFactory: (Context, Int) -> Intent,
-    ): Boolean {
-        val manager = phoneContext.getSystemService(
-            Context.NOTIFICATION_SERVICE,
-        ) as NotificationManager? ?: return false
-        val plan = createPhoneOwnedNotificationPlan(
-            request = request,
-            fallbackTitle = fallbackTitle,
-        )
-        val copyCodeIntent = copyCodeIntentFactory(pluginContext, plan.smsCode, plan.notificationId)
-        val contentIntent = CodeNotificationActionPayload.createBroadcastPendingIntent(
-            context = phoneContext,
-            requestCode = plan.notificationId,
-            intent = copyCodeIntent,
-        )
-        val notification = buildCodeNotification(
-            context = pluginContext,
-            visualConfig = visualConfig,
-            title = plan.title,
-            smsCode = plan.smsCode,
-            contentIntent = contentIntent,
-            contentTextProvider = contentTextProvider,
-            autoCancelEnabled = plan.autoCancelEnabled,
-            retentionTimeMs = plan.retentionTimeMs,
-        )
-        CodeNotificationAutoCancelScheduler.logSchedule(
-            CodeNotificationAutoCancelScheduler.schedule(
-                context = pluginContext,
-                notificationId = plan.notificationId,
-                autoCancelEnabled = plan.autoCancelEnabled,
-                retentionTimeMs = plan.retentionTimeMs,
-                intentFactory = autoCancelIntentFactory,
-            ),
-        )
-
-        showNotification(manager, plan.notificationId, notification)
-        XLog.i(
-            "Posted phone-owned code notification id=%d autoCancel=%s retentionMs=%d",
-            plan.notificationId,
-            plan.autoCancelEnabled,
-            plan.retentionTimeMs,
-        )
-        return true
     }
 
     fun buildCodeNotification(

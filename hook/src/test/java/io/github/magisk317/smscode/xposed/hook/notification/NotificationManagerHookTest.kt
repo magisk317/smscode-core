@@ -4,12 +4,19 @@ import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.prefs.CorePrefsAccess
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntimeAccess
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class NotificationManagerHookTest {
+
+    @AfterEach
+    fun tearDown() {
+        CorePrefs.resetForTest()
+        CoreRuntime.resetForTest()
+    }
 
     @Test
     fun `does not treat domain token as verification code for telephony sms notifications`() {

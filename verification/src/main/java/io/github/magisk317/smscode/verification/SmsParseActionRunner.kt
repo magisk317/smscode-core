@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 object SmsParseActionRunner {
-    const val DEFAULT_TIMEOUT_MS = 2000L
+    const val DEFAULT_TIMEOUT_MS = 10_000L
 
     fun <R : Any, M : SmsMessage> runWithTimeout(
         executor: ScheduledExecutorService,

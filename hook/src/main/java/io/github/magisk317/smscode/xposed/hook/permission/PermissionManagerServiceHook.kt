@@ -6,13 +6,12 @@ import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
-import io.github.magisk317.smscode.xposed.helper.XposedWrapper
-import io.github.magisk317.smscode.xposed.hook.BaseSubHook
-import io.github.magisk317.smscode.xposed.hookapi.MethodHook
-import io.github.magisk317.smscode.xposed.hookapi.HookBridge
-import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
+import io.github.magisk317.xposed.HookHelpers
+import io.github.magisk317.xposed.BaseSubHook
+import io.github.magisk317.xposed.MethodHook
+import io.github.magisk317.xposed.HookEnv
 import java.lang.reflect.Method
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
+import io.github.magisk317.xposed.MethodHookParam
 
 /**
  * Since Android P(API 28)<br/>
@@ -40,7 +39,11 @@ class PermissionManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(class
     private fun hookGrantPermissions() {
         XLog.d("Hooking grantPermissions() for Android 28+")
         val method = findTargetMethod()
-        HookBridge.hookMethod(
+        if (method == null) {
+            XLog.e("Cannot find the method to grant relevant permission")
+            return
+        }
+        HookEnv.api.hookMethod(
             method,
             object : MethodHookWrapper(LogRoute.PERMISSION_HOOK) {
                 @Throws(Throwable::class)
@@ -57,7 +60,7 @@ class PermissionManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(class
         var callbackClass = HookHelpers.findClassIfExists(CLASS_PERMISSION_CALLBACK, mClassLoader)
         if (callbackClass == null) {
             // Android Q PermissionCallback 不一样
-            callbackClass = XposedWrapper.findClass(CLASS_PERMISSION_CALLBACK_Q, mClassLoader)
+            callbackClass = runCatching { HookHelpers.findClass(CLASS_PERMISSION_CALLBACK_Q, mClassLoader) }.getOrNull()
         }
 
         var method = HookHelpers.findMethodExactIfExists(

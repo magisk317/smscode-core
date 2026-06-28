@@ -19,6 +19,10 @@ object CoreRuntime {
         accessRef = access
     }
 
+    internal fun resetForTest() {
+        accessRef = null
+    }
+
     val access: CoreRuntimeAccess
         get() = accessRef ?: DefaultAccess
 

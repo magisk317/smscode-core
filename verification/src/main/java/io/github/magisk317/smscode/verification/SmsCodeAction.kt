@@ -18,6 +18,7 @@ abstract class SmsCodeCallableAction<M>(
 
     @Suppress("TooGenericExceptionCaught")
     override fun call(): Bundle? = try {
+        XLog.i("CallableAction#call() START: %s", this.javaClass.simpleName)
         action()
     } catch (t: Throwable) {
         XLog.e("Error in CallableAction#call()", t)

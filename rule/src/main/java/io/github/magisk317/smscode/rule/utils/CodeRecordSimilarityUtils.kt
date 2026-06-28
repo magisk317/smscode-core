@@ -8,6 +8,7 @@ object CodeRecordSimilarityUtils {
         "com.android.mms",
         "com.android.messaging",
         "com.google.android.apps.messaging",
+        "com.textra",
     )
 
     data class Projection(

@@ -3,8 +3,8 @@ package io.github.magisk317.smscode.xposed.hook.permission
 import android.os.UserHandle
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
-import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
+import io.github.magisk317.xposed.HookHelpers
+import io.github.magisk317.xposed.MethodHookParam
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 

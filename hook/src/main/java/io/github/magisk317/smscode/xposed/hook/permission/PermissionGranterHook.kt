@@ -2,8 +2,8 @@ package io.github.magisk317.smscode.xposed.hook.permission
 
 import android.os.Build
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.xposed.hook.BaseHook
-import io.github.magisk317.smscode.xposed.hookapi.LoadParam
+import io.github.magisk317.xposed.BaseHook
+import io.github.magisk317.xposed.LoadParam
 import io.github.magisk317.smscode.xposed.utils.XLog
 
 /**
@@ -11,9 +11,9 @@ import io.github.magisk317.smscode.xposed.utils.XLog
  */
 class PermissionGranterHook : BaseHook() {
 
-    override fun onLoadPackage(lpparam: LoadParam) {
+    override fun onLoadPackage(param: LoadParam) {
         XLog.withRoute(LogRoute.PERMISSION_HOOK) {
-            onLoadPackageRouted(lpparam)
+            onLoadPackageRouted(param)
         }
     }
 
@@ -22,14 +22,7 @@ class PermissionGranterHook : BaseHook() {
             ANDROID_PACKAGE == lpparam.packageName &&
             (ANDROID_PACKAGE == lpparam.processName || SYSTEM_SERVER_PROCESS == lpparam.processName)
         ) {
-            val classLoader = lpparam.classLoader ?: run {
-                XLog.w(
-                    "PermissionGranterHook skip: classLoader is null for pkg=%s process=%s",
-                    lpparam.packageName,
-                    lpparam.processName,
-                )
-                return
-            }
+            val classLoader = lpparam.classLoader
 
             when {
                 Build.VERSION.SDK_INT >= ANDROID_16 -> { // Android 16+

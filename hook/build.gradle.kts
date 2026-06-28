@@ -29,7 +29,13 @@ dependencies {
     } else {
         ":contract"
     }
+    val xposedKitProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":magisk-xposed-kit"
+    } else {
+        ":magisk-xposed-kit"
+    }
     api(project(runtimeContractProjectPath))
+    api(project(xposedKitProjectPath))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.libxposed.api)

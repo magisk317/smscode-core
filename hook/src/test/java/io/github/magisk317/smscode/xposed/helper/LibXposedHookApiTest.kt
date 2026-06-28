@@ -1,7 +1,9 @@
-package io.github.magisk317.smscode.xposed.hookapi
+package io.github.magisk317.smscode.xposed.helper
 
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
+import io.github.magisk317.xposed.LibXposedHookApi
+import io.github.magisk317.xposed.MethodHook
 import java.lang.reflect.Executable
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method as ReflectMethod
@@ -15,7 +17,7 @@ class LibXposedHookApiTest {
     @Test
     fun hookUsesHookIdEnhancedInstall() {
         val framework = RecordingFramework()
-        val api = LibXposedHookApi(testModule(framework))
+        val api = LibXposedHookApi(testModule(framework), "smscode")
 
         val handle = api.hookMethod(targetMethod, MethodHook())
 
@@ -29,7 +31,7 @@ class LibXposedHookApiTest {
     @Test
     fun hotReloadReplacesOldHookById() {
         val framework = RecordingFramework()
-        val api = LibXposedHookApi(testModule(framework))
+        val api = LibXposedHookApi(testModule(framework), "smscode")
         val callback = MethodHook()
         api.hookMethod(targetMethod, callback)
         val oldHandle = RecordingHookHandle(targetMethod, id = framework.builders.single().id)
@@ -46,7 +48,7 @@ class LibXposedHookApiTest {
     @Test
     fun hotReloadReplacesOldHookByExecutableSignatureWhenCallbackIdChanged() {
         val framework = RecordingFramework()
-        val api = LibXposedHookApi(testModule(framework))
+        val api = LibXposedHookApi(testModule(framework), "smscode")
         api.hookMethod(targetMethod, MethodHook())
         val currentId = framework.builders.single().id.orEmpty()
         framework.builders.clear()
@@ -68,7 +70,7 @@ class LibXposedHookApiTest {
     @Test
     fun hotReloadReplacesOldHookByLegacyCallbackClassWhenStableIdIsAdded() {
         val framework = RecordingFramework()
-        val api = LibXposedHookApi(testModule(framework))
+        val api = LibXposedHookApi(testModule(framework), "smscode")
         val oldCallback = StableTestHook()
         api.hookMethod(targetMethod, oldCallback)
         val oldHandle = RecordingHookHandle(targetMethod, id = framework.builders.single().id)
@@ -87,12 +89,12 @@ class LibXposedHookApiTest {
         assertEquals(0, api.finishHotReload())
     }
 
-    private class StableTestHook(stableId: String? = null) : MethodHook(stableId)
+    private class StableTestHook(override val stableId: String? = null) : MethodHook()
 
     @Test
     fun beginHotReloadHandlesEmptyId() {
         val framework = RecordingFramework()
-        val api = LibXposedHookApi(testModule(framework))
+        val api = LibXposedHookApi(testModule(framework), "smscode")
         val oldHandle = RecordingHookHandle(targetMethod, id = null)
 
         api.beginHotReload(listOf(oldHandle))
@@ -107,7 +109,7 @@ class LibXposedHookApiTest {
     @Test
     fun finishHotReloadIgnoresUnhookFailure() {
         val framework = RecordingFramework()
-        val api = LibXposedHookApi(testModule(framework))
+        val api = LibXposedHookApi(testModule(framework), "smscode")
         val oldHandle = object : RecordingHookHandle(targetMethod, id = "some-id") {
             override fun unhook() {
                 super.unhook()
@@ -123,7 +125,7 @@ class LibXposedHookApiTest {
     @Test
     fun hotReloadHandlesDuplicateIdsCorrectly() {
         val framework = RecordingFramework()
-        val api = LibXposedHookApi(testModule(framework))
+        val api = LibXposedHookApi(testModule(framework), "smscode")
         val callback = MethodHook()
         // Simulate hooking same method twice to generate duplicate IDs
         api.hookMethod(targetMethod, callback)

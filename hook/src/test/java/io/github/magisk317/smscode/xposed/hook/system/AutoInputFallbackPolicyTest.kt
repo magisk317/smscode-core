@@ -105,4 +105,44 @@ class AutoInputFallbackPolicyTest {
         assertEquals(null, SystemInputInjectorHook.normalizeIpcToken("   "))
         assertEquals(null, SystemInputInjectorHook.normalizeIpcToken(null))
     }
+
+    @Test
+    fun shouldAllowAutoInputSenderUid_allowsScopedSmsPackages() {
+        assertTrue(
+            SystemInputInjectorHook.shouldAllowAutoInputSenderUid(
+                sendingUid = 10148,
+                systemContextUid = 1000,
+                senderPackages = listOf("com.android.mms"),
+                modulePackageName = "com.github.tianma8023.xposed.smscode",
+            ),
+        )
+        assertTrue(
+            SystemInputInjectorHook.shouldAllowAutoInputSenderUid(
+                sendingUid = 10149,
+                systemContextUid = 1000,
+                senderPackages = listOf("com.xiaomi.phone"),
+                modulePackageName = "com.github.tianma8023.xposed.smscode",
+            ),
+        )
+        assertTrue(
+            SystemInputInjectorHook.shouldAllowAutoInputSenderUid(
+                sendingUid = 10150,
+                systemContextUid = 1000,
+                senderPackages = listOf("com.github.tianma8023.xposed.smscode"),
+                modulePackageName = "com.github.tianma8023.xposed.smscode",
+            ),
+        )
+    }
+
+    @Test
+    fun shouldAllowAutoInputSenderUid_rejectsUnscopedPackages() {
+        assertFalse(
+            SystemInputInjectorHook.shouldAllowAutoInputSenderUid(
+                sendingUid = 10148,
+                systemContextUid = 1000,
+                senderPackages = listOf("com.example.untrusted"),
+                modulePackageName = "com.github.tianma8023.xposed.smscode",
+            ),
+        )
+    }
 }

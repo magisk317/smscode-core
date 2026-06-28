@@ -7,12 +7,12 @@ import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
-import io.github.magisk317.smscode.xposed.hook.BaseSubHook
-import io.github.magisk317.smscode.xposed.hookapi.MethodHook
-import io.github.magisk317.smscode.xposed.hookapi.HookBridge
-import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
+import io.github.magisk317.xposed.BaseSubHook
+import io.github.magisk317.xposed.MethodHook
+import io.github.magisk317.xposed.HookEnv
+import io.github.magisk317.xposed.HookHelpers
 import java.lang.reflect.Method
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
+import io.github.magisk317.xposed.MethodHookParam
 
 /**
  * Since Android 14(API 34+)<br/>
@@ -44,7 +44,7 @@ class PermissionManagerServiceHook34(classLoader: ClassLoader) : BaseSubHook(cla
             XLog.e("Cannot find the method to grant relevant permission")
             return
         }
-        HookBridge.hookMethod(
+        HookEnv.api.hookMethod(
             method,
             object : MethodHookWrapper(LogRoute.PERMISSION_HOOK) {
                 @Throws(Throwable::class)

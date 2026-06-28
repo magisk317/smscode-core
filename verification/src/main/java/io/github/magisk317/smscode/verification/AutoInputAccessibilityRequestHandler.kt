@@ -56,6 +56,7 @@ object AutoInputAccessibilityRequestHandler {
                 packageName = packageName,
                 attemptId = request.attemptId,
                 result = result,
+                token = intent.getStringExtra(AutoInputBroadcastContract.EXTRA_IPC_TOKEN),
                 onFailure = onResultBroadcastFailure,
             )
         }

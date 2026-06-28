@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.telephony
 
 import android.os.Message
-import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
+import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.smscode.xposed.utils.XLog
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method

@@ -6,13 +6,12 @@ import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
-import io.github.magisk317.smscode.xposed.helper.XposedWrapper
-import io.github.magisk317.smscode.xposed.hook.BaseSubHook
-import io.github.magisk317.smscode.xposed.hookapi.MethodHook
-import io.github.magisk317.smscode.xposed.hookapi.HookBridge
-import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
+import io.github.magisk317.xposed.HookHelpers
+import io.github.magisk317.xposed.BaseSubHook
+import io.github.magisk317.xposed.MethodHook
+import io.github.magisk317.xposed.HookEnv
 import java.lang.reflect.Method
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
+import io.github.magisk317.xposed.MethodHookParam
 
 /**
  * Android 4.4 ~ Android 8.1 (API 19 - 27)<br/>
@@ -38,7 +37,7 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
     }
 
     private fun hookGrantPermissionsLPw() {
-        val pmsClass = XposedWrapper.findClass(CLASS_PACKAGE_MANAGER_SERVICE, mClassLoader)
+        val pmsClass = runCatching { HookHelpers.findClass(CLASS_PACKAGE_MANAGER_SERVICE, mClassLoader) }.getOrNull()
         val method: Method = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 // Android 5.0 +
@@ -87,7 +86,7 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
             throw e
         }
 
-        HookBridge.hookMethod(
+        HookEnv.api.hookMethod(
             method,
             object : MethodHookWrapper(LogRoute.PERMISSION_HOOK) {
                 override fun after(param: MethodHookParam) {

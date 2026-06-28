@@ -22,18 +22,16 @@ import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBro
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.runtime.CoreHookPolicyHolder
-import io.github.magisk317.smscode.xposed.helper.XposedWrapper
-import io.github.magisk317.smscode.xposed.hook.BaseHook
-import io.github.magisk317.smscode.xposed.hookapi.HookBridge
-import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
-import io.github.magisk317.smscode.xposed.hookapi.LoadParam
-import io.github.magisk317.smscode.xposed.hookapi.MethodHook
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
-import io.github.magisk317.smscode.xposed.hookapi.ZygoteParam
+import io.github.magisk317.xposed.HookHelpers
+import io.github.magisk317.xposed.BaseHook
+import io.github.magisk317.xposed.HookEnv
+import io.github.magisk317.xposed.LoadParam
+import io.github.magisk317.xposed.MethodHook
+import io.github.magisk317.xposed.MethodHookParam
 import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
-import io.github.magisk317.smscode.xposed.utils.runNonFatalCatching
-import io.github.magisk317.smscode.xposed.utils.runNonFatalOrNull
+import io.github.magisk317.xposed.runNonFatalCatching
+import io.github.magisk317.xposed.runNonFatalOrNull
 import java.lang.reflect.Method
 import java.util.Locale
 
@@ -81,7 +79,7 @@ class SystemInputInjectorHook : BaseHook() {
 
     override fun hookInitZygote(): Boolean = true
 
-    override fun initZygote(startupParam: ZygoteParam) {
+    override fun initZygote() {
         XLog.withRoute(LogRoute.SYSTEM_INPUT) {
             initZygoteRouted()
         }
@@ -91,46 +89,50 @@ class SystemInputInjectorHook : BaseHook() {
         runNonFatalCatching {
             // Redmi K60 Ultra (Redmi 23078RKD5C) Android 16 feedback:
             // system_server starts very early, ActivityThread.systemMain might be missed.
-            XposedWrapper.findAndHookMethod(
-                "android.app.ActivityThread",
-                null,
-                "systemMain",
-                object : MethodHook("system_input.activity_thread_system_main") {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        XLog.withRoute(LogRoute.SYSTEM_INPUT) {
-                            XLog.i("XSmsCode: ActivityThread.systemMain hook triggered")
-                            val activityThreadClass = HookHelpers.findClass("android.app.ActivityThread", null)
-                            val activityThread = HookHelpers.callStaticMethod(
-                                activityThreadClass,
-                                "currentActivityThread",
-                            )
-                            val systemContext = HookHelpers.callMethod(activityThread, "getSystemContext") as? Context
-                            if (systemContext != null) {
-                                scheduleRegister(systemContext)
-                            } else {
-                                HookBridge.log("XSmsCode: systemContext is null in ActivityThread.systemMain hook")
+            val atClazz = HookHelpers.findClass("android.app.ActivityThread", null)
+            val systemMainMethod = HookHelpers.findMethodExactIfExists(atClazz, "systemMain")
+            systemMainMethod?.let {
+                HookEnv.api.hookMethod(
+                    it,
+                    object : MethodHook() {
+                        override val stableId: String = "system_input.activity_thread_system_main"
+
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                                XLog.i("XSmsCode: ActivityThread.systemMain hook triggered")
+                                val activityThreadClass = HookHelpers.findClass("android.app.ActivityThread", null)
+                                val activityThread = HookHelpers.callStaticMethod(
+                                    activityThreadClass,
+                                    "currentActivityThread",
+                                )
+                                val systemContext = HookHelpers.callMethod(activityThread, "getSystemContext") as? Context
+                                if (systemContext != null) {
+                                    scheduleRegister(systemContext)
+                                } else {
+                                    XLog.i("XSmsCode: systemContext is null in ActivityThread.systemMain hook")
+                                }
                             }
                         }
-                    }
-                },
-            )
+                    },
+                )
+            }
             XLog.w("SystemInputInjectorHook: hooked ActivityThread.systemMain in zygote")
-            HookBridge.log("XSmsCode: hooked ActivityThread.systemMain in zygote")
+            XLog.i("XSmsCode: hooked ActivityThread.systemMain in zygote")
         }.onFailure { t ->
             XLog.e("SystemInputInjectorHook: failed to hook ActivityThread.systemMain in zygote", t)
-            HookBridge.log("XSmsCode: failed to hook ActivityThread.systemMain in zygote: ${t.message}")
+            XLog.i("XSmsCode: failed to hook ActivityThread.systemMain in zygote: ${t.message}")
         }
     }
 
     override fun hookOnLoadPackage(): Boolean = true
 
-    override fun onLoadPackage(lpparam: LoadParam) {
-        if (lpparam.packageName != ANDROID_PACKAGE || !isSystemServerProcess(lpparam.processName)) {
+    override fun onLoadPackage(param: LoadParam) {
+        if (param.packageName != ANDROID_PACKAGE || !isSystemServerProcess(param.processName)) {
             return
         }
 
         XLog.withRoute(LogRoute.SYSTEM_INPUT) {
-            onLoadPackageRouted(lpparam)
+            onLoadPackageRouted(param)
         }
     }
 
@@ -154,7 +156,7 @@ class SystemInputInjectorHook : BaseHook() {
                         return
                     }
                     XLog.w("XSmsCode: System context available in onLoadPackage, registering receiver")
-                    HookBridge.log("XSmsCode: System context available in onLoadPackage, registering receiver")
+                    XLog.i("XSmsCode: System context available in onLoadPackage, registering receiver")
                     scheduleRegister(systemContext)
                     if (receiverRegistered) return
                 }
@@ -176,9 +178,11 @@ class SystemInputInjectorHook : BaseHook() {
                 return
             }
             methods.forEach { method ->
-                HookBridge.hookMethod(
+                HookEnv.api.hookMethod(
                     method,
-                    object : MethodHook("system_input.ams_system_ready") {
+                    object : MethodHook() {
+                        override val stableId: String = "system_input.ams_system_ready"
+
                         override fun afterHookedMethod(param: MethodHookParam) {
                             XLog.withRoute(LogRoute.SYSTEM_INPUT) {
                                 if (receiverRegistered) return@withRoute
@@ -236,9 +240,11 @@ class SystemInputInjectorHook : BaseHook() {
             if (methods.isEmpty()) return
 
             methods.forEach { method ->
-                HookBridge.hookMethod(
+                HookEnv.api.hookMethod(
                     method,
-                    object : MethodHook("system_input.broadcast_enqueue_caller_uid") {
+                    object : MethodHook() {
+                        override val stableId: String = "system_input.broadcast_enqueue_caller_uid"
+
                         override fun afterHookedMethod(param: MethodHookParam) {
                             XLog.withRoute(LogRoute.SYSTEM_INPUT) {
                                 val record = param.args.firstOrNull() ?: return@withRoute
@@ -313,10 +319,19 @@ class SystemInputInjectorHook : BaseHook() {
                     XLog.withRoute(LogRoute.SYSTEM_INPUT) {
                     val sendingUid = resolveSendingUid(this)
                     val appUid = context.applicationInfo.uid
-                    if (sendingUid != -1 && sendingUid != Process.SYSTEM_UID && sendingUid != Process.PHONE_UID &&
-                        sendingUid != appUid
+                    val senderPackages = resolvePackagesForUid(context, sendingUid)
+                    if (!shouldAllowAutoInputSenderUid(
+                            sendingUid = sendingUid,
+                            systemContextUid = appUid,
+                            senderPackages = senderPackages,
+                            modulePackageName = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.applicationId,
+                        )
                     ) {
-                        XLog.w("SystemServer input request rejected from uid=%d", sendingUid)
+                        XLog.w(
+                            "SystemServer input request rejected from uid=%d packages=%s",
+                            sendingUid,
+                            senderPackages.joinToString(limit = 6).ifBlank { "<none>" },
+                        )
                         return@withRoute
                     }
                     if (intent.action == resolveActionShowToast()) {
@@ -413,15 +428,15 @@ class SystemInputInjectorHook : BaseHook() {
             registeredReceiver = receiver
             receiverRegistered = true
             XLog.w("SystemInputInjectorReceiver registered")
-            HookBridge.log("XSmsCode: SystemInputInjectorReceiver registered")
+            XLog.i("XSmsCode: SystemInputInjectorReceiver registered")
         }.onFailure { t ->
             registerAttempts += 1
             XLog.e("Failed to register receiver", t)
-            HookBridge.log("XSmsCode: Failed to register receiver: ${t.message}")
+            XLog.i("XSmsCode: Failed to register receiver: ${t.message}")
             if (registerAttempts < MAX_REGISTER_ATTEMPTS) {
                 scheduleRegister(context)
             } else {
-                HookBridge.log("XSmsCode: registerReceiver give up after $registerAttempts attempts")
+                XLog.i("XSmsCode: registerReceiver give up after $registerAttempts attempts")
             }
         }
     }
@@ -479,6 +494,15 @@ class SystemInputInjectorHook : BaseHook() {
             val infos = queryIntentActivitiesCompat(context.packageManager, intent)
             infos.mapNotNull { it.activityInfo?.packageName?.takeIf(String::isNotBlank) }.toSet()
         }.getOrDefault(emptySet())
+    }
+
+    private fun resolvePackagesForUid(context: Context, uid: Int): Set<String> {
+        if (uid < 0) return emptySet()
+        return runNonFatalOrNull {
+            context.packageManager.getPackagesForUid(uid)
+                ?.filter(String::isNotBlank)
+                ?.toSet()
+        }.orEmpty()
     }
 
     private fun queryIntentActivitiesCompat(
@@ -891,6 +915,32 @@ class SystemInputInjectorHook : BaseHook() {
             get() = AutoInputAccessibilityResultContract.EXTRA_WINDOW_PACKAGE
 
         fun normalizeIpcToken(token: String?): String? = AutoInputBroadcastContract.normalizeIpcToken(token)
+
+        fun shouldAllowAutoInputSenderUid(
+            sendingUid: Int,
+            systemContextUid: Int,
+            senderPackages: Collection<String>,
+            modulePackageName: String,
+        ): Boolean {
+            if (sendingUid == -1 ||
+                sendingUid == Process.SYSTEM_UID ||
+                sendingUid == Process.PHONE_UID ||
+                sendingUid == systemContextUid
+            ) {
+                return true
+            }
+            val modulePackage = modulePackageName.takeIf(String::isNotBlank)
+            return senderPackages.any { packageName ->
+                packageName in TRUSTED_AUTO_INPUT_SENDER_PACKAGES || packageName == modulePackage
+            }
+        }
+
+        private val TRUSTED_AUTO_INPUT_SENDER_PACKAGES = setOf(
+            "com.android.phone",
+            "com.xiaomi.phone",
+            "com.android.providers.telephony",
+            "com.android.mms",
+        )
 
         private fun isSystemServerProcess(processName: String): Boolean {
             return processName == ANDROID_PACKAGE ||

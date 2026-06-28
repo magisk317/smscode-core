@@ -14,19 +14,19 @@ import android.os.Build
 import android.os.Process
 import android.os.UserHandle
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.xposed.hook.BaseHook
-import io.github.magisk317.smscode.xposed.hookapi.HookBridge
-import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
-import io.github.magisk317.smscode.xposed.hookapi.LoadParam
-import io.github.magisk317.smscode.xposed.hookapi.MethodHook
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
+import io.github.magisk317.xposed.BaseHook
+import io.github.magisk317.xposed.HookEnv
+import io.github.magisk317.xposed.HookHelpers
+import io.github.magisk317.xposed.LoadParam
+import io.github.magisk317.xposed.MethodHook
+import io.github.magisk317.xposed.MethodHookParam
 import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
 import io.github.magisk317.smscode.xposed.utils.NotificationLogSanitizer
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
-import io.github.magisk317.smscode.xposed.utils.runNonFatalCatching
-import io.github.magisk317.smscode.xposed.utils.runNonFatalOrNull
+import io.github.magisk317.xposed.runNonFatalCatching
+import io.github.magisk317.xposed.runNonFatalOrNull
 import java.util.Locale
 
 class NotificationManagerHook : BaseHook() {
@@ -65,15 +65,15 @@ class NotificationManagerHook : BaseHook() {
 
     override fun hookOnLoadPackage(): Boolean = true
 
-    override fun onLoadPackage(lpparam: LoadParam) {
-        val isSystemPackage = lpparam.packageName == "android" || lpparam.packageName == "system"
-        val isSystemProcess = lpparam.processName == "system" ||
-            lpparam.processName == "android" ||
-            lpparam.processName == "system_server"
+    override fun onLoadPackage(param: LoadParam) {
+        val isSystemPackage = param.packageName == "android" || param.packageName == "system"
+        val isSystemProcess = param.processName == "system" ||
+            param.processName == "android" ||
+            param.processName == "system_server"
         if (!isSystemPackage || !isSystemProcess) return
 
         XLog.withRoute(LogRoute.NMS_HOOK) {
-            onLoadPackageRouted(lpparam)
+            onLoadPackageRouted(param)
         }
     }
 
@@ -88,7 +88,7 @@ class NotificationManagerHook : BaseHook() {
             }
 
             methods.forEach { method ->
-                HookBridge.hookMethod(
+                HookEnv.api.hookMethod(
                     method,
                     object : MethodHook() {
                         override fun afterHookedMethod(param: MethodHookParam) {
@@ -1421,6 +1421,7 @@ class NotificationManagerHook : BaseHook() {
             "com.android.messaging",
             "com.google.android.apps.messaging",
             "com.samsung.android.messaging",
+            "com.textra",
         )
         private val CJK_VERIFICATION_KEYWORDS = setOf(
             "验证码",

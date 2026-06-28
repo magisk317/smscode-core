@@ -108,15 +108,21 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
                 smsIntent,
                 settings.deduplicateSmsEnabled,
             ) ?: run {
+                XLog.w("Diag parseRunner returned null: event_id=%s", eventId)
                 return null
             }
             if (parseOutcome.duplicated) {
+                XLog.w("Diag parseOutcome duplicated: event_id=%s", eventId)
                 return parseResultFactory(plan.blockSms)
             }
 
             val smsMsg = parseOutcome.smsMsg ?: run {
+                XLog.w("Diag parseOutcome.smsMsg is null: event_id=%s", eventId)
                 return null
             }
+
+            XLog.i("Diag dispatching actions: event_id=%s smsCode=%s notifPlan=%s autoInput=%s",
+                eventId, smsMsg.smsCode, plan.notificationPlan != null, plan.autoInputDelayMs)
 
             try {
                 parsedSmsDispatcher(

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputAccessibilityResultContract
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
 import io.github.magisk317.smscode.xposed.utils.XLog
@@ -32,6 +33,8 @@ object AutoInputAccessibilityResultPublisher {
         packageName: String,
         attemptId: Long?,
         result: AutoInputAccessibilityNodeHelper.Result,
+        token: String? = null,
+        intentFactory: (String) -> Intent = ::Intent,
     ): Intent? {
         val resolvedAttemptId = attemptId ?: return null
         return AutoInputResultBroadcastContract.buildResultIntent(
@@ -42,6 +45,8 @@ object AutoInputAccessibilityResultPublisher {
                 success = result.success,
                 reason = result.reason,
             ),
+            token = AutoInputBroadcastContract.normalizeIpcToken(token),
+            intentFactory = intentFactory,
         )
     }
 
@@ -51,6 +56,7 @@ object AutoInputAccessibilityResultPublisher {
         packageName: String,
         attemptId: Long?,
         result: AutoInputAccessibilityNodeHelper.Result,
+        token: String?,
         onFailure: (Throwable) -> Unit,
     ) {
         val intent = buildTerminalResultIntent(
@@ -58,6 +64,7 @@ object AutoInputAccessibilityResultPublisher {
             packageName = packageName,
             attemptId = attemptId,
             result = result,
+            token = token,
         ) ?: return
         runCatching { context.sendBroadcast(intent) }
             .onFailure(onFailure)

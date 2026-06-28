@@ -14,6 +14,10 @@ object CorePrefs {
         accessRef = access
     }
 
+    internal fun resetForTest() {
+        accessRef = null
+    }
+
     fun getBoolean(key: String, defaultValue: Boolean): Boolean =
         accessRef?.getBoolean(key, defaultValue) ?: defaultValue
 

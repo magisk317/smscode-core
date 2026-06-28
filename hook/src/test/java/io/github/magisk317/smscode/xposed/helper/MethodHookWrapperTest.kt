@@ -1,8 +1,8 @@
 package io.github.magisk317.smscode.xposed.helper
 
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
-import io.github.magisk317.smscode.xposed.hookapi.SimpleMethodHookParam
+import io.github.magisk317.xposed.MethodHookParam
+import io.github.magisk317.xposed.SimpleMethodHookParam
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSink
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSinkHolder
 import io.github.magisk317.smscode.xposed.utils.XLog

@@ -8,38 +8,27 @@ import org.junit.jupiter.api.Test
 class NotifyActionHelperTest {
 
     @Test
-    fun run_usesPhoneOwnedNotificationWhenOwnerIsNotSelected() {
-        val result = runHelper(owner = "")
+    fun run_returnsNullWhenDisabled() {
+        val result = runHelper(enabled = false)
 
-        assertEquals("phone", result)
+        assertEquals(null, result)
     }
 
     @Test
-    fun run_preservesExplicitPhoneOwnedSelection() {
-        val result = runHelper(owner = OWNER_PHONE)
+    fun run_callsNotifierWhenEnabled() {
+        val result = runHelper(enabled = true)
 
-        assertEquals("phone", result)
+        assertEquals("notified", result)
     }
 
-    @Test
-    fun run_preservesExplicitAppOwnedSelection() {
-        val result = runHelper(owner = OWNER_APP)
-
-        assertEquals("app", result)
-    }
-
-    private fun runHelper(owner: String): String? {
+    private fun runHelper(enabled: Boolean): String? {
         return NotifyActionHelper<TestSmsMessage, String>(
             pluginContext = context,
             smsMsg = TestSmsMessage,
-            enabled = true,
-            ownerReader = { owner },
-            appOwnedValue = OWNER_APP,
-            phoneOwnedValue = OWNER_PHONE,
+            enabled = enabled,
             autoCancelEnabledProvider = { false },
             retentionTimeMsProvider = { 0L },
-            appOwnedNotifier = { "app" },
-            phoneOwnedNotifier = { "phone" },
+            notifier = { "notified" },
         ).run()
     }
 
@@ -53,8 +42,6 @@ class NotifyActionHelperTest {
     }
 
     private companion object {
-        const val OWNER_APP = "app"
-        const val OWNER_PHONE = "phone"
         val context: Context = mockk(relaxed = true)
     }
 }

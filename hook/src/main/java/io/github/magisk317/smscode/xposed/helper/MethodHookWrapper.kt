@@ -2,40 +2,28 @@ package io.github.magisk317.smscode.xposed.helper
 
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.utils.XLog
-import io.github.magisk317.smscode.xposed.hookapi.MethodHook
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
-import io.github.magisk317.smscode.xposed.utils.markInterruptedIfNeeded
-import io.github.magisk317.smscode.xposed.utils.rethrowIfFatal
+import io.github.magisk317.xposed.MethodHookParam
+import io.github.magisk317.xposed.SafeMethodHook
 
+/**
+ * [SafeMethodHook] subclass that routes hook errors through [XLog] with
+ * an optional [LogRoute] for structured logging.
+ */
 abstract class MethodHookWrapper(
     private val route: LogRoute? = null,
     stableId: String? = route?.id,
-) : MethodHook(stableId) {
+) : SafeMethodHook(stableId) {
+
     @Throws(Throwable::class)
     override fun beforeHookedMethod(param: MethodHookParam) {
         val activeRoute = route
         if (activeRoute != null) {
             XLog.withRoute(activeRoute) {
-                beforeHookedMethodRouted(param)
+                super.beforeHookedMethod(param)
             }
         } else {
-            beforeHookedMethodRouted(param)
+            super.beforeHookedMethod(param)
         }
-    }
-
-    private fun beforeHookedMethodRouted(param: MethodHookParam) {
-        val failure = runCatching {
-            before(param)
-        }.exceptionOrNull()
-        if (failure != null) {
-            failure.markInterruptedIfNeeded()
-            failure.rethrowIfFatal()
-            XLog.d("Error in hook %s", param.method.name, failure)
-        }
-    }
-
-    @Throws(Throwable::class)
-    protected open fun before(param: MethodHookParam) {
     }
 
     @Throws(Throwable::class)
@@ -43,25 +31,18 @@ abstract class MethodHookWrapper(
         val activeRoute = route
         if (activeRoute != null) {
             XLog.withRoute(activeRoute) {
-                afterHookedMethodRouted(param)
+                super.afterHookedMethod(param)
             }
         } else {
-            afterHookedMethodRouted(param)
+            super.afterHookedMethod(param)
         }
     }
 
-    private fun afterHookedMethodRouted(param: MethodHookParam) {
-        val failure = runCatching {
-            after(param)
-        }.exceptionOrNull()
-        if (failure != null) {
-            failure.markInterruptedIfNeeded()
-            failure.rethrowIfFatal()
-            XLog.e("Error in hook %s", param.method.name, failure)
+    override fun onHookError(param: MethodHookParam, error: Throwable, phase: String) {
+        if (phase == "before") {
+            XLog.d("Error in hook %s", param.method.name, error)
+        } else {
+            XLog.e("Error in hook %s", param.method.name, error)
         }
-    }
-
-    @Throws(Throwable::class)
-    protected open fun after(param: MethodHookParam) {
     }
 }

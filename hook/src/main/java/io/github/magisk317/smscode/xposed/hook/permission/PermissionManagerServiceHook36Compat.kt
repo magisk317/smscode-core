@@ -4,12 +4,12 @@ import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
-import io.github.magisk317.smscode.xposed.hook.BaseSubHook
-import io.github.magisk317.smscode.xposed.hookapi.MethodHook
-import io.github.magisk317.smscode.xposed.hookapi.HookBridge
-import io.github.magisk317.smscode.xposed.hookapi.HookHelpers
+import io.github.magisk317.xposed.BaseSubHook
+import io.github.magisk317.xposed.MethodHook
+import io.github.magisk317.xposed.HookEnv
+import io.github.magisk317.xposed.HookHelpers
 import java.util.concurrent.atomic.AtomicBoolean
-import io.github.magisk317.smscode.xposed.hookapi.MethodHookParam
+import io.github.magisk317.xposed.MethodHookParam
 
 /**
  * Android 16+ permission hook compatibility layer (ROM-aware by capability detection).
@@ -150,7 +150,7 @@ class PermissionManagerServiceHook36Compat(classLoader: ClassLoader) : BaseSubHo
         }
 
         methods.forEach { method ->
-            HookBridge.hookMethod(
+            HookEnv.api.hookMethod(
                 method,
                 object : MethodHookWrapper(LogRoute.PERMISSION_HOOK) {
                     override fun after(param: MethodHookParam) {

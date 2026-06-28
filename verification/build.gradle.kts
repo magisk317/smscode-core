@@ -4,8 +4,8 @@ plugins {
 
 val smscodeXposedCorePath = parent?.path
     ?.takeUnless { it == ":" }
-    ?.let { "$it:xposed" }
-    ?: ":xposed"
+    ?.let { "$it:hook" }
+    ?: ":hook"
 val runtimeContractProjectPath = parent?.path
     ?.takeUnless { it == ":" }
     ?.let { "$it:contract" }
