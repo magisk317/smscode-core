@@ -2,19 +2,37 @@ package io.github.magisk317.smscode.xposed.utils
 
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSink
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSinkHolder
+import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
+import io.github.magisk317.smscode.xposed.runtime.CoreRuntimeAccess
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
 class XLogTest {
 
+    @BeforeEach
+    fun setup() {
+        // Establish the neutral XLog -> CoreLogSinkHolder bridge with the core tag,
+        // so log tag/sink state is deterministic and not leaked from other tests.
+        CoreRuntime.install(
+            object : CoreRuntimeAccess {
+                override val logTag = "smscode-core"
+                override val logLevel = android.util.Log.VERBOSE
+                override val logToXposed = false
+                override val debug = true
+                override val applicationId = "io.github.magisk317.smscode"
+                override val actionNamespace = "io.github.magisk317.smscode"
+            },
+        )
+    }
+
     @AfterEach
     fun tearDown() {
-        XLog.setTestSink(null)
-        XLog.setLogLevel(4)
+        CoreRuntime.resetForTest()
         CoreLogSinkHolder.install(null)
     }
 

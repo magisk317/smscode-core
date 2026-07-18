@@ -2,6 +2,8 @@ package io.github.magisk317.smscode.runtime.common.sms
 
 import android.content.ContextWrapper
 import io.github.magisk317.smscode.domain.model.SmsBlacklistConfig
+import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
+import io.github.magisk317.smscode.domain.model.SmsCodeParseSourceKind
 import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -56,5 +58,39 @@ class RuntimeSmsAdaptersTest {
         assertTrue(result.matched)
         assertTrue(result.actionDelete)
         assertFalse(result.actionBlock)
+    }
+
+    @Test
+    fun runtimeSmsCodeAdapter_forwardsSourceToRuleParser() {
+        val adapter = RuntimeSmsCodeAdapter(
+            keywordProvider = SmsKeywordProvider { _, override ->
+                override ?: "验证码"
+            },
+            ruleProvider = SmsCodeRuleProvider {
+                listOf(
+                    SmsCodeRuleSpec(
+                        company = "Google Voice",
+                        codeKeyword = "verification code",
+                        codeRegex = "\\d{6}",
+                        packageNameHint = "com.google.android.apps.googlevoice",
+                    ),
+                )
+            },
+            labelResolver = SmsPackageLabelResolver { _, _ -> null },
+        )
+
+        val result = kotlinx.coroutines.runBlocking {
+            adapter.parseSmsCodeResultIfExists(
+                context = context,
+                content = "Your Google Voice verification code is 864210",
+                source = SmsCodeParseSource(
+                    packageName = "com.google.android.apps.googlevoice",
+                    title = "Google Voice",
+                    sourceKind = SmsCodeParseSourceKind.APP_NOTIFICATION,
+                ),
+            )
+        }
+
+        assertEquals("864210", result.code)
     }
 }

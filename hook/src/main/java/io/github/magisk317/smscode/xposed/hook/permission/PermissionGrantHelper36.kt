@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.xposed.hook.permission
 
+import android.Manifest
 import android.os.UserHandle
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
@@ -23,32 +24,16 @@ object PermissionGrantHelper36 {
     private var loggedPermissionImplMissing = false
     private val nonChangeablePermissions = mutableSetOf<String>()
     private val nonChangeableLogged = mutableSetOf<String>()
+    private val runtimeGrantSkipLogged = mutableSetOf<String>()
 
     fun grantAllTargetPermissions(pms: Any) {
         XLog.d("System ready - granting permissions for target packages")
         val resolvedPms = resolvePermissionManagerService(pms) ?: pms
-        val userIds = try {
-            getAllUserIds(resolvedPms)
-        } catch (e: ReflectiveOperationException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
-            intArrayOf(0)
-        } catch (e: IllegalArgumentException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
-            intArrayOf(0)
-        } catch (e: IllegalStateException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
-            intArrayOf(0)
-        } catch (e: SecurityException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
-            intArrayOf(0)
-        } catch (e: UnsupportedOperationException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
-            intArrayOf(0)
-        }
+        val userIds = getAllUserIdsOrDefault(resolvedPms)
 
         for ((packageName, permissions) in PACKAGE_PERMISSIONS) {
             for (userId in userIds) {
-                grantPermissionsForPackage(pms, packageName, permissions, userId)
+                grantPermissionsForPackage(resolvedPms, packageName, permissions, userId)
             }
         }
     }
@@ -60,33 +45,10 @@ object PermissionGrantHelper36 {
         val pms = (pmsOverride ?: param.thisObject) ?: return
         val resolvedPms = resolvePermissionManagerService(pms) ?: pms
 
-        val userIds = if (rawUserId == USER_ALL) {
-            try {
-                getAllUserIds(resolvedPms)
-            } catch (e: ReflectiveOperationException) {
-                XLog.w("Cannot get user IDs, using default user 0", e)
-                intArrayOf(0)
-            } catch (e: IllegalArgumentException) {
-                XLog.w("Cannot get user IDs, using default user 0", e)
-                intArrayOf(0)
-            } catch (e: IllegalStateException) {
-                XLog.w("Cannot get user IDs, using default user 0", e)
-                intArrayOf(0)
-            } catch (e: SecurityException) {
-                XLog.w("Cannot get user IDs, using default user 0", e)
-                intArrayOf(0)
-            } catch (e: UnsupportedOperationException) {
-                XLog.w("Cannot get user IDs, using default user 0", e)
-                intArrayOf(0)
-            }
-        } else if (rawUserId != null) {
-            intArrayOf(rawUserId)
-        } else {
-            intArrayOf(0)
-        }
+        val userIds = resolveUserIds(rawUserId, resolvedPms)
 
         for (userId in userIds) {
-            grantPermissionsForPackage(pms, packageName, permissions, userId)
+            grantPermissionsForPackage(resolvedPms, packageName, permissions, userId)
         }
     }
 
@@ -136,6 +98,14 @@ object PermissionGrantHelper36 {
         return candidate
     }
 
+    fun resolveUserIds(rawUserId: Int?, pms: Any): IntArray {
+        return when {
+            rawUserId == USER_ALL -> getAllUserIdsOrDefault(pms)
+            rawUserId != null -> intArrayOf(rawUserId)
+            else -> getAllUserIdsOrDefault(pms)
+        }
+    }
+
     fun getAllUserIds(pms: Any): IntArray {
         tryGetUserIdsFromTarget(pms)?.let { return it }
 
@@ -159,52 +129,20 @@ object PermissionGrantHelper36 {
         permissions: List<String>,
         userId: Int,
     ) {
-        val impl = try {
-            HookHelpers.getObjectField(pms, "mPermissionManagerServiceImpl") ?: pms
-        } catch (e: ReflectiveOperationException) {
-            if (!loggedPermissionImplMissing) {
-                loggedPermissionImplMissing = true
-                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
-            }
-            pms
-        } catch (e: IllegalArgumentException) {
-            if (!loggedPermissionImplMissing) {
-                loggedPermissionImplMissing = true
-                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
-            }
-            pms
-        } catch (e: IllegalStateException) {
-            if (!loggedPermissionImplMissing) {
-                loggedPermissionImplMissing = true
-                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
-            }
-            pms
-        } catch (e: SecurityException) {
-            if (!loggedPermissionImplMissing) {
-                loggedPermissionImplMissing = true
-                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
-            }
-            pms
-        } catch (e: UnsupportedOperationException) {
-            if (!loggedPermissionImplMissing) {
-                loggedPermissionImplMissing = true
-                PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
-            }
-            pms
-        }
+        val impl = resolveGrantRuntimeTarget(pms)
 
         for (permission in permissions) {
+            val skipReason = getRuntimeGrantSkipReason(permission)
+            if (skipReason != null) {
+                if (runtimeGrantSkipLogged.add(permission)) {
+                    XLog.w("Skip granting %s to %s: %s", permission, packageName, skipReason)
+                }
+                continue
+            }
             if (nonChangeablePermissions.contains(permission)) {
                 if (nonChangeableLogged.add(permission)) {
                     XLog.w("Skip granting %s: permission type not changeable", permission)
                 }
-                continue
-            }
-            if (permission == PERM_KILL_BACKGROUND_PROCESSES) {
-                // HyperOS 3 adaptation:
-                // model=25113PN0EC, build=OS3.0.44.0.WPCCNXM, device=pudding (Android 16 / SDK 36)
-                // Provider self-kill is the primary strategy on this ROM.
-                XLog.w("Skip granting %s to %s: provider self-kill is primary on HyperOS 3", permission, packageName)
                 continue
             }
             val runtimeAttempt = tryGrantRuntimePermission(impl, packageName, permission, userId)
@@ -221,6 +159,50 @@ object PermissionGrantHelper36 {
         val success: Boolean,
         val error: String?,
     )
+
+    private fun resolveGrantRuntimeTarget(pms: Any): Any {
+        if (isPermissionService(pms)) {
+            return pms
+        }
+        return try {
+            HookHelpers.getObjectField(pms, "mPermissionManagerServiceImpl") ?: pms
+        } catch (e: ReflectiveOperationException) {
+            logPermissionImplMissing(e, pms)
+            pms
+        } catch (e: IllegalArgumentException) {
+            logPermissionImplMissing(e, pms)
+            pms
+        } catch (e: IllegalStateException) {
+            logPermissionImplMissing(e, pms)
+            pms
+        } catch (e: SecurityException) {
+            logPermissionImplMissing(e, pms)
+            pms
+        } catch (e: UnsupportedOperationException) {
+            logPermissionImplMissing(e, pms)
+            pms
+        }
+    }
+
+    private fun logPermissionImplMissing(e: Throwable, pms: Any) {
+        if (!loggedPermissionImplMissing) {
+            loggedPermissionImplMissing = true
+            PermissionDebugProbe.logFailure("grantPermissionsForPackage: mPermissionManagerServiceImpl", e, pms)
+        }
+    }
+
+    private fun getRuntimeGrantSkipReason(permission: String): String? {
+        return when (permission) {
+            PERM_INJECT_EVENTS -> "system input is handled by the system_server injector hook"
+            PERM_KILL_BACKGROUND_PROCESSES -> "provider self-kill path is used instead"
+            PERM_WRITE_SMS -> "WRITE_SMS is an install/default-SMS permission, not runtime-grantable"
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE -> {
+                "legacy external storage permission is not runtime-grantable on Android 16"
+            }
+            else -> null
+        }
+    }
 
     private fun tryGrantRuntimePermission(
         impl: Any,
@@ -307,8 +289,12 @@ object PermissionGrantHelper36 {
     }
 
     private fun resolvePermissionManagerService(pms: Any): Any? {
-        val name = pms.javaClass.name
-        if (name.contains("PermissionManagerService") || name.contains("PermissionService")) {
+        runCatching { HookHelpers.getObjectField(pms, "this$0") }.getOrNull()?.let { outer ->
+            if (isPermissionManagerService(outer) || isPermissionService(outer)) {
+                return outer
+            }
+        }
+        if (isPermissionManagerService(pms) || isPermissionService(pms)) {
             return pms
         }
         return runCatching {
@@ -333,6 +319,30 @@ object PermissionGrantHelper36 {
                 }
             }
         }.getOrNull()
+    }
+
+    private fun getAllUserIdsOrDefault(pms: Any): IntArray {
+        return try {
+            getAllUserIds(pms)
+        } catch (e: ReflectiveOperationException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: IllegalArgumentException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: IllegalStateException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: NoSuchElementException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: SecurityException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        } catch (e: UnsupportedOperationException) {
+            XLog.w("Cannot get user IDs, using default user 0", e)
+            intArrayOf(0)
+        }
     }
 
     private fun tryResolveUserIdsFromUserManager(pms: Any): IntArray? {
@@ -397,7 +407,21 @@ object PermissionGrantHelper36 {
 
     private const val PERSISTENT_DEVICE_ID_DEFAULT = "default:0"
     private const val USER_ALL = -1
+    private const val CLASS_PERMISSION_MANAGER_SERVICE =
+        "com.android.server.pm.permission.PermissionManagerService"
+    private const val CLASS_PERMISSION_SERVICE =
+        "com.android.server.permission.access.permission.PermissionService"
+    private const val PERM_INJECT_EVENTS = "android.permission.INJECT_EVENTS"
+    private const val PERM_WRITE_SMS = "android.permission.WRITE_SMS"
     private const val PERM_KILL_BACKGROUND_PROCESSES = "android.permission.KILL_BACKGROUND_PROCESSES"
+
+    private fun isPermissionManagerService(obj: Any): Boolean {
+        return obj.javaClass.name == CLASS_PERMISSION_MANAGER_SERVICE
+    }
+
+    private fun isPermissionService(obj: Any): Boolean {
+        return obj.javaClass.name == CLASS_PERMISSION_SERVICE
+    }
 
     private fun buildGrantRuntimeArgs(
         parameterTypes: Array<Class<*>>,

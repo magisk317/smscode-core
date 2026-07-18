@@ -29,12 +29,18 @@ dependencies {
     } else {
         ":contract"
     }
+    val domainProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:domain"
+    } else {
+        ":domain"
+    }
     val xposedKitProjectPath = if (project.path.startsWith(":smscode-core:")) {
         ":magisk-xposed-kit"
     } else {
         ":magisk-xposed-kit"
     }
     api(project(runtimeContractProjectPath))
+    implementation(project(domainProjectPath))
     api(project(xposedKitProjectPath))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)

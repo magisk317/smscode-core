@@ -2,7 +2,6 @@ package io.github.magisk317.smscode.verification
 
 import android.content.Context
 import android.content.Intent
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 class SmsDispatchIntentHandler<M : SmsMessage>(
     private val runtimeResolver: (String) -> VerificationRuntimeContext?,

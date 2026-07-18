@@ -4,7 +4,6 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 object CodeNotificationReceiverHandler {
     data class DeliveryDiagnostics(

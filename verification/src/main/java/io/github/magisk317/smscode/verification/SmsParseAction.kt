@@ -4,8 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Parcelable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
-import io.github.magisk317.smscode.xposed.utils.XLog
+import kotlinx.coroutines.withTimeout
 
 class SmsParseAction<M>(
     private val pluginContext: Context,
@@ -19,6 +20,10 @@ class SmsParseAction<M>(
     private val summarizeCode: (Boolean, String?) -> String,
     private val duplicateChecker: suspend (String?, String, Long) -> Boolean,
     private val preparedSmsResolver: suspend (Context, Context, M, Intent, Long) -> M?,
+    // Per-step soft timeout for the suspending duplicate check / prepared-SMS resolution. Kept well
+    // below the runner's wall-clock timeout so a well-behaved (cancellation-cooperative) suspend
+    // point aborts on its own. See the NOTE on [runCancellable] for what this can and can not do.
+    private val stepTimeoutMs: Long = DEFAULT_STEP_TIMEOUT_MS,
 ) where M : SmsMessage, M : Parcelable {
     data class Outcome<M>(
         val smsMsg: M? = null,
@@ -61,14 +66,16 @@ class SmsParseAction<M>(
         XLog.d("Diag SMS body: %s", summarizeBody(sensitiveDebugLog, msgBody))
 
         if (deduplicateEnabled) {
-            val duplicated = runBlocking { duplicateChecker(sender, msgBody, timestamp) }
+            val duplicated = runCancellable("duplicateChecker", default = false) {
+                duplicateChecker(sender, msgBody, timestamp)
+            }
             if (duplicated) {
                 XLog.i("Duplicate SMS detected by fingerprint, skip parsing.")
                 return Outcome(duplicated = true)
             }
         }
 
-        val resolvedSmsMsg = runBlocking {
+        val resolvedSmsMsg = runCancellable("preparedSmsResolver", default = null) {
             preparedSmsResolver(
                 pluginContext,
                 phoneContext,
@@ -100,8 +107,48 @@ class SmsParseAction<M>(
         )
     }
 
+    /**
+     * Run a suspending step inside a [runBlocking] scope guarded by [withTimeout].
+     *
+     * NOTE (honest limitation): [withTimeout] only cancels at coroutine *suspension points*. The
+     * real work inside [duplicateChecker] / [preparedSmsResolver] is a blocking Binder / cross-process
+     * `ContentResolver.query` call, which does NOT suspend and does NOT observe cancellation while it
+     * is in-flight. When the peer process is frozen, the blocking call itself can still sit on this
+     * thread for the full Binder timeout regardless of [withTimeout].
+     *
+     * What this DOES buy us:
+     *  - If the resolver is written to cooperate (uses suspending IO or checks `isActive` between
+     *    hops), the timeout aborts it promptly with [TimeoutCancellationException].
+     *  - On timeout / failure we return [default] instead of propagating, so [parse] finishes and the
+     *    caller (runner) is never left waiting on this step's result.
+     *
+     * The hard guarantee against a hung thread starving the next SMS lives in [SmsParseActionRunner],
+     * which runs the whole [parse] on a dedicated, disposable thread (never the shared executor).
+     */
+    private fun <T> runCancellable(step: String, default: T, block: suspend () -> T): T =
+        runBlocking {
+            try {
+                withTimeout(stepTimeoutMs) { block() }
+            } catch (error: TimeoutCancellationException) {
+                XLog.w(
+                    "Diag SMS parse step '%s' timed out after %dms: %s",
+                    step,
+                    stepTimeoutMs,
+                    error.message ?: error.javaClass.simpleName,
+                )
+                default
+            }
+        }
+
     companion object {
         const val KEY_SMS_MSG = "sms_msg"
         const val KEY_SMS_DUPLICATED = "sms_duplicated"
+
+        /**
+         * Default soft timeout for each suspending step. Deliberately shorter than
+         * [SmsParseActionRunner.DEFAULT_TIMEOUT_MS] so a cooperative step aborts before the runner's
+         * wall-clock timeout fires.
+         */
+        const val DEFAULT_STEP_TIMEOUT_MS = 8_000L
     }
 }

@@ -28,4 +28,13 @@ class RecentEventDeduplicatorTest {
         assertTrue(deduplicator.shouldDrop("k", now = 1_500L))
         assertFalse(deduplicator.shouldDrop("k", now = 2_600L))
     }
+
+    @Test
+    fun `clock rollback starts a new window`() {
+        val deduplicator = RecentEventDeduplicator(windowMs = 1_000L)
+
+        assertFalse(deduplicator.shouldDrop("k", now = 10_000L))
+        assertFalse(deduplicator.shouldDrop("k", now = 9_000L))
+        assertTrue(deduplicator.shouldDrop("k", now = 9_500L))
+    }
 }

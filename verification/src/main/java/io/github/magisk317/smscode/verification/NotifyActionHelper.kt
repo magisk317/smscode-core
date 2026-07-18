@@ -1,7 +1,8 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Context
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.smscode.runtime.contract.notification.NotificationDeliveryDiagnostics
+import io.github.magisk317.smscode.runtime.contract.notification.NotificationPlatformBridge
 
 class NotifyActionHelper<M : SmsMessage, R>(
     private val pluginContext: Context,
@@ -10,8 +11,10 @@ class NotifyActionHelper<M : SmsMessage, R>(
     private val autoCancelEnabledProvider: (Context) -> Boolean,
     private val retentionTimeMsProvider: (Context) -> Long,
     private val tokenProvider: (Context) -> String? = { null },
+    private val channelId: String = "",
     private val channelInitializer: (Context) -> Unit = {},
     private val diagnostics: (Context) -> DeliveryDiagnostics = { DeliveryDiagnostics(canPost = true) },
+    private val notificationBridge: NotificationPlatformBridge? = null,
     private val notifier: (AppOwnedNotificationRequest<M>) -> R?,
 ) {
     data class DeliveryDiagnostics(
@@ -29,8 +32,26 @@ class NotifyActionHelper<M : SmsMessage, R>(
 
     fun run(): R? {
         if (!enabled) return null
-        channelInitializer(pluginContext)
-        val diag = diagnostics(pluginContext)
+
+        // Use bridge for channel initialization if available, otherwise fall back to lambda
+        if (notificationBridge != null && channelId.isNotEmpty()) {
+            // Channel initialization is handled by the bridge's createNotificationChannel
+            // which is called by the caller before posting
+        } else {
+            channelInitializer(pluginContext)
+        }
+
+        // Use bridge for diagnostics if available, otherwise fall back to lambda
+        val diag = if (notificationBridge != null && channelId.isNotEmpty()) {
+            val bridgeDiag = notificationBridge.inspectDelivery(pluginContext, channelId)
+            DeliveryDiagnostics(
+                canPost = bridgeDiag.canPost,
+                summary = bridgeDiag.summary(),
+            )
+        } else {
+            diagnostics(pluginContext)
+        }
+
         if (!diag.canPost) {
             XLog.w(
                 "Code notification unavailable: %s",

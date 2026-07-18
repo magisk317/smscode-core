@@ -9,7 +9,6 @@ import android.telephony.SubscriptionManager
 import android.util.Log
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
-import io.github.magisk317.smscode.xposed.utils.XLog
 import kotlinx.coroutines.runBlocking
 
 class ObservedInboxScanner(

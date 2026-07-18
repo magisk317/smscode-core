@@ -17,10 +17,26 @@ object CoreRuntime {
 
     fun install(access: CoreRuntimeAccess) {
         accessRef = access
+        io.github.magisk317.xposed.logging.XLog.configure(
+            tag = access.logTag,
+            logLevel = access.logLevel,
+            logToXposed = access.logToXposed,
+            sink = io.github.magisk317.xposed.logging.LogSink { event ->
+                CoreLogSinkHolder.append(
+                    priority = event.priority,
+                    tag = event.tag,
+                    message = event.message,
+                    force = event.force,
+                    route = event.route,
+                    sensitive = event.sensitive,
+                )
+            },
+        )
     }
 
     internal fun resetForTest() {
         accessRef = null
+        io.github.magisk317.xposed.logging.XLog.resetForTest()
     }
 
     val access: CoreRuntimeAccess

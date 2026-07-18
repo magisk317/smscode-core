@@ -891,13 +891,20 @@ class SystemInputInjectorHook : BaseHook() {
         private const val MATCH_DEFAULT_ONLY_FALLBACK = 0x00010000
 
         @Suppress("unused")
-        fun resolveActionAutoInput(): String = "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT"
+        fun resolveActionAutoInput(): String =
+            AutoInputBroadcastContract.resolveActionAutoInput(
+                io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace,
+            )
 
         fun resolveActionShowToast(): String =
-            "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_SHOW_TOAST"
+            AutoInputBroadcastContract.resolveActionShowToast(
+                io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace,
+            )
 
         fun resolveActionAutoInputResult(): String =
-            "${io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace}.ACTION_AUTO_INPUT_RESULT"
+            AutoInputBroadcastContract.resolveActionAutoInputResult(
+                io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace,
+            )
 
         val KEY_IPC_TOKEN: String
             get() = AutoInputBroadcastContract.EXTRA_IPC_TOKEN
@@ -940,6 +947,7 @@ class SystemInputInjectorHook : BaseHook() {
             "com.xiaomi.phone",
             "com.android.providers.telephony",
             "com.android.mms",
+            "com.google.android.apps.messaging",
         )
 
         private fun isSystemServerProcess(processName: String): Boolean {

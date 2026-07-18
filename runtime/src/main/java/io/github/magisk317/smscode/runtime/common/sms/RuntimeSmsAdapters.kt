@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.magisk317.smscode.domain.model.SmsBlacklistConfig
 import io.github.magisk317.smscode.domain.model.SmsBlacklistMatchResult
 import io.github.magisk317.smscode.domain.model.SmsCodeParseResult
+import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
 import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
 import io.github.magisk317.smscode.domain.utils.SmsBlacklistUtils
 import io.github.magisk317.smscode.domain.utils.SmsCodeUtils
@@ -34,19 +35,22 @@ class RuntimeSmsCodeAdapter(
         context: Context,
         content: String,
         override: String? = null,
+        source: SmsCodeParseSource? = null,
     ): String {
-        return parseSmsCodeResultIfExists(context, content, override).code
+        return parseSmsCodeResultIfExists(context, content, override, source).code
     }
 
     suspend fun parseSmsCodeResultIfExists(
         context: Context,
         content: String,
         override: String? = null,
+        source: SmsCodeParseSource? = null,
     ): SmsCodeParseResult {
         return SmsCodeUtils.parseSmsCodeResultIfExists(
             content = content,
             keywordsRegex = keywordProvider.getKeywordsRegex(context, override),
             rules = ruleProvider.getRuleSpecs(context),
+            source = source,
         )
     }
 

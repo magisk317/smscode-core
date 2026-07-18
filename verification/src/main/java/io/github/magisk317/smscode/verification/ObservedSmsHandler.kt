@@ -1,7 +1,6 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Context
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 class ObservedSmsHandler<M : SmsMessage>(
     private val pluginContext: Context,

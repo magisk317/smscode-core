@@ -1,5 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.notification
 
+import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
+import io.github.magisk317.smscode.domain.model.SmsCodeParseSourceKind
 import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.prefs.CorePrefsAccess
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
@@ -40,6 +42,59 @@ class NotificationManagerHookTest {
         val content = "Verification code: AB12, valid for 5 minutes."
 
         assertEquals("AB12", extractLikelyVerificationCode(content))
+    }
+
+    @Test
+    fun `extracts gmail notification code with package source`() {
+        val content = "Security\nYour verification code is G7H9"
+
+        assertEquals(
+            "G7H9",
+            extractLikelyVerificationCode(
+                content = content,
+                source = SmsCodeParseSource(
+                    packageName = "com.google.android.gm",
+                    sender = "Security",
+                    title = "Security",
+                    sourceKind = SmsCodeParseSourceKind.APP_NOTIFICATION,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects package-scoped notification rule when package source mismatches`() {
+        val content = "Google Voice\nYour Google Voice verification code is GV42"
+
+        assertEquals(
+            "",
+            extractLikelyVerificationCode(
+                content = content,
+                source = SmsCodeParseSource(
+                    packageName = "com.example.chat",
+                    sender = "Google Voice",
+                    title = "Google Voice",
+                    sourceKind = SmsCodeParseSourceKind.APP_NOTIFICATION,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `does not treat amount date or order numbers as notification verification code`() {
+        val source = SmsCodeParseSource(
+            packageName = "com.example.shop",
+            sender = "Shop",
+            title = "Shop",
+            sourceKind = SmsCodeParseSourceKind.APP_NOTIFICATION,
+        )
+        listOf(
+            "Verification amount is 50000.00 USD.",
+            "Verification date is 2026年07月06日.",
+            "Order 246810 has shipped and tracking details are ready. Verification code will arrive separately.",
+        ).forEach { content ->
+            assertEquals("", extractLikelyVerificationCode(content, source), "content=$content")
+        }
     }
 
     @Test
@@ -119,6 +174,20 @@ class NotificationManagerHookTest {
         )
         method.isAccessible = true
         return method.invoke(hook, content) as String
+    }
+
+    private fun extractLikelyVerificationCode(
+        content: String,
+        source: SmsCodeParseSource,
+    ): String {
+        val hook = NotificationManagerHook()
+        val method = NotificationManagerHook::class.java.getDeclaredMethod(
+            "extractLikelyVerificationCode",
+            String::class.java,
+            SmsCodeParseSource::class.java,
+        )
+        method.isAccessible = true
+        return method.invoke(hook, content, source) as String
     }
 
     private fun installCorePrefs(

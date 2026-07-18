@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import io.github.magisk317.smscode.xposed.utils.XLog
 import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutionException

@@ -13,6 +13,10 @@ import android.os.Binder
 import android.os.Build
 import android.os.Process
 import android.os.UserHandle
+import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
+import io.github.magisk317.smscode.domain.model.SmsCodeParseSourceKind
+import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
+import io.github.magisk317.smscode.domain.utils.SmsCodeUtils
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.HookEnv
@@ -307,6 +311,14 @@ class NotificationManagerHook : BaseHook() {
             body = body,
             tickerText = tickerText,
             expandedText = expandedText,
+            notifyChannelId = notifyChannelId,
+        ) ?: resolveAppNotificationCodeRoute(
+            packageName = packageName,
+            title = title,
+            body = body,
+            tickerText = tickerText,
+            expandedText = expandedText,
+            notifyChannelId = notifyChannelId,
         ) ?: NotifyRoute(msgType = MSG_TYPE_APP_NOTIFY)
     }
 
@@ -348,14 +360,51 @@ class NotificationManagerHook : BaseHook() {
         body: String,
         tickerText: String,
         expandedText: String,
+        notifyChannelId: String,
     ): NotifyRoute? {
         if (!isTelephonySmsPackage(packageName)) return null
         val content = buildNotificationContent(title, body, tickerText, expandedText)
         if (content.isBlank()) return null
-        val smsCode = extractLikelyVerificationCode(content)
+        val smsCode = extractLikelyVerificationCode(
+            content = content,
+            source = SmsCodeParseSource(
+                packageName = packageName,
+                sender = title,
+                title = title,
+                channelId = notifyChannelId,
+                sourceKind = SmsCodeParseSourceKind.SMS,
+            ),
+        )
         if (smsCode.isBlank()) return null
         return NotifyRoute(
             msgType = MSG_TYPE_SMS,
+            smsCode = smsCode,
+        )
+    }
+
+    private fun resolveAppNotificationCodeRoute(
+        packageName: String,
+        title: String,
+        body: String,
+        tickerText: String,
+        expandedText: String,
+        notifyChannelId: String,
+    ): NotifyRoute? {
+        val content = buildNotificationContent(title, body, tickerText, expandedText)
+        if (content.isBlank()) return null
+        val smsCode = extractLikelyVerificationCode(
+            content = content,
+            source = SmsCodeParseSource(
+                packageName = packageName,
+                sender = title,
+                title = title,
+                channelId = notifyChannelId,
+                sourceKind = SmsCodeParseSourceKind.APP_NOTIFICATION,
+            ),
+        )
+        if (smsCode.isBlank()) return null
+        return NotifyRoute(
+            msgType = MSG_TYPE_APP_NOTIFY,
             smsCode = smsCode,
         )
     }
@@ -664,19 +713,19 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun extractLikelyVerificationCode(content: String): String {
-        val normalized = content.lowercase(Locale.ROOT)
-        val keywordPositions = extractVerificationKeywordPositions(normalized)
-        if (keywordPositions.isEmpty()) return ""
-        val candidates = VERIFICATION_CODE_PATTERN.findAll(content)
-            .map { it.value }
-            .filterNot { isLikelyDateTimeToken(it, content) }
-            .filterNot { isLikelyUrlToken(it, content) }
-            .toList()
-        if (candidates.isEmpty()) return ""
-        return candidates.sortedWith(
-            compareByDescending<String> { verificationCodePriority(it) }
-                .thenBy { distanceToVerificationKeyword(keywordPositions, normalized, it.lowercase(Locale.ROOT)) },
-        ).first()
+        return extractLikelyVerificationCode(content, source = null)
+    }
+
+    private fun extractLikelyVerificationCode(
+        content: String,
+        source: SmsCodeParseSource?,
+    ): String {
+        return SmsCodeUtils.parseSmsCodeResult(
+            content = content,
+            keywordsRegex = NOTIFICATION_KEYWORDS_REGEX,
+            rules = NOTIFICATION_CODE_RULES,
+            source = source,
+        ).code
     }
 
     private fun verificationCodePriority(candidate: String): Int = when {
@@ -1443,6 +1492,31 @@ class NotificationManagerHook : BaseHook() {
         private val DATE_TIME_UNIT_TOKENS = setOf('年', '月', '日', '号', '时', '點', '点', '分', '秒')
         private val URL_CONTEXT_TOKENS = setOf('.', '/', ':', '?', '&', '=', '#', '%')
         private val VERIFICATION_CODE_PATTERN = Regex("\\b[A-Za-z0-9]{4,10}\\b")
+        private const val NOTIFICATION_KEYWORDS_REGEX =
+            "验证码|校验码|检验码|确认码|激活码|动态码|安全码|(?i)(?<![a-z])(?:verification|verify|otp|passcode|pin|code)(?![a-z])"
+        private const val NOTIFICATION_ALPHANUMERIC_CODE_REGEX =
+            "(?i)(?<![A-Z0-9])(?=[A-Z0-9]{4,10}(?![A-Z0-9]))(?=[A-Z0-9]*\\d)[A-Z0-9]{4,10}"
+        private val NOTIFICATION_CODE_RULES = listOf(
+            SmsCodeRuleSpec(
+                company = "Gmail",
+                codeKeyword = "code",
+                codeRegex = NOTIFICATION_ALPHANUMERIC_CODE_REGEX,
+                packageNameHint = "com.google.android.gm",
+            ),
+            SmsCodeRuleSpec(
+                company = "Email",
+                codeKeyword = "code",
+                codeRegex = NOTIFICATION_ALPHANUMERIC_CODE_REGEX,
+                packageNameHint = "com.android.email",
+            ),
+            SmsCodeRuleSpec(
+                company = "Google Voice",
+                codeKeyword = "code",
+                codeRegex = NOTIFICATION_ALPHANUMERIC_CODE_REGEX,
+                packageNameHint = "com.google.android.apps.googlevoice",
+                senderRegex = "Google Voice|Voice",
+            ),
+        )
         private val COMPANY_PATTERN = Regex("(?<=【)[^】]+(?=】)|(?<=\\[)[^]]+(?=])")
         private val MISSED_CALL_KEYWORDS = setOf(
             "未接",

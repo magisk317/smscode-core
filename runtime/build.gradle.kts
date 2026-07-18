@@ -25,6 +25,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":magisk-xposed-kit:logging"))
+    implementation(project(":magisk-xposed-kit:diagnostics"))
     val domainProjectPath = if (project.path.startsWith(":smscode-core:")) {
         ":smscode-core:domain"
     } else {
@@ -38,6 +40,7 @@ dependencies {
     implementation(project(domainProjectPath))
     api(project(runtimeContractProjectPath))
     implementation(libs.androidx.annotation)
+    implementation(libs.androidx.browser)
     implementation(libs.androidx.core.ktx)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)

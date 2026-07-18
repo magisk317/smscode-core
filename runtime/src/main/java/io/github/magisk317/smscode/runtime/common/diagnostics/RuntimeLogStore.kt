@@ -4,11 +4,11 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.util.Log
-import io.github.magisk317.smscode.runtime.contract.logging.LogEvent
-import io.github.magisk317.smscode.runtime.contract.logging.LogLevel
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.runtime.contract.logging.LogSanitizer
-import io.github.magisk317.smscode.runtime.contract.logging.NoopLogSanitizer
+import io.github.magisk317.xposed.logging.LogEvent
+import io.github.magisk317.xposed.logging.LogLevel
+import io.github.magisk317.xposed.logging.LogSanitizer
+import io.github.magisk317.xposed.logging.NoopLogSanitizer
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject

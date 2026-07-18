@@ -128,6 +128,14 @@ class AutoInputFallbackPolicyTest {
             SystemInputInjectorHook.shouldAllowAutoInputSenderUid(
                 sendingUid = 10150,
                 systemContextUid = 1000,
+                senderPackages = listOf("com.google.android.apps.messaging"),
+                modulePackageName = "com.github.tianma8023.xposed.smscode",
+            ),
+        )
+        assertTrue(
+            SystemInputInjectorHook.shouldAllowAutoInputSenderUid(
+                sendingUid = 10151,
+                systemContextUid = 1000,
                 senderPackages = listOf("com.github.tianma8023.xposed.smscode"),
                 modulePackageName = "com.github.tianma8023.xposed.smscode",
             ),

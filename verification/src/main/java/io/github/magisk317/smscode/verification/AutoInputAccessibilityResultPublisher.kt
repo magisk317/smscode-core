@@ -7,7 +7,6 @@ import android.os.Bundle
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputAccessibilityResultContract
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 object AutoInputAccessibilityResultPublisher {
     fun publishOrderedResult(

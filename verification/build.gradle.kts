@@ -2,14 +2,14 @@ plugins {
     id("com.android.library")
 }
 
-val smscodeXposedCorePath = parent?.path
-    ?.takeUnless { it == ":" }
-    ?.let { "$it:hook" }
-    ?: ":hook"
 val runtimeContractProjectPath = parent?.path
     ?.takeUnless { it == ":" }
     ?.let { "$it:contract" }
     ?: ":contract"
+val ruleCoreProjectPath = parent?.path
+    ?.takeUnless { it == ":" }
+    ?.let { "$it:rule" }
+    ?: ":rule"
 
 android {
     namespace = "io.github.magisk317.smscode.verification"
@@ -33,8 +33,9 @@ android {
 }
 
 dependencies {
-    implementation(project(runtimeContractProjectPath))
-    implementation(project(smscodeXposedCorePath))
+    api(project(runtimeContractProjectPath))
+    implementation(project(ruleCoreProjectPath))
+    implementation(project(":magisk-xposed-kit:logging"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.mockk)

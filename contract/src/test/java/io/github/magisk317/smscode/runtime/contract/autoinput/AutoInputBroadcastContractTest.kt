@@ -2,7 +2,9 @@ package io.github.magisk317.smscode.runtime.contract.autoinput
 
 import android.content.Intent
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.Serializable
 
@@ -13,6 +15,51 @@ class AutoInputBroadcastContractTest {
         assertNull(AutoInputBroadcastContract.normalizeIpcToken(""))
         assertNull(AutoInputBroadcastContract.normalizeIpcToken("   "))
         assertNull(AutoInputBroadcastContract.normalizeIpcToken(null))
+    }
+
+    @Test
+    fun resolveActions_usesStableNamespaceSuffixes() {
+        assertEquals(
+            "io.github.magisk317.relay.ACTION_AUTO_INPUT",
+            AutoInputBroadcastContract.resolveActionAutoInput("io.github.magisk317.relay"),
+        )
+        assertEquals(
+            "io.github.magisk317.relay.ACTION_SHOW_TOAST",
+            AutoInputBroadcastContract.resolveActionShowToast("io.github.magisk317.relay."),
+        )
+        assertEquals(
+            "io.github.magisk317.relay.ACTION_AUTO_INPUT_RESULT",
+            AutoInputBroadcastContract.resolveActionAutoInputResult(" io.github.magisk317.relay "),
+        )
+    }
+
+    @Test
+    fun fallbackPolicy_retriesUnsafeAccessibilityWindows() {
+        assertTrue(
+            AutoInputFallbackPolicy.shouldRetryAccessibilityResult(
+                success = false,
+                reason = "no_active_window",
+                windowPackage = "",
+                modulePackage = "io.github.magisk317.xinyi.relay",
+            ),
+        )
+        assertTrue(
+            AutoInputFallbackPolicy.shouldRetryAccessibilityResult(
+                success = false,
+                reason = "no_editable_node",
+                windowPackage = "com.miui.home",
+                modulePackage = "io.github.magisk317.xinyi.relay",
+                homePackages = setOf("com.miui.home"),
+            ),
+        )
+        assertFalse(
+            AutoInputFallbackPolicy.shouldRetryAccessibilityResult(
+                success = false,
+                reason = "no_editable_node",
+                windowPackage = "com.target.app",
+                modulePackage = "io.github.magisk317.xinyi.relay",
+            ),
+        )
     }
 
     @Test

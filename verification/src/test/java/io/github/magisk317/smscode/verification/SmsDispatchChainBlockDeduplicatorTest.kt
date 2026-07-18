@@ -54,6 +54,18 @@ class SmsDispatchChainBlockDeduplicatorTest {
     }
 
     @Test
+    fun shouldSkip_allowsMessageAfterClockRollback() {
+        var now = 10_000L
+        val deduplicator = SmsDispatchChainBlockDeduplicator(timeProvider = { now })
+        val message = message()
+
+        assertFalse(deduplicator.shouldSkip(message, "sms", "pref_block_sms").shouldSkip)
+        now = 9_000L
+
+        assertFalse(deduplicator.shouldSkip(message, "sms", "pref_block_sms").shouldSkip)
+    }
+
+    @Test
     fun shouldSkip_separatesReasonActionAndMessageFields() {
         var now = 1_000L
         val deduplicator = SmsDispatchChainBlockDeduplicator(timeProvider = { now })

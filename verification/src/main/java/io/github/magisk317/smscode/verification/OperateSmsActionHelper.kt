@@ -16,7 +16,6 @@ import android.os.RemoteException
 import android.os.SystemClock
 import android.provider.Telephony
 import androidx.core.content.ContextCompat
-import io.github.magisk317.smscode.xposed.utils.XLog
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger

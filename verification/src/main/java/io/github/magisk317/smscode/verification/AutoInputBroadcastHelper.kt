@@ -4,8 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
-import io.github.magisk317.smscode.xposed.prefs.CorePrefs
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 object AutoInputBroadcastHelper {
     fun sendText(
@@ -15,9 +13,7 @@ object AutoInputBroadcastHelper {
         inputIntervalMs: Long = 0L,
         attemptId: Long? = null,
         actionResolver: () -> String,
-        tokenProvider: () -> String = {
-            CorePrefs.getString(AutoInputBroadcastContract.EXTRA_IPC_TOKEN, "")
-        },
+        tokenProvider: () -> String = { "" },
         broadcaster: (Context, Intent) -> Unit = { senderContext, intent ->
             senderContext.sendOrderedBroadcast(intent, null)
         },

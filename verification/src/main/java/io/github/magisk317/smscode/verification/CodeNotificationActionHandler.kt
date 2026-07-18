@@ -3,7 +3,6 @@ package io.github.magisk317.smscode.verification
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 object CodeNotificationActionHandler {
     data class CopyCodeResult(

@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Process
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 object CodeNotificationAutoCancelScheduler {
     enum class Outcome {

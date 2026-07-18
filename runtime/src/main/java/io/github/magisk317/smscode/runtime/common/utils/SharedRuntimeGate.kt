@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.common.utils
 
 import android.content.Context
 import android.util.Log
+import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.LinkedHashMap
@@ -49,26 +50,17 @@ object SharedRuntimeGate {
         }
         val now = System.currentTimeMillis()
         val result = withFileLock(context, fileName) { raf ->
-            val entries = readEntries(raf)
-            trimExpired(entries, now, windowMs)
-            val blockedKey = normalizedKeys.firstOrNull { key ->
-                val last = entries[key]
-                last != null && now - last <= windowMs
-            }
-            if (blockedKey != null) {
-                val last = entries[blockedKey]
-                writeEntries(raf, entries)
+            val history = BoundedTimestampMap(windowMs, maxEntries, readEntries(raf))
+            val claim = history.claimAll(normalizedKeys, now)
+            if (!claim.claimed) {
+                writeEntries(raf, history.snapshot())
                 return@withFileLock ClaimResult(
                     claimed = false,
-                    ageMs = if (last == null) null else now - last,
-                    key = blockedKey,
+                    ageMs = claim.ageMs,
+                    key = claim.blockedKey,
                 )
             }
-            normalizedKeys.forEach { key ->
-                entries[key] = now
-            }
-            trimSize(entries, maxEntries)
-            writeEntries(raf, entries)
+            writeEntries(raf, history.snapshot())
             ClaimResult(claimed = true)
         }
         return result ?: ClaimResult(claimed = true)
@@ -128,30 +120,6 @@ object SharedRuntimeGate {
             }
         }
         raf.write(content.toByteArray())
-    }
-
-    private fun trimExpired(
-        entries: LinkedHashMap<String, Long>,
-        now: Long,
-        windowMs: Long,
-    ) {
-        val iterator = entries.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (now - entry.value > windowMs) {
-                iterator.remove()
-            }
-        }
-    }
-
-    private fun trimSize(
-        entries: LinkedHashMap<String, Long>,
-        maxEntries: Int,
-    ) {
-        while (entries.size > maxEntries) {
-            val firstKey = entries.entries.firstOrNull()?.key ?: break
-            entries.remove(firstKey)
-        }
     }
 
     private const val DEFAULT_MAX_ENTRIES = 256

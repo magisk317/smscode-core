@@ -5,24 +5,41 @@ import io.github.magisk317.xposed.MethodHookParam
 import io.github.magisk317.xposed.SimpleMethodHookParam
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSink
 import io.github.magisk317.smscode.xposed.runtime.CoreLogSinkHolder
+import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
+import io.github.magisk317.smscode.xposed.runtime.CoreRuntimeAccess
 import io.github.magisk317.smscode.xposed.utils.XLog
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
 class MethodHookWrapperTest {
 
+    @BeforeEach
+    fun setup() {
+        // Establish the neutral XLog -> CoreLogSinkHolder bridge with the core tag,
+        // so this test does not depend on another test having installed it first.
+        CoreRuntime.install(
+            object : CoreRuntimeAccess {
+                override val logTag = "smscode-core"
+                override val logLevel = android.util.Log.VERBOSE
+                override val logToXposed = false
+                override val debug = true
+                override val applicationId = "io.github.magisk317.smscode"
+                override val actionNamespace = "io.github.magisk317.smscode"
+            },
+        )
+    }
+
     @AfterEach
     fun tearDown() {
-        XLog.setLogLevel(4)
-        XLog.setTestSink(null)
+        CoreRuntime.resetForTest()
         CoreLogSinkHolder.install(null)
     }
 
     @Test
     fun wrapperAppliesRouteToHookCallbackLogs() {
         var capturedRoute: String? = null
-        XLog.setLogLevel(2)
         CoreLogSinkHolder.install(
             object : CoreLogSink {
                 override fun append(

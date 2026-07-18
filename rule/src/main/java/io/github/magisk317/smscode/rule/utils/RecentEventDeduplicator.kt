@@ -1,7 +1,5 @@
 package io.github.magisk317.smscode.rule.utils
 
-import java.util.LinkedHashMap
-
 data class SmsForwardDedupSpec(
     val eventId: String = "",
     val sender: String? = null,
@@ -40,42 +38,19 @@ object SmsForwardDedupKeyFactory {
 }
 
 class RecentEventDeduplicator(
-    private val windowMs: Long,
-    private val maxEntries: Int = DEFAULT_MAX_ENTRIES,
+    windowMs: Long,
+    maxEntries: Int = DEFAULT_MAX_ENTRIES,
 ) {
-    private val recent = LinkedHashMap<String, Long>(maxEntries, 0.75f, true)
+    private val recent = BoundedTimestampMap<String>(windowMs, maxEntries)
 
     @Synchronized
     fun shouldDrop(key: String, now: Long = System.currentTimeMillis()): Boolean {
-        pruneExpired(now)
-
-        val lastSeenAt = recent[key]
-        val duplicated = lastSeenAt != null && now - lastSeenAt <= windowMs
-        recent[key] = now
-        trimOverflow()
-        return duplicated
+        return !recent.claim(key, now, refreshOnBlocked = true).claimed
     }
 
     @Synchronized
     fun clear() {
         recent.clear()
-    }
-
-    private fun pruneExpired(now: Long) {
-        val iterator = recent.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (now - entry.value > windowMs) {
-                iterator.remove()
-            }
-        }
-    }
-
-    private fun trimOverflow() {
-        while (recent.size > maxEntries) {
-            val eldestKey = recent.entries.firstOrNull()?.key ?: return
-            recent.remove(eldestKey)
-        }
     }
 
     private companion object {

@@ -1,6 +1,5 @@
 package io.github.magisk317.smscode.verification
 
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 object RecordSmsDedupHelper {
     fun <E, I> hasCrossSourceCodeDuplicate(

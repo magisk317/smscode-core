@@ -5,6 +5,7 @@ import io.github.magisk317.smscode.rule.model.BuiltinSmsCodeRules
 import io.github.magisk317.smscode.rule.model.SmsCodeMatchedRule
 import io.github.magisk317.smscode.rule.model.SmsCodeMatchedRuleSource
 import io.github.magisk317.smscode.rule.model.SmsCodeParseResult
+import io.github.magisk317.smscode.rule.model.SmsCodeParseSource
 import io.github.magisk317.smscode.rule.model.SmsCodeRuleSpec
 import java.util.Locale
 import java.util.regex.Pattern
@@ -23,21 +24,42 @@ object SmsCodeUtils {
     private const val LEVEL_NONE = -1
     private const val KEYWORD_DISTANCE_THRESHOLD = 30
     private val urlSchemeTokens = setOf("http", "https", "www")
-    private val urlContextTokens = setOf('.', '/', ':', '?', '&', '=', '#', '%')
+    private val urlContextTokens = setOf('/', '?', '&', '=', '#', '%')
     private val dateTimeUnitTokens = setOf('年', '月', '日', '号', '时', '點', '点', '分', '秒')
 
     suspend fun parseSmsCodeIfExists(
         content: String,
         keywordsRegex: String,
         rules: List<SmsCodeRuleSpec> = emptyList(),
-    ): String = parseSmsCodeResultIfExists(content, keywordsRegex, rules).code
+        source: SmsCodeParseSource? = null,
+    ): String = parseSmsCodeResultIfExists(content, keywordsRegex, rules, source).code
 
     suspend fun parseSmsCodeResultIfExists(
         content: String,
         keywordsRegex: String,
         rules: List<SmsCodeRuleSpec> = emptyList(),
+        source: SmsCodeParseSource? = null,
+    ): SmsCodeParseResult = parseSmsCodeResult(
+        content = content,
+        keywordsRegex = keywordsRegex,
+        rules = rules,
+        source = source,
+    )
+
+    fun parseSmsCode(
+        content: String,
+        keywordsRegex: String,
+        rules: List<SmsCodeRuleSpec> = emptyList(),
+        source: SmsCodeParseSource? = null,
+    ): String = parseSmsCodeResult(content, keywordsRegex, rules, source).code
+
+    fun parseSmsCodeResult(
+        content: String,
+        keywordsRegex: String,
+        rules: List<SmsCodeRuleSpec> = emptyList(),
+        source: SmsCodeParseSource? = null,
     ): SmsCodeParseResult {
-        val customResult = parseByCustomRules(content, rules)
+        val customResult = parseByCustomRules(content, rules, source)
         val defaultResult = parseByDefaultRule(content, keywordsRegex)
         val bestResult = pickBetterCandidate(customResult, defaultResult)
         return SmsCodeParseResult(
@@ -156,9 +178,7 @@ object SmsCodeUtils {
         val possibleCodes = mutableListOf<String>()
         while (matcher.find()) {
             val candidate = matcher.group()
-            if (candidate.lowercase(Locale.ROOT) in urlSchemeTokens) continue
-            if (isLikelyDateTimeToken(candidate, content)) continue
-            if (isLikelyUrlToken(candidate, content)) continue
+            if (isLikelyRejectedCodeToken(candidate, content, matcher.start())) continue
             possibleCodes.add(candidate)
         }
         if (possibleCodes.isEmpty()) return ""
@@ -192,27 +212,45 @@ object SmsCodeUtils {
         return smsCode
     }
 
-    private fun isLikelyDateTimeToken(candidate: String, content: String): Boolean {
+    private fun isLikelyDateTimeToken(
+        candidate: String,
+        content: String,
+        candidateIndex: Int,
+    ): Boolean {
         if (!candidate.all(Char::isDigit)) return false
-        val candidateIdx = content.indexOf(candidate)
+        val candidateIdx = candidateIndex
         if (candidateIdx < 0) return false
         val prevChar = content.getOrNull(candidateIdx - 1)
         val nextChar = content.getOrNull(candidateIdx + candidate.length)
         return prevChar in dateTimeUnitTokens || nextChar in dateTimeUnitTokens
     }
 
-    private fun isLikelyUrlToken(candidate: String, content: String): Boolean {
-        val candidateIdx = content.indexOf(candidate)
+    private fun isLikelyUrlToken(
+        candidate: String,
+        content: String,
+        candidateIndex: Int,
+    ): Boolean {
+        val candidateIdx = candidateIndex
         if (candidateIdx < 0) return false
         val prevChar = content.getOrNull(candidateIdx - 1)
         val nextChar = content.getOrNull(candidateIdx + candidate.length)
-        if (prevChar in urlContextTokens || nextChar in urlContextTokens) {
-            return true
-        }
         val contextStart = (candidateIdx - 8).coerceAtLeast(0)
         val contextEnd = (candidateIdx + candidate.length + 8).coerceAtMost(content.length)
         val nearby = content.substring(contextStart, contextEnd).lowercase(Locale.ROOT)
-        return nearby.contains("http://") || nearby.contains("https://") || nearby.contains("www.")
+        if (nearby.contains("http://") || nearby.contains("https://") || nearby.contains("www.")) {
+            return true
+        }
+        if (prevChar == ':' || nextChar == ':') {
+            return nearby.contains("://")
+        }
+        val dotBeforeLooksLikeUrl =
+            prevChar == '.' && content.getOrNull(candidateIdx - 2)?.isLetterOrDigit() == true
+        val dotAfterLooksLikeUrl =
+            nextChar == '.' && content.getOrNull(candidateIdx + candidate.length + 1)?.isLetterOrDigit() == true
+        return prevChar in urlContextTokens ||
+            nextChar in urlContextTokens ||
+            dotBeforeLooksLikeUrl ||
+            dotAfterLooksLikeUrl
     }
 
     private fun getMatchLevel(matchedStr: String): Int = when {
@@ -252,18 +290,23 @@ object SmsCodeUtils {
         return minDistance
     }
 
-    private fun parseByCustomRules(content: String, rules: List<SmsCodeRuleSpec>): ParseCandidate {
+    private fun parseByCustomRules(
+        content: String,
+        rules: List<SmsCodeRuleSpec>,
+        source: SmsCodeParseSource?,
+    ): ParseCandidate {
         val lowerContent = content.lowercase()
         var fallbackCandidate: ParseCandidate? = null
         for ((index, rule) in rules.withIndex()) {
+            if (!matchesSource(rule, source)) continue
             if (!lowerContent.contains(rule.codeKeyword.lowercase())) continue
             val matcher = runCatching {
                 Pattern.compile(rule.codeRegex).matcher(content)
             }.getOrNull() ?: continue
-            if (!matcher.find()) continue
+            val candidateCode = firstAcceptableCustomCandidate(matcher, rule.codeKeyword, content) ?: continue
 
             val candidate = ParseCandidate(
-                code = matcher.group(),
+                code = candidateCode,
                 matchedRule = SmsCodeMatchedRule(
                     source = rule.source,
                     ordinal = index + 1,
@@ -277,5 +320,87 @@ object SmsCodeUtils {
             }
         }
         return fallbackCandidate ?: ParseCandidate(code = "")
+    }
+
+    private fun firstAcceptableCustomCandidate(
+        matcher: java.util.regex.Matcher,
+        keyword: String,
+        content: String,
+    ): String? {
+        while (matcher.find()) {
+            val candidate = matcher.group()
+            if (candidate.isBlank()) continue
+            if (isLikelyRejectedCodeToken(candidate, content, matcher.start())) continue
+            if (!isNearToKeyword(keyword, matcher.start(), content)) continue
+            return candidate
+        }
+        return null
+    }
+
+    private fun isLikelyRejectedCodeToken(
+        candidate: String,
+        content: String,
+        candidateIndex: Int,
+    ): Boolean {
+        if (candidate.none(Char::isDigit)) return true
+        if (candidate.lowercase(Locale.ROOT) in urlSchemeTokens) return true
+        return isLikelyDateTimeToken(candidate, content, candidateIndex) ||
+            isLikelyUrlToken(candidate, content, candidateIndex) ||
+            isLikelyDecimalAmountToken(candidate, content, candidateIndex)
+    }
+
+    private fun isLikelyDecimalAmountToken(
+        candidate: String,
+        content: String,
+        candidateIndex: Int,
+    ): Boolean {
+        if (!candidate.all(Char::isDigit)) return false
+        val candidateIdx = candidateIndex
+        if (candidateIdx < 0) return false
+        val prevChar = content.getOrNull(candidateIdx - 1)
+        val nextChar = content.getOrNull(candidateIdx + candidate.length)
+        if (prevChar != '.' && nextChar != '.') return false
+        val beforeDecimal = prevChar == '.' && content.getOrNull(candidateIdx - 2)?.isDigit() == true
+        val afterDecimal = nextChar == '.' && content.getOrNull(candidateIdx + candidate.length + 1)?.isDigit() == true
+        return beforeDecimal || afterDecimal
+    }
+
+    private fun isNearToKeyword(keyword: String, candidateIndex: Int, content: String): Boolean {
+        if (keyword.isBlank()) return true
+        val lowerContent = content.lowercase()
+        val lowerKeyword = keyword.lowercase()
+        var minDistance = content.length
+        var searchStart = 0
+        while (searchStart < lowerContent.length) {
+            val keywordIdx = lowerContent.indexOf(lowerKeyword, startIndex = searchStart)
+            if (keywordIdx < 0) break
+            val distance = kotlin.math.abs(keywordIdx - candidateIndex)
+            if (distance < minDistance) {
+                minDistance = distance
+            }
+            searchStart = keywordIdx + lowerKeyword.length
+        }
+        return minDistance <= KEYWORD_DISTANCE_THRESHOLD
+    }
+
+    private fun matchesSource(rule: SmsCodeRuleSpec, source: SmsCodeParseSource?): Boolean {
+        if (source == null) return true
+        val packageNameHint = rule.packageNameHint?.trim().orEmpty()
+        if (packageNameHint.isNotEmpty()) {
+            val sourcePackage = source.packageName?.trim().orEmpty()
+            if (!sourcePackage.equals(packageNameHint, ignoreCase = true)) return false
+        }
+
+        val senderRegex = rule.senderRegex?.trim().orEmpty()
+        if (senderRegex.isEmpty()) return true
+        val pattern = runCatching { Pattern.compile(senderRegex, Pattern.CASE_INSENSITIVE) }.getOrNull()
+            ?: return false
+        val sourceTexts = listOfNotNull(
+            source.sender?.trim()?.takeIf { it.isNotEmpty() },
+            source.title?.trim()?.takeIf { it.isNotEmpty() },
+            source.channelId?.trim()?.takeIf { it.isNotEmpty() },
+        )
+        if (sourceTexts.isEmpty()) return false
+        return sourceTexts.any { pattern.matcher(it).find() }
     }
 }

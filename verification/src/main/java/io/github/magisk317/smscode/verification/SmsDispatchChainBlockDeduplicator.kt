@@ -1,8 +1,10 @@
 package io.github.magisk317.smscode.verification
 
+import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
+
 class SmsDispatchChainBlockDeduplicator(
-    private val windowMs: Long = DEFAULT_WINDOW_MS,
-    private val maxEntries: Int = DEFAULT_MAX_ENTRIES,
+    windowMs: Long = DEFAULT_WINDOW_MS,
+    maxEntries: Int = DEFAULT_MAX_ENTRIES,
     private val timeProvider: () -> Long = System::currentTimeMillis,
 ) {
     data class Result(
@@ -11,7 +13,7 @@ class SmsDispatchChainBlockDeduplicator(
     )
 
     private val lock = Any()
-    private val history = LinkedHashMap<String, Long>()
+    private val history = BoundedTimestampMap<String>(windowMs, maxEntries)
 
     fun shouldSkip(
         smsMsg: SmsMessage?,
@@ -24,32 +26,8 @@ class SmsDispatchChainBlockDeduplicator(
         val now = timeProvider()
         val key = buildKey(smsMsg, action, reason)
         return synchronized(lock) {
-            pruneExpired(now)
-            val last = history[key]
-            if (last != null && now - last <= windowMs) {
-                Result(shouldSkip = true, ageMs = now - last)
-            } else {
-                history[key] = now
-                trimToCapacity()
-                Result(shouldSkip = false)
-            }
-        }
-    }
-
-    private fun pruneExpired(now: Long) {
-        val iterator = history.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (now - entry.value > windowMs) {
-                iterator.remove()
-            }
-        }
-    }
-
-    private fun trimToCapacity() {
-        while (history.size > maxEntries) {
-            val firstKey = history.entries.firstOrNull()?.key ?: break
-            history.remove(firstKey)
+            val claim = history.claim(key, now)
+            Result(shouldSkip = !claim.claimed, ageMs = claim.ageMs)
         }
     }
 

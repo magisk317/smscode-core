@@ -5,12 +5,14 @@ import io.github.magisk317.smscode.runtime.common.serialization.JsonConfig
 import java.io.File
 import java.security.MessageDigest
 import java.util.regex.Pattern
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.decodeFromString
 
 class SmsCodeRuleCatalogRepository(
     private val cacheSource: WritableSmsCodeRuleCatalogSource,
     private val bundledSource: SmsCodeRuleCatalogSource,
     private val remoteSource: SmsCodeRuleCatalogSource,
+    private val remoteFallbackSources: List<SmsCodeRuleCatalogSource> = emptyList(),
 ) {
     constructor(
         context: Context,
@@ -19,9 +21,22 @@ class SmsCodeRuleCatalogRepository(
         cacheDir: File = File((context.applicationContext ?: context).filesDir, DEFAULT_SMS_CODE_RULES_ASSET_ROOT),
         userAgent: String = "SmsCodeRules/1",
     ) : this(
+        context = context,
+        assetRoot = assetRoot,
+        cacheDir = cacheDir,
+        remoteSources = remoteCatalogSources(remote, userAgent),
+    )
+
+    private constructor(
+        context: Context,
+        assetRoot: String,
+        cacheDir: File,
+        remoteSources: List<SmsCodeRuleCatalogSource>,
+    ) : this(
         cacheSource = FileSmsCodeRuleCatalogSource(cacheDir),
         bundledSource = AssetSmsCodeRuleCatalogSource(context, assetRoot),
-        remoteSource = RemoteSmsCodeRuleCatalogSource(remote, userAgent),
+        remoteSource = remoteSources.first(),
+        remoteFallbackSources = remoteSources.drop(1),
     )
 
     suspend fun loadOfficialRules(): SmsCodeRuleCatalogSnapshot {
@@ -36,31 +51,63 @@ class SmsCodeRuleCatalogRepository(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught")
     suspend fun refreshOfficialRules(): SmsCodeRuleCatalogRefreshResult {
-        return runCatching {
-            val indexText = remoteSource.readIndex()
-            val index = decodeIndex(indexText)
-            val ruleTexts = linkedMapOf<String, String>()
-            for (file in index.files) {
-                val text = remoteSource.readRule(file.path)
-                verifyFile(file, text)
-                ruleTexts[file.path] = text
+        var downloadedCatalog: DownloadedCatalog? = null
+        var lastFailure: Exception? = null
+        for (source in listOf(remoteSource) + remoteFallbackSources) {
+            try {
+                downloadedCatalog = downloadCatalog(source)
+                break
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Exception) {
+                lastFailure = failure
             }
-            cacheSource.writeCatalog(indexText, ruleTexts)
+        }
+
+        val downloaded = downloadedCatalog ?: return refreshFailure(lastFailure)
+        return try {
+            cacheSource.writeCatalog(downloaded.indexText, downloaded.ruleTexts)
             val snapshot = buildSnapshot(
                 sourceKind = SmsCodeRuleCatalogSourceKind.REMOTE,
-                index = index,
-                ruleTexts = ruleTexts,
+                index = downloaded.index,
+                ruleTexts = downloaded.ruleTexts,
             )
             SmsCodeRuleCatalogRefreshResult(success = true, snapshot = snapshot)
-        }.getOrElse { throwable ->
-            SmsCodeRuleCatalogRefreshResult(
-                success = false,
-                snapshot = loadOfficialRules(),
-                errorMessage = throwable.message ?: throwable.javaClass.simpleName,
-            )
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Exception) {
+            refreshFailure(failure)
         }
     }
+
+    private suspend fun downloadCatalog(source: SmsCodeRuleCatalogSource): DownloadedCatalog {
+        val indexText = source.readIndex()
+        val index = decodeIndex(indexText)
+        val ruleTexts = linkedMapOf<String, String>()
+        for (file in index.files) {
+            val text = source.readRule(file.path)
+            verifyFile(file, text)
+            ruleTexts[file.path] = text
+        }
+        return DownloadedCatalog(indexText, index, ruleTexts)
+    }
+
+    private suspend fun refreshFailure(failure: Exception?): SmsCodeRuleCatalogRefreshResult =
+        SmsCodeRuleCatalogRefreshResult(
+            success = false,
+            snapshot = loadOfficialRules(),
+            errorMessage = failure?.message
+                ?: failure?.javaClass?.simpleName
+                ?: "Remote catalog unavailable",
+        )
+
+    private data class DownloadedCatalog(
+        val indexText: String,
+        val index: SmsCodeRuleCatalogIndex,
+        val ruleTexts: Map<String, String>,
+    )
 
     private suspend fun loadFrom(
         source: SmsCodeRuleCatalogSource,
@@ -125,6 +172,16 @@ class SmsCodeRuleCatalogRepository(
 
     companion object {
         private val json = JsonConfig.json
+
+        private fun remoteCatalogSources(
+            remote: SmsCodeRuleRemoteSource,
+            userAgent: String,
+        ): List<SmsCodeRuleCatalogSource> = remote.rawBaseUrls.map { baseUrl ->
+            RemoteSmsCodeRuleCatalogSource(
+                remoteSource = SmsCodeRuleRemoteSource(customBaseUrl = baseUrl),
+                userAgent = userAgent,
+            )
+        }
 
         fun decodeIndex(text: String): SmsCodeRuleCatalogIndex = json.decodeFromString(text)
 

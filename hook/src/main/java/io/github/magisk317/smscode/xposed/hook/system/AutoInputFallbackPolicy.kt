@@ -1,7 +1,5 @@
 package io.github.magisk317.smscode.xposed.hook.system
 
-import java.util.Locale
-
 object AutoInputFallbackPolicy {
     fun shouldRetryAccessibilityResult(
         success: Boolean,
@@ -9,18 +7,15 @@ object AutoInputFallbackPolicy {
         windowPackage: String,
         modulePackage: String,
         homePackages: Set<String> = emptySet(),
-    ): Boolean {
-        if (success) return false
-        return when (reason) {
-            "no_active_window" -> true
-            "no_editable_node" -> isFallbackUnsafeWindow(
+    ): Boolean =
+        io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputFallbackPolicy
+            .shouldRetryAccessibilityResult(
+                success = success,
+                reason = reason,
                 windowPackage = windowPackage,
                 modulePackage = modulePackage,
                 homePackages = homePackages,
             )
-            else -> false
-        }
-    }
 
     fun shouldSkipFallbackAfterAccessibility(
         success: Boolean,
@@ -28,18 +23,15 @@ object AutoInputFallbackPolicy {
         windowPackage: String,
         modulePackage: String,
         homePackages: Set<String> = emptySet(),
-    ): Boolean {
-        if (success) return true
-        return when (reason) {
-            "no_active_window" -> true
-            "no_editable_node" -> isFallbackUnsafeWindow(
+    ): Boolean =
+        io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputFallbackPolicy
+            .shouldSkipFallbackAfterAccessibility(
+                success = success,
+                reason = reason,
                 windowPackage = windowPackage,
                 modulePackage = modulePackage,
                 homePackages = homePackages,
             )
-            else -> false
-        }
-    }
 
     fun <T> runWithRetries(
         maxAttempts: Int,
@@ -47,31 +39,13 @@ object AutoInputFallbackPolicy {
         perform: (attemptIndex: Int) -> T,
         shouldRetry: (T) -> Boolean,
         sleeper: (Long) -> Unit,
-    ): T {
-        require(maxAttempts >= 1) { "maxAttempts must be >= 1" }
-        var lastResult = perform(0)
-        for (attempt in 1 until maxAttempts) {
-            if (!shouldRetry(lastResult)) {
-                return lastResult
-            }
-            sleeper(delayMs)
-            lastResult = perform(attempt)
-        }
-        return lastResult
-    }
-
-    private fun isFallbackUnsafeWindow(
-        windowPackage: String,
-        modulePackage: String,
-        homePackages: Set<String>,
-    ): Boolean {
-        val normalizedWindow = windowPackage.trim().lowercase(Locale.ROOT)
-        if (normalizedWindow.isBlank()) return true
-        val normalizedModule = modulePackage.trim().lowercase(Locale.ROOT)
-        if (normalizedWindow == "android" || normalizedWindow == "com.android.systemui") return true
-        if (homePackages.any { it.trim().lowercase(Locale.ROOT) == normalizedWindow }) return true
-        if (normalizedWindow.contains("launcher") || normalizedWindow.contains("home")) return true
-        // Do not block system fallback solely because accessibility still reports the module window.
-        return false
-    }
+    ): T =
+        io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputFallbackPolicy
+            .runWithRetries(
+                maxAttempts = maxAttempts,
+                delayMs = delayMs,
+                perform = perform,
+                shouldRetry = shouldRetry,
+                sleeper = sleeper,
+            )
 }

@@ -26,7 +26,7 @@ class PermissionGranterHook : BaseHook() {
 
             when {
                 Build.VERSION.SDK_INT >= ANDROID_16 -> { // Android 16+
-                    PermissionManagerServiceHook36Compat(classLoader).startHook()
+                    PermissionManagerServiceHook36(classLoader).startHook()
                 }
 
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {

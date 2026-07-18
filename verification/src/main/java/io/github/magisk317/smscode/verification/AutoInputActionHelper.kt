@@ -2,7 +2,6 @@ package io.github.magisk317.smscode.verification
 
 import android.app.ActivityManager
 import android.content.Context
-import io.github.magisk317.smscode.xposed.utils.XLog
 import java.lang.reflect.InvocationTargetException
 import java.util.LinkedHashMap
 

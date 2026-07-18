@@ -55,6 +55,34 @@ class SmsCodeRuleCatalogRepositoryTest {
     }
 
     @Test
+    fun `refresh retries the entire catalog on the fallback source`() = runBlocking {
+        val ruleText = ruleText()
+        val indexText = indexJson(ruleText)
+        val cache = MemorySource()
+        val primary = object : SmsCodeRuleCatalogSource {
+            override suspend fun readIndex(): String = indexText
+
+            override suspend fun readRule(path: String): String {
+                throw IllegalStateException("primary rule unavailable")
+            }
+        }
+        val repository = SmsCodeRuleCatalogRepository(
+            cacheSource = cache,
+            bundledSource = FailingSource,
+            remoteSource = primary,
+            remoteFallbackSources = listOf(
+                MemorySource(indexText, mutableMapOf("rules/acme.json" to ruleText)),
+            ),
+        )
+
+        val result = repository.refreshOfficialRules()
+
+        assertTrue(result.success)
+        assertEquals(1, result.snapshot?.rules?.size)
+        assertEquals(SmsCodeRuleCatalogSourceKind.CACHE, repository.loadOfficialRules().sourceKind)
+    }
+
+    @Test
     fun `merger keeps user rules first and sorts official rules by priority`() = runBlocking {
         val userRule = SmsCodeRuleSpec(company = "Acme", codeKeyword = "登录", codeRegex = "(?<=登录码:)\\d{4}")
         val officialLow = officialRule(id = "low", codeKeyword = "验证码", codeRegex = "(?<=验证码:)\\d{6}", priority = 1)

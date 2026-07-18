@@ -2,7 +2,6 @@ package io.github.magisk317.smscode.verification
 
 import android.content.Context
 import android.os.Bundle
-import io.github.magisk317.smscode.xposed.utils.XLog
 import java.util.concurrent.Callable
 
 interface SmsCodeAction<T> {

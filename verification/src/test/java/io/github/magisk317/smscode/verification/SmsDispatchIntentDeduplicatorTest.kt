@@ -80,6 +80,18 @@ class SmsDispatchIntentDeduplicatorTest {
     }
 
     @Test
+    fun shouldSkipByFile_allowsEventAfterClockRollback() {
+        var now = 10_000L
+        val file = tempDir.resolve("rollback-dedup").toFile()
+        val deduplicator = SmsDispatchIntentDeduplicator(timeProvider = { now })
+
+        assertFalse(deduplicator.shouldSkipByFile(file, "event-1", "sms").shouldSkip)
+        now = 9_000L
+
+        assertFalse(deduplicator.shouldSkipByFile(file, "event-1", "sms").shouldSkip)
+    }
+
+    @Test
     fun syncFileIfLockAvailable_writesMemoryClaimForLaterFileClaim() {
         var now = 1_000L
         val file = tempDir.resolve("dedup").toFile()

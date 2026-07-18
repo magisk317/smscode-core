@@ -19,6 +19,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "smscode-core"
 include(":magisk-xposed-kit")
+include(":magisk-xposed-kit:logging")
+include(":magisk-xposed-kit:diagnostics")
 include(":domain")
 include(":contract")
 include(":verification")
@@ -27,3 +29,5 @@ include(":rule")
 include(":hook")
 
 project(":magisk-xposed-kit").projectDir = file("../magisk-xposed-kit")
+project(":magisk-xposed-kit:logging").projectDir = file("../magisk-xposed-kit/logging")
+project(":magisk-xposed-kit:diagnostics").projectDir = file("../magisk-xposed-kit/diagnostics")

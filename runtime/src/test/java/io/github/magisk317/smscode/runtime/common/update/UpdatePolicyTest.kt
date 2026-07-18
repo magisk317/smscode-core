@@ -22,6 +22,12 @@ class UpdatePolicyTest {
     }
 
     @Test
+    fun resolveAvailableTarget_prefersPlayWhenAvailable() {
+        assertEquals(UpdatePolicy.StartupTarget.PLAY, UpdatePolicy.resolveAvailableTarget(playStoreAvailable = true))
+        assertEquals(UpdatePolicy.StartupTarget.GITHUB, UpdatePolicy.resolveAvailableTarget(playStoreAvailable = false))
+    }
+
+    @Test
     fun shouldSkipIgnoredVersion_respectsFlagAndExactMatch() {
         assertTrue(UpdatePolicy.shouldSkipIgnoredVersion(true, "3.1.1", "3.1.1"))
         assertFalse(UpdatePolicy.shouldSkipIgnoredVersion(false, "3.1.1", "3.1.1"))

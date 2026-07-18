@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.verification
 
+import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
 import java.io.File
 import java.io.RandomAccessFile
 
@@ -16,24 +17,21 @@ class SmsDispatchIntentDeduplicator(
     )
 
     private val memoryLock = Any()
-    private val memoryHistory = LinkedHashMap<String, Long>()
+    private val memoryHistory = BoundedTimestampMap<String>(windowMs, maxEntries)
 
     fun shouldSkipInMemory(eventId: String, action: String?): Result {
         val key = buildKeyOrNull(eventId, action) ?: return Result(shouldSkip = false)
         val now = timeProvider()
         return synchronized(memoryLock) {
-            pruneExpired(memoryHistory, now)
-            val last = memoryHistory[key]
-            if (last != null && now - last <= windowMs) {
+            val claim = memoryHistory.claim(key, now)
+            if (!claim.claimed) {
                 Result(
                     shouldSkip = true,
-                    ageMs = now - last,
+                    ageMs = claim.ageMs,
                     key = key,
                     timestampMs = now,
                 )
             } else {
-                memoryHistory[key] = now
-                trimToCapacity(memoryHistory)
                 Result(
                     shouldSkip = false,
                     key = key,
@@ -76,21 +74,18 @@ class SmsDispatchIntentDeduplicator(
         key: String,
         now: Long,
     ): Result {
-        val entries = readEntries(raf)
-        pruneExpired(entries, now)
-        val last = entries[key]
-        if (last != null && now - last <= windowMs) {
-            writeEntries(raf, entries)
+        val history = BoundedTimestampMap(windowMs, maxEntries, readEntries(raf))
+        val claim = history.claim(key, now)
+        if (!claim.claimed) {
+            writeEntries(raf, history.snapshot())
             return Result(
                 shouldSkip = true,
-                ageMs = now - last,
+                ageMs = claim.ageMs,
                 key = key,
                 timestampMs = now,
             )
         }
-        entries[key] = now
-        trimToCapacity(entries)
-        writeEntries(raf, entries)
+        writeEntries(raf, history.snapshot())
         return Result(
             shouldSkip = false,
             key = key,
@@ -103,19 +98,10 @@ class SmsDispatchIntentDeduplicator(
         key: String,
         now: Long,
     ) {
-        val entries = readEntries(raf)
-        val beforeSize = entries.size
-        pruneExpired(entries, now)
-        var changed = entries.size != beforeSize
-        if (!entries.containsKey(key)) {
-            entries[key] = now
-            changed = true
-        }
-        val beforeTrimSize = entries.size
-        trimToCapacity(entries)
-        changed = changed || entries.size != beforeTrimSize
-        if (changed) {
-            writeEntries(raf, entries)
+        val history = BoundedTimestampMap(windowMs, maxEntries, readEntries(raf))
+        history.ensure(key, now)
+        if (history.isDirty) {
+            writeEntries(raf, history.snapshot())
         }
     }
 
@@ -150,23 +136,6 @@ class SmsDispatchIntentDeduplicator(
             }
         }
         raf.write(content.toByteArray())
-    }
-
-    private fun pruneExpired(entries: LinkedHashMap<String, Long>, now: Long) {
-        val iterator = entries.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (now - entry.value > windowMs) {
-                iterator.remove()
-            }
-        }
-    }
-
-    private fun trimToCapacity(entries: LinkedHashMap<String, Long>) {
-        while (entries.size > maxEntries) {
-            val firstKey = entries.entries.firstOrNull()?.key ?: break
-            entries.remove(firstKey)
-        }
     }
 
     private fun buildKeyOrNull(eventId: String, action: String?): String? {

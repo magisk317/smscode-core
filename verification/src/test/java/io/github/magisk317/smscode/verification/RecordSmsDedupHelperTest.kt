@@ -1,6 +1,5 @@
 package io.github.magisk317.smscode.verification
 
-import io.github.magisk317.smscode.xposed.utils.XLog
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.AfterEach

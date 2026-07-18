@@ -3,7 +3,6 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
-import io.github.magisk317.smscode.xposed.utils.XLog
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals

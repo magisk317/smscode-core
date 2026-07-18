@@ -5,7 +5,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
-import io.github.magisk317.smscode.xposed.utils.XLog
 import java.util.LinkedHashMap
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean

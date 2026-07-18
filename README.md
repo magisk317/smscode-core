@@ -28,6 +28,16 @@ Recommended public surface:
 Recommended public surface:
 - `io.github.magisk317.smscode.verification`
 
+### `runtime`
+- Shared Android runtime helpers whose policy is supplied by parent repositories.
+- Owns the neutral preferences foundation: typed specs and snapshots, atomic change sets, commit
+  outcomes, and ordered post-success hooks.
+- Preference keys/defaults, DataStore or SharedPreferences adapters, cache invalidation, and
+  cross-process publication stay in each parent repository.
+
+Recommended public surface:
+- `io.github.magisk317.smscode.runtime.common.prefs`
+
 ### `xposed`
 - Shared Xposed/libxposed compatibility layer and runtime glue.
 - Owns hook API abstractions, base hook classes, runtime logging/policy, and system input fallback helpers.
@@ -46,13 +56,41 @@ Consumers should treat the modules as layered APIs instead of a bag of source fi
 1. Prefer `domain` for stateless parsing, rule specs, and shared value objects.
 2. Prefer `contract` for protocol/value-object sharing across repositories.
 3. Prefer `verification` for SMS-code pipeline orchestration.
-4. Prefer `xposed` for hook/runtime infrastructure only.
+4. Prefer `runtime` for shared Android runtime mechanisms with parent-supplied policy and adapters.
+5. Prefer `xposed` for hook/runtime infrastructure only.
 
 Boundary rules:
 - Do not import `xposed` from pure UI modules unless the code is genuinely hook/runtime facing.
 - Do not duplicate verification orchestration in parent repositories when the behavior already exists in `verification`.
 - Keep Android process/runtime side effects out of `domain`.
 - Parent repositories must install `CorePrefsAccess` before shared hooks read module settings.
+
+## Preferences Foundation
+
+Parent repositories declare their own typed specs and adapt one atomic storage transaction:
+
+```kotlin
+val enabled = PreferenceSpec.boolean(PrefConst.KEY_ENABLE, defaultValue = true)
+val coordinator = PreferenceCommitCoordinator(
+    persistence = AtomicPreferencePersistence { changes ->
+        persistAllInOneTransaction(changes)
+    },
+    hooks = listOf(
+        PreferencePostCommitHooks.invalidate { PrefsReader.invalidateCache() },
+        PreferencePostCommitHooks.publish { HookPreferenceMirror.publish(context) },
+    ),
+)
+
+val result = coordinator.commit {
+    set(enabled, false)
+}
+```
+
+The persistence adapter must apply the full `PreferenceChangeSet` atomically and return `false`
+without partial writes when rejected. `invalidate` and `publish` hooks are never called for a
+rejected/throwing persistence attempt or an empty edit. Hook failures are retained in
+`PreferenceCommitResult.Persisted.postCommitFailures`; they do not rewrite a durable success into a
+storage failure.
 
 ## Compatibility
 

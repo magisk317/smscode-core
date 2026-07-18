@@ -3,6 +3,10 @@ package io.github.magisk317.smscode.runtime.contract.autoinput
 import android.content.Intent
 
 object AutoInputBroadcastContract {
+    private const val ACTION_AUTO_INPUT_SUFFIX = "ACTION_AUTO_INPUT"
+    private const val ACTION_SHOW_TOAST_SUFFIX = "ACTION_SHOW_TOAST"
+    private const val ACTION_AUTO_INPUT_RESULT_SUFFIX = "ACTION_AUTO_INPUT_RESULT"
+
     const val EXTRA_CODE = "code"
     const val EXTRA_AUTO_ENTER = "autoEnter"
     const val EXTRA_INPUT_INTERVAL_MS = "inputIntervalMs"
@@ -70,4 +74,16 @@ object AutoInputBroadcastContract {
     }
 
     fun normalizeIpcToken(token: String?): String? = token?.trim()?.takeIf { it.isNotEmpty() }
+
+    fun resolveActionAutoInput(actionNamespace: String): String =
+        actionNamespace.qualifyAction(ACTION_AUTO_INPUT_SUFFIX)
+
+    fun resolveActionShowToast(actionNamespace: String): String =
+        actionNamespace.qualifyAction(ACTION_SHOW_TOAST_SUFFIX)
+
+    fun resolveActionAutoInputResult(actionNamespace: String): String =
+        actionNamespace.qualifyAction(ACTION_AUTO_INPUT_RESULT_SUFFIX)
+
+    private fun String.qualifyAction(suffix: String): String =
+        "${trim().trimEnd('.')}.$suffix"
 }

@@ -5,6 +5,8 @@
 ### Added
 - Added shared-repo governance docs for module boundaries, compatibility expectations, and testing policy.
 - Added direct JVM coverage for `domain` parsing, blacklist matching, and dedup helpers.
+- Added a neutral runtime preferences foundation with typed specs/snapshots, atomic change sets,
+  explicit commit outcomes, and post-success invalidate/publish hooks.
 
 ### Changed
 - Renamed Gradle module directories to single-word module names: `domain`, `contract`, `runtime`, `hook`, `verification`, `xposed`, and `rule`.

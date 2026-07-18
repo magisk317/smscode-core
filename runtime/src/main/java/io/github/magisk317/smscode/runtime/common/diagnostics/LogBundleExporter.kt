@@ -1,26 +1,22 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
-import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.util.Log
-import androidx.core.content.FileProvider
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
-import io.github.magisk317.smscode.runtime.contract.logging.DefaultLogSanitizer
+import io.github.magisk317.xposed.diagnostics.DiagnosticArchive
+import io.github.magisk317.xposed.diagnostics.DiagnosticTextSanitizer
+import io.github.magisk317.xposed.logging.DefaultLogSanitizer
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import java.io.File
-import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 data class LogBundleExportResult(
     val file: File?,
@@ -33,7 +29,6 @@ data class LogBundleClearResult(
 )
 
 object LogBundleExporter {
-    private const val ZIP_MIME_TYPE = "application/zip"
     private const val LSPOSED_ROTATING_LOGS_PER_KIND = 2
     private val LSPOSED_LOG_DIRS = listOf(
         "/data/adb/lspd/log",
@@ -46,106 +41,88 @@ object LogBundleExporter {
     private val opLock = Any()
 
     @Suppress("TooGenericExceptionCaught")
-    fun buildLogBundle(context: Context): LogBundleExportResult {
+    fun buildLogBundle(
+        context: Context,
+        sanitizeLogs: Boolean = true,
+    ): LogBundleExportResult {
         synchronized(opLock) {
             val config = RuntimeDiagnosticsEnvironment.current()
             val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
             val exportDir = getPrivateExportDir(context)
-            if (!ensureDirectory(exportDir, recreateWhenFile = true)) {
-                val details = "export root unavailable: ${exportDir.absolutePath}"
-                logError(config.logTag, "buildLogBundle failed: $details")
-                return LogBundleExportResult(null, details)
-            }
-            val stagingDir = File(exportDir, "${config.stagingDirPrefix}$timestamp").apply {
-                if (exists()) deleteRecursively()
-            }
-            if (!ensureDirectory(stagingDir, recreateWhenFile = true)) {
-                val details = "staging dir unavailable: ${stagingDir.absolutePath}"
-                logError(config.logTag, "buildLogBundle failed: $details")
-                return LogBundleExportResult(null, details)
-            }
-            val details = mutableListOf<String>()
-
-            try {
-                val appLogSrc = StorageUtils.getLogDir(context)
-                if (appLogSrc != null && appLogSrc.exists()) {
-                    val deletedLegacyLogs = deleteLegacyTextLogFiles(appLogSrc)
-                    if (deletedLegacyLogs > 0) {
-                        details += "legacy runtime text logs cleared: $deletedLegacyLogs"
+            val result = DiagnosticArchive.buildBundle(
+                context = context,
+                timestamp = timestamp,
+                exportDir = exportDir,
+                exportFilePrefix = config.exportFilePrefix,
+                stagingDirPrefix = config.stagingDirPrefix,
+                deletePath = { path -> deleteRecursivelyWithSuFallback(config.logTag, path) },
+                collect = { stagingDir, details ->
+                    val appLogSrc = StorageUtils.getLogDir(context)
+                    if (appLogSrc != null && appLogSrc.exists()) {
+                        val deletedLegacyLogs = deleteLegacyTextLogFiles(appLogSrc)
+                        if (deletedLegacyLogs > 0) {
+                            details += "legacy runtime text logs cleared: $deletedLegacyLogs"
+                        }
+                        val stagedAppLogDir = File(stagingDir, "app/log")
+                        copyDirectory(
+                            logTag = config.logTag,
+                            source = appLogSrc,
+                            target = stagedAppLogDir,
+                            sanitizeFiles = sanitizeLogs,
+                        ) { file -> !isRedundantAppRouteRuntimeLog(file) }
+                        writeRuntimeLogSummaryFile(stagedAppLogDir)
+                        details += "app log: ${appLogSrc.absolutePath}"
+                        details += summarizeRuntimeLogFiles(stagedAppLogDir)
+                        if (!sanitizeLogs) {
+                            details += "log sanitization disabled by sensitive debug mode"
+                        }
+                    } else {
+                        details += "app log missing"
+                        details += "runtime log files: 0"
                     }
-                    val stagedAppLogDir = File(stagingDir, "app/log")
-                    copyDirectory(config.logTag, appLogSrc, stagedAppLogDir) { file ->
-                        !isRedundantAppRouteRuntimeLog(file)
+
+                    val crashLogSrc = StorageUtils.getCrashLogDir(context)
+                    if (crashLogSrc != null && crashLogSrc.exists()) {
+                        copyDirectory(
+                            logTag = config.logTag,
+                            source = crashLogSrc,
+                            target = File(stagingDir, "app/crash"),
+                            sanitizeFiles = sanitizeLogs,
+                        )
+                        details += "crash log: ${crashLogSrc.absolutePath}"
+                    } else {
+                        details += "crash log missing"
                     }
-                    writeRuntimeLogSummaryFile(stagedAppLogDir)
-                    details += "app log: ${appLogSrc.absolutePath}"
-                    details += summarizeRuntimeLogFiles(stagedAppLogDir)
-                } else {
-                    details += "app log missing"
-                    details += "runtime log files: 0"
-                }
 
-                val crashLogSrc = StorageUtils.getCrashLogDir(context)
-                if (crashLogSrc != null && crashLogSrc.exists()) {
-                    copyDirectory(config.logTag, crashLogSrc, File(stagingDir, "app/crash"))
-                    details += "crash log: ${crashLogSrc.absolutePath}"
-                } else {
-                    details += "crash log missing"
-                }
-
-                val lsposedCopied = copyLsposedLogs(config.logTag, stagingDir, details)
-                if (!lsposedCopied) {
-                    details += "lsposed log missing or unreadable"
-                }
-
-                captureLogcat(config.logTag, stagingDir, details)
-
-                File(stagingDir, "summary.txt").writeText(
-                    buildString {
-                        appendLine("Export Time: $timestamp")
-                        appendLine("Package: ${context.packageName}")
-                        details.forEach { appendLine("- $it") }
-                    },
-                )
-
-                val zipFile = File(exportDir, "${config.exportFilePrefix}$timestamp.zip")
-                zipDirectory(config.logTag, stagingDir, zipFile)
-                StorageUtils.setFileWorldReadable(zipFile, 1)
-                logInfo(config.logTag, "buildLogBundle success: file=${zipFile.absolutePath} size=${zipFile.length()}")
-                return LogBundleExportResult(zipFile, details.joinToString("; "))
-            } catch (t: Throwable) {
-                logError(config.logTag, "buildLogBundle failed: ${t.message ?: t.javaClass.simpleName}")
-                return LogBundleExportResult(null, t.message ?: t.javaClass.simpleName)
-            } finally {
-                runCatching {
-                    if (!deleteRecursivelyWithSuFallback(config.logTag, stagingDir)) {
-                        logWarn(config.logTag, "Failed to cleanup staging dir: ${stagingDir.absolutePath}")
+                    val lsposedCopied = copyLsposedLogs(config.logTag, stagingDir, details)
+                    if (!lsposedCopied) {
+                        details += "lsposed log missing or unreadable"
                     }
-                }
-            }
+
+                    captureLogcat(config.logTag, stagingDir, details, sanitizeLogs)
+                },
+                onInfo = { message -> logInfo(config.logTag, message) },
+                onWarning = { message -> logWarn(config.logTag, message) },
+                onError = { message, error ->
+                    val detail = error?.message ?: error?.javaClass?.simpleName ?: message
+                    logError(config.logTag, "$message: $detail")
+                },
+                makeWorldReadable = true,
+                worldReadableParentDepth = 1,
+            )
+            return LogBundleExportResult(result.file, result.details)
         }
     }
 
     fun shareLogBundle(context: Context, file: File) {
-        if (!file.exists() || !file.isFile || !file.canRead()) {
-            throw IllegalStateException("share file unavailable: ${file.absolutePath}")
-        }
-        val authority = context.packageName + ".files"
-        val uri: Uri = FileProvider.getUriForFile(context, authority, file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = ZIP_MIME_TYPE
-            putExtra(Intent.EXTRA_STREAM, uri)
-            clipData = ClipData.newUri(context.contentResolver, file.name, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
-        }
-        val resolvedTargets = context.packageManager.queryIntentActivities(intent, 0)
-        resolvedTargets.forEach { resolveInfo ->
-            val packageName = resolveInfo.activityInfo?.packageName ?: return@forEach
-            runCatching {
-                context.grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        }
+        val config = RuntimeDiagnosticsEnvironment.current()
+        val intent = DiagnosticArchive.buildShareIntent(
+            context = context,
+            file = file,
+            authority = context.packageName + ".files",
+            onInfo = { message -> logInfo(config.logTag, message) },
+            onWarning = { message -> logWarn(config.logTag, message) },
+        )
         val chooser = Intent.createChooser(intent, null).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -239,23 +216,33 @@ object LogBundleExporter {
         return false
     }
 
-    private fun captureLogcat(logTag: String, stagingDir: File, details: MutableList<String>) {
+    private fun captureLogcat(
+        logTag: String,
+        stagingDir: File,
+        details: MutableList<String>,
+        sanitizeLogs: Boolean,
+    ) {
         val logcatDir = File(stagingDir, "logcat")
         if (!ensureDirectory(logcatDir, recreateWhenFile = true)) return
         val output = File(logcatDir, "logcat_all.txt")
         val command = listOf("logcat", "-d", "-v", "threadtime", "-b", "all")
-        val ok = dumpCommandOutput(command, output, logTag)
+        val ok = dumpCommandOutput(command, output, logTag, sanitizeLogs)
         if (ok) {
             details += "logcat: direct"
             return
         }
-        val okSu = dumpCommandOutput(listOf("su", "-c", "logcat -d -v threadtime -b all"), output, logTag)
+        val okSu = dumpCommandOutput(listOf("su", "-c", "logcat -d -v threadtime -b all"), output, logTag, sanitizeLogs)
         if (okSu) {
             details += "logcat: su"
         }
     }
 
-    private fun dumpCommandOutput(command: List<String>, output: File, logTag: String): Boolean {
+    private fun dumpCommandOutput(
+        command: List<String>,
+        output: File,
+        logTag: String,
+        sanitizeLogs: Boolean,
+    ): Boolean {
         return runCatching {
             val process = ProcessBuilder(command)
                 .redirectErrorStream(true)
@@ -267,7 +254,9 @@ object LogBundleExporter {
             if (process.isAlive) {
                 process.destroy()
             }
-            sanitizeTextLogFile(output, logTag)
+            if (sanitizeLogs) {
+                sanitizeTextLogFile(output, logTag)
+            }
             output.exists() && output.length() > 0
         }.getOrDefault(false)
     }
@@ -351,6 +340,7 @@ object LogBundleExporter {
         logTag: String,
         source: File,
         target: File,
+        sanitizeFiles: Boolean = true,
         includeFile: (File) -> Boolean = { true },
     ) {
         source.walkTopDown().forEach { file ->
@@ -368,7 +358,9 @@ object LogBundleExporter {
                 }
                 runCatching {
                     file.copyTo(dest, overwrite = true)
-                    sanitizeTextLogFile(dest, logTag)
+                    if (sanitizeFiles) {
+                        sanitizeTextLogFile(dest, logTag)
+                    }
                 }.onFailure {
                     logWarn(logTag, "Skip copy file failed: src=${file.absolutePath} dst=${dest.absolutePath}")
                 }
@@ -377,30 +369,19 @@ object LogBundleExporter {
     }
 
     private fun sanitizeDirectory(logTag: String, dir: File) {
-        dir.walkTopDown()
-            .filter { it.isFile }
-            .forEach { file -> sanitizeTextLogFile(file, logTag) }
+        DiagnosticTextSanitizer.sanitizeDirectory(
+            root = dir,
+            sanitizeText = DefaultLogSanitizer::sanitizeUnbounded,
+            onWarning = { warning -> logWarn(logTag, warning) },
+        )
     }
 
     private fun sanitizeTextLogFile(file: File, logTag: String) {
-        if (!shouldSanitizeLogFile(file)) return
-        runCatching {
-            val original = file.readText()
-            val sanitized = DefaultLogSanitizer.sanitizeUnbounded(original)
-            if (sanitized != original) {
-                file.writeText(sanitized)
-            }
-        }.onFailure {
-            logWarn(logTag, "Skip log sanitization failed: ${file.absolutePath}")
-        }
-    }
-
-    private fun shouldSanitizeLogFile(file: File): Boolean {
-        val name = file.name.lowercase(Locale.ROOT)
-        return name.endsWith(".jsonl") ||
-            name.endsWith(".log") ||
-            name.endsWith(".txt") ||
-            name == "props"
+        DiagnosticTextSanitizer.sanitizeTextLogFile(
+            file = file,
+            sanitizeText = DefaultLogSanitizer::sanitizeUnbounded,
+            onWarning = { warning -> logWarn(logTag, warning) },
+        )
     }
 
     internal fun isRedundantAppRouteRuntimeLog(file: File): Boolean {
@@ -450,24 +431,6 @@ object LogBundleExporter {
         return deleted
     }
 
-    private fun zipDirectory(logTag: String, sourceDir: File, outputZip: File) {
-        FileOutputStream(outputZip).use { fos ->
-            ZipOutputStream(fos).use { zos ->
-                sourceDir.walkTopDown()
-                    .filter { it.isFile }
-                    .forEach { file ->
-                        runCatching {
-                            val entryName = file.relativeTo(sourceDir).invariantSeparatorsPath
-                            zos.putNextEntry(ZipEntry(entryName))
-                            file.inputStream().use { input -> input.copyTo(zos) }
-                            zos.closeEntry()
-                        }.onFailure {
-                            logWarn(logTag, "Skip zipping unreadable file: ${file.absolutePath}")
-                        }
-                    }
-            }
-        }
-    }
 
     private fun clearDirectoryContents(logTag: String, dir: File): Boolean {
         return runCatching {
@@ -486,17 +449,7 @@ object LogBundleExporter {
     }
 
     private fun ensureDirectory(dir: File, recreateWhenFile: Boolean): Boolean {
-        if (dir.exists()) {
-            if (dir.isDirectory) return true
-            if (!recreateWhenFile) return false
-            if (!dir.delete()) {
-                return false
-            }
-        }
-        if (!dir.mkdirs() && !dir.exists()) {
-            return false
-        }
-        return dir.isDirectory
+        return DiagnosticArchive.ensureDirectory(dir, recreateWhenFile)
     }
 
     private fun getPrivateExportDir(context: Context): File {

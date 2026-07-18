@@ -13,6 +13,9 @@ object UpdatePolicy {
     fun resolveStartupTarget(installedFromPlay: Boolean): StartupTarget =
         if (installedFromPlay) StartupTarget.PLAY else StartupTarget.GITHUB
 
+    fun resolveAvailableTarget(playStoreAvailable: Boolean): StartupTarget =
+        if (playStoreAvailable) StartupTarget.PLAY else StartupTarget.GITHUB
+
     fun shouldSkipGithubCheckOnStartup(
         installedFromPlay: Boolean,
         autoCheckEnabled: Boolean,

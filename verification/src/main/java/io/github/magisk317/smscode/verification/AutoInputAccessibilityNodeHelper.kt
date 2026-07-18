@@ -4,7 +4,6 @@ import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 object AutoInputAccessibilityNodeHelper {
     data class Result(

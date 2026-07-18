@@ -10,6 +10,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.CancellationException
 
 interface SmsCodeRuleCatalogSource {
     suspend fun readIndex(): String
@@ -79,9 +80,32 @@ class RemoteSmsCodeRuleCatalogSource(
     private val userAgent: String = "SmsCodeRules/1",
     private val requester: suspend (String) -> String = { url -> fetchText(url, userAgent) },
 ) : SmsCodeRuleCatalogSource {
-    override suspend fun readIndex(): String = requester("${remoteSource.rawBaseUrl}/$SMS_CODE_RULES_INDEX_PATH")
+    private var activeBaseUrl: String? = null
 
-    override suspend fun readRule(path: String): String = requester("${remoteSource.rawBaseUrl}/${encodePath(path)}")
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun readIndex(): String {
+        activeBaseUrl = null
+        val failures = mutableListOf<Throwable>()
+        for (baseUrl in remoteSource.rawBaseUrls) {
+            try {
+                val index = requester("$baseUrl/$SMS_CODE_RULES_INDEX_PATH")
+                activeBaseUrl = baseUrl
+                return index
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Exception) {
+                failures += failure
+            }
+        }
+        throw IOException("Unable to fetch rule catalog index").apply {
+            failures.forEach(::addSuppressed)
+        }
+    }
+
+    override suspend fun readRule(path: String): String {
+        val baseUrl = checkNotNull(activeBaseUrl) { "Rule catalog index must be loaded before rule files" }
+        return requester("$baseUrl/${encodePath(path)}")
+    }
 
     companion object {
         private suspend fun fetchText(urlString: String, userAgent: String): String = withContext(Dispatchers.IO) {

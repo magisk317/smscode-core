@@ -3,7 +3,6 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import io.github.magisk317.smscode.xposed.utils.XLog
 
 class ModuleConflictArbiterCore(
     private val targetPackage: String,
