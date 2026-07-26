@@ -10,6 +10,7 @@ import android.util.Log
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
 import kotlinx.coroutines.runBlocking
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class ObservedInboxScanner(
     private val pluginContext: Context,
@@ -31,11 +32,35 @@ class ObservedInboxScanner(
     )
 
     fun scan(triggerUri: String, recentSmsWindowMs: Long): List<ObservedInboxScanRecord> {
-        return scanRows(triggerUri, recentSmsWindowMs, requireCode = true)
+        val records = scanRows(triggerUri, recentSmsWindowMs, requireCode = true)
+        MagiskOtel.event(
+            name = "sms.observe",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "scan",
+                "reason" to ("rows_" + records.size),
+            ),
+            statusOk = true,
+        )
+        return records
     }
 
     fun scanRouting(triggerUri: String, recentSmsWindowMs: Long): List<ObservedInboxScanRecord> {
-        return scanRows(triggerUri, recentSmsWindowMs, requireCode = false)
+        val records = scanRows(triggerUri, recentSmsWindowMs, requireCode = false)
+        MagiskOtel.event(
+            name = "sms.observe",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "scan_routing",
+                "reason" to ("rows_" + records.size),
+            ),
+            statusOk = true,
+        )
+        return records
     }
 
     private fun scanRows(

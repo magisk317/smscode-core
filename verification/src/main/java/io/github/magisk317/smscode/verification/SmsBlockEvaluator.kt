@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import android.content.Intent
 import kotlinx.coroutines.runBlocking
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class SmsBlockEvaluator<M : SmsMessage>(
     private val incomingSmsParser: (Intent) -> M?,
@@ -26,6 +27,21 @@ class SmsBlockEvaluator<M : SmsMessage>(
         eventId: String,
         source: String,
     ): Result<M>? {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null, codeLength: Int? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+                "source" to source,
+                "event_id_present" to eventId.isNotBlank().toString(),
+            )
+            if (reason != null) attrs["reason"] = reason
+            if (codeLength != null) attrs["code_length"] = codeLength.toString()
+            MagiskOtel.event(name = "sms.block", attributes = attrs, statusOk = statusOk)
+        }
+
         if (!SmsIntentHookSupport.isSmsAction(intent.action)) {
             return null
         }
@@ -60,6 +76,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
                     eventId,
                     smsCode.length,
                 )
+                emit(result = "ok", reason = "pref_block", codeLength = smsCode.length)
                 return Result(
                     smsMsg = smsMsg,
                     blockReason = SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK,
@@ -67,6 +84,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
                     blacklistResult = blacklistResult,
                 )
             }
+            emit(result = "ok", reason = "blacklist_block")
             return Result(
                 smsMsg = smsMsg,
                 blockReason = SmsHandlerDispatchDecision.BlockReason.BLACKLIST,
@@ -76,6 +94,10 @@ class SmsBlockEvaluator<M : SmsMessage>(
         }
 
         if (!shouldParseCode) {
+            emit(
+                result = "skip",
+                reason = if (deleteOnlyBlacklist) "delete_only" else "no_block",
+            )
             return Result(
                 smsMsg = smsMsg,
                 blockReason = null,
@@ -85,6 +107,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
         }
 
         if (smsCode.isBlank()) {
+            emit(result = "skip", reason = "no_code")
             return Result(
                 smsMsg = smsMsg,
                 blockReason = null,
@@ -99,6 +122,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
             eventId,
             smsCode.length,
         )
+        emit(result = "ok", reason = "pref_block", codeLength = smsCode.length)
         return Result(
             smsMsg = smsMsg,
             blockReason = SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK,

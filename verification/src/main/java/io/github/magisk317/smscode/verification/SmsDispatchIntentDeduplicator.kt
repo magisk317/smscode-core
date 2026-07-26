@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.verification
 import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
 import java.io.File
 import java.io.RandomAccessFile
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class SmsDispatchIntentDeduplicator(
     private val windowMs: Long = DEFAULT_WINDOW_MS,
@@ -22,7 +23,7 @@ class SmsDispatchIntentDeduplicator(
     fun shouldSkipInMemory(eventId: String, action: String?): Result {
         val key = buildKeyOrNull(eventId, action) ?: return Result(shouldSkip = false)
         val now = timeProvider()
-        return synchronized(memoryLock) {
+        val result = synchronized(memoryLock) {
             val claim = memoryHistory.claim(key, now)
             if (!claim.claimed) {
                 Result(
@@ -39,19 +40,23 @@ class SmsDispatchIntentDeduplicator(
                 )
             }
         }
+        emitDedupe(result, stage = "memory", eventId = eventId)
+        return result
     }
 
     fun shouldSkipByFile(file: File, eventId: String, action: String?): Result {
         val key = buildKeyOrNull(eventId, action) ?: return Result(shouldSkip = false)
         val now = timeProvider()
         file.parentFile?.mkdirs()
-        RandomAccessFile(file, "rw").use { raf ->
+        val result = RandomAccessFile(file, "rw").use { raf ->
             raf.channel.use { channel ->
                 channel.lock().use {
-                    return claimFileEntry(raf, key, now)
+                    claimFileEntry(raf, key, now)
                 }
             }
         }
+        emitDedupe(result, stage = "file", eventId = eventId)
+        return result
     }
 
     fun syncFileIfLockAvailable(file: File, key: String, timestampMs: Long) {
@@ -136,6 +141,21 @@ class SmsDispatchIntentDeduplicator(
             }
         }
         raf.write(content.toByteArray())
+    }
+
+    private fun emitDedupe(result: Result, stage: String, eventId: String) {
+        MagiskOtel.event(
+            name = "sms.dispatch",
+            attributes = mapOf(
+                "result" to if (result.shouldSkip) "skip" else "ok",
+                "duration_ms" to (result.ageMs ?: 0L).coerceAtLeast(0L).toString(),
+                "process" to "hook",
+                "stage" to "dedupe_$stage",
+                "reason" to if (result.shouldSkip) "duplicate_window" else "unique",
+                "event_id_present" to eventId.isNotBlank().toString(),
+            ),
+            statusOk = true,
+        )
     }
 
     private fun buildKeyOrNull(eventId: String, action: String?): String? {

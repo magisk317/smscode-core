@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class OperateSmsActionHelper<M : SmsMessage>(
     private val pluginContext: Context,
@@ -35,14 +36,42 @@ class OperateSmsActionHelper<M : SmsMessage>(
     }
 
     fun execute(forcedOperation: Operation? = null) {
-        when (resolveOperation(forcedOperation, deleteSmsEnabledReader(pluginContext), markAsReadEnabledReader(pluginContext))) {
-            Operation.DELETE -> deleteSms(smsMsg.sender, smsMsg.body)
-            Operation.MARK_AS_READ -> markSmsAsRead(smsMsg.sender, smsMsg.body)
-            null -> Unit
+        val startedAt = System.nanoTime()
+        val operation = resolveOperation(
+            forcedOperation,
+            deleteSmsEnabledReader(pluginContext),
+            markAsReadEnabledReader(pluginContext),
+        )
+        when (operation) {
+            Operation.DELETE -> {
+                val ok = deleteSms(smsMsg.sender, smsMsg.body)
+                emitOperate(startedAt, result = if (ok) "ok" else "error", statusOk = ok, reason = "delete")
+            }
+            Operation.MARK_AS_READ -> {
+                val ok = markSmsAsRead(smsMsg.sender, smsMsg.body)
+                emitOperate(startedAt, result = if (ok) "ok" else "error", statusOk = ok, reason = "mark_as_read")
+            }
+            null -> emitOperate(startedAt, result = "skip", reason = "disabled")
         }
     }
 
-    private fun markSmsAsRead(sender: String?, body: String?) {
+    private fun emitOperate(
+        startedAt: Long,
+        result: String,
+        statusOk: Boolean = true,
+        reason: String? = null,
+    ) {
+        val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+        val attrs = mutableMapOf(
+            "result" to result,
+            "duration_ms" to durationMs.toString(),
+            "process" to "hook",
+        )
+        if (reason != null) attrs["reason"] = reason
+        MagiskOtel.event(name = "sms.operate", attributes = attrs, statusOk = statusOk)
+    }
+
+    private fun markSmsAsRead(sender: String?, body: String?): Boolean {
         XLog.d("Marking SMS as read...")
         val report = operateSmsWithRetry(sender, body, Operation.MARK_AS_READ)
         if (report.success) {
@@ -51,9 +80,10 @@ class OperateSmsActionHelper<M : SmsMessage>(
             XLog.i("Mark SMS as read failed")
             logSmsOpFailureDetails("mark_as_read", report)
         }
+        return report.success
     }
 
-    private fun deleteSms(sender: String?, body: String?) {
+    private fun deleteSms(sender: String?, body: String?): Boolean {
         XLog.d("Deleting SMS...")
         val report = operateSmsWhenInserted(sender, body, Operation.DELETE)
         if (report.success) {
@@ -62,6 +92,7 @@ class OperateSmsActionHelper<M : SmsMessage>(
             XLog.i("Delete SMS failed")
             logSmsOpFailureDetails("delete", report)
         }
+        return report.success
     }
 
     private fun operateSmsWithRetry(sender: String?, body: String?, smsOp: Operation): SmsOpRetryReport {

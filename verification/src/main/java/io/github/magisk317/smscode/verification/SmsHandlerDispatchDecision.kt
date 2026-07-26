@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.verification
 
 import io.github.magisk317.smscode.verification.SmsHandlerDispatchDecision.BlockReason
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object SmsHandlerDispatchDecision {
     enum class BlockReason(val wireValue: String) {
@@ -21,32 +22,44 @@ object SmsHandlerDispatchDecision {
         smsMsgAvailable: Boolean,
         parseResultBlockSms: Boolean?,
     ): Decision {
-        if (blacklistMatched) {
-            if (blacklistActionBlock) {
-                return Decision(
-                    shouldDeleteByBlacklist = false,
-                    blockReason = BlockReason.BLACKLIST,
-                )
-            }
-            if (blacklistActionDelete && smsMsgAvailable) {
-                return Decision(
-                    shouldDeleteByBlacklist = true,
-                    blockReason = null,
-                )
-            }
-        }
-
-        if (parseResultBlockSms == true) {
-            return Decision(
+        val decision = when {
+            blacklistMatched && blacklistActionBlock -> Decision(
+                shouldDeleteByBlacklist = false,
+                blockReason = BlockReason.BLACKLIST,
+            )
+            blacklistMatched && blacklistActionDelete && smsMsgAvailable -> Decision(
+                shouldDeleteByBlacklist = true,
+                blockReason = null,
+            )
+            parseResultBlockSms == true -> Decision(
                 shouldDeleteByBlacklist = false,
                 blockReason = BlockReason.PREF_BLOCK,
             )
+            else -> Decision(
+                shouldDeleteByBlacklist = false,
+                blockReason = null,
+                shouldAllowSystemPersist = parseResultBlockSms != null,
+            )
         }
 
-        return Decision(
-            shouldDeleteByBlacklist = false,
-            blockReason = null,
-            shouldAllowSystemPersist = parseResultBlockSms != null,
+        val reason = when {
+            decision.blockReason == BlockReason.BLACKLIST -> "blacklist_block"
+            decision.shouldDeleteByBlacklist -> "blacklist_delete"
+            decision.blockReason == BlockReason.PREF_BLOCK -> "pref_block_sms"
+            decision.shouldAllowSystemPersist -> "allow_persist"
+            else -> "pass"
+        }
+        MagiskOtel.event(
+            name = "sms.process",
+            attributes = mapOf(
+                "result" to if (decision.blockReason != null || decision.shouldDeleteByBlacklist) "skip" else "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "dispatch_decision",
+                "reason" to reason,
+            ),
+            statusOk = true,
         )
+        return decision
     }
 }

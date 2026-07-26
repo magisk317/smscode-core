@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class PhoneProcessRestartCoordinator(
     targetProcesses: Collection<String>,
@@ -34,20 +35,31 @@ class PhoneProcessRestartCoordinator(
     fun restartAfterInstallOrUpdate(context: Context) {
         synchronized(restartLock) {
             val appContext = context.applicationContext
-            val installToken = buildInstallToken(appContext) ?: return
+            val installToken = buildInstallToken(appContext) ?: run {
+                emitRestart(result = "skip", reason = "no_install_token")
+                return
+            }
             val prefs = appContext.getSharedPreferences(INSTALL_GUARD_PREFS, Context.MODE_PRIVATE)
-            if (prefs.getString(KEY_LAST_HANDLED_INSTALL_TOKEN, null) == installToken) return
+            if (prefs.getString(KEY_LAST_HANDLED_INSTALL_TOKEN, null) == installToken) {
+                emitRestart(result = "skip", reason = "already_handled")
+                return
+            }
 
             val now = System.currentTimeMillis()
-            if (now - prefs.getLong(KEY_LAST_RESTART_ATTEMPT_AT, 0L) < RESTART_ATTEMPT_COOLDOWN_MS) return
+            if (now - prefs.getLong(KEY_LAST_RESTART_ATTEMPT_AT, 0L) < RESTART_ATTEMPT_COOLDOWN_MS) {
+                emitRestart(result = "skip", reason = "cooldown")
+                return
+            }
             prefs.edit().putLong(KEY_LAST_RESTART_ATTEMPT_AT, now).apply()
 
             if (isPhoneCallActive(appContext)) {
                 logger.info("Skip target process restart because call state is active.")
+                emitRestart(result = "skip", reason = "call_active")
                 return
             }
             if (!canUseRoot()) {
                 logger.warn("Target process restart deferred after install/update: root unavailable.")
+                emitRestart(result = "skip", reason = "root_unavailable")
                 return
             }
 
@@ -58,13 +70,48 @@ class PhoneProcessRestartCoordinator(
                     "Target process restart completed after install/update change: " +
                         "found=${restartResult.summary?.found ?: 0} killed=${restartResult.summary?.killed ?: 0}",
                 )
+                emitRestart(
+                    result = "ok",
+                    reason = "restarted",
+                    found = restartResult.summary?.found ?: 0,
+                    killed = restartResult.summary?.killed ?: 0,
+                )
             } else {
                 logger.warn(
                     "Target process restart still pending after install/update change: " +
                         "exit=${restartResult.exitCode} output=${restartResult.rawOutput.trim()}",
                 )
+                emitRestart(
+                    result = "error",
+                    reason = "restart_pending",
+                    statusOk = false,
+                    found = restartResult.summary?.found ?: 0,
+                    killed = restartResult.summary?.killed ?: 0,
+                )
             }
         }
+    }
+
+    private fun emitRestart(
+        result: String,
+        reason: String,
+        statusOk: Boolean = true,
+        found: Int = 0,
+        killed: Int = 0,
+    ) {
+        MagiskOtel.event(
+            name = "app.recovery",
+            attributes = mapOf(
+                "result" to result,
+                "duration_ms" to "0",
+                "process" to "app",
+                "stage" to "process_restart",
+                "reason" to reason,
+                "found_count" to found.toString(),
+                "killed_count" to killed.toString(),
+            ),
+            statusOk = statusOk,
+        )
     }
 
     private fun buildInstallToken(context: Context): String? {

@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
+import io.github.magisk317.xposed.logging.MagiskOtel
 import java.util.LinkedHashMap
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -20,12 +21,38 @@ object ToastActionHelper {
         duration: Int = Toast.LENGTH_LONG,
         mainHandler: Handler = Handler(Looper.getMainLooper()),
     ) {
-        if (!enabled) return
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+                "code_length" to (smsMsg.smsCode?.length ?: 0).toString(),
+            )
+            if (reason != null) {
+                attrs["reason"] = reason
+            }
+            MagiskOtel.event(
+                name = "sms.toast",
+                attributes = attrs,
+                statusOk = statusOk,
+            )
+        }
+
+        if (!enabled) {
+            emit(result = "skip", reason = "disabled")
+            return
+        }
 
         val smsCode = smsMsg.smsCode.orEmpty()
         val text = messageTextProvider(pluginContext, smsCode)
         val toastKey = SmsMessageDedupKeys.buildMessageKey(smsMsg)
-        val ownerToken = acquireToastOwner(toastKey) ?: return
+        val ownerToken = acquireToastOwner(toastKey)
+        if (ownerToken == null) {
+            emit(result = "skip", reason = "dedup")
+            return
+        }
         val toast = Toast.makeText(phoneContext, text, duration)
         XLog.i(
             "Diag toast request: key=%s pkg=%s uid=%d code_len=%d text_len=%d",
@@ -79,6 +106,7 @@ object ToastActionHelper {
         }
 
         toast.show()
+        emit(result = "ok")
     }
 
     private fun acquireToastOwner(key: String): String? {

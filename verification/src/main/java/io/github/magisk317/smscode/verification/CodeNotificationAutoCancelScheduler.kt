@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Process
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object CodeNotificationAutoCancelScheduler {
     enum class Outcome {
@@ -105,13 +106,39 @@ object CodeNotificationAutoCancelScheduler {
             appUid = appUid,
             sdkInt = environment.sdkInt,
         )
-        if (basePlan.outcome != Outcome.SCHEDULED) return basePlan
+        if (basePlan.outcome != Outcome.SCHEDULED) {
+            MagiskOtel.event(
+                name = "notify.cancel",
+                attributes = mapOf(
+                    "result" to "skip",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "stage" to "schedule",
+                    "reason" to basePlan.outcome.name.lowercase(),
+                ),
+                statusOk = true,
+            )
+            return basePlan
+        }
 
-        val alarmManager = environment.alarmManagerProvider(request.context) ?: return basePlan.copy(
-            outcome = Outcome.ALARM_UNAVAILABLE,
-            triggerAtMs = null,
-            alarmMethod = null,
-        )
+        val alarmManager = environment.alarmManagerProvider(request.context) ?: run {
+            MagiskOtel.event(
+                name = "notify.cancel",
+                attributes = mapOf(
+                    "result" to "skip",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "stage" to "schedule",
+                    "reason" to "no_alarm_manager",
+                ),
+                statusOk = true,
+            )
+            return basePlan.copy(
+                outcome = Outcome.ALARM_UNAVAILABLE,
+                triggerAtMs = null,
+                alarmMethod = null,
+            )
+        }
         val plan = createPlan(
             notificationId = request.notificationId,
             autoCancelEnabled = request.autoCancelEnabled,
@@ -130,6 +157,17 @@ object CodeNotificationAutoCancelScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or CodeNotificationPayload.pendingIntentImmutableFlag(),
         )
         scheduleAlarm(alarmManager, plan.alarmMethod, plan.triggerAtMs, pendingIntent)
+        MagiskOtel.event(
+            name = "notify.cancel",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "app",
+                "stage" to "schedule",
+                "reason" to "scheduled_or_planned",
+            ),
+            statusOk = true,
+        )
         return plan
     }
 

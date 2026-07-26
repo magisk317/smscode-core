@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.runtime.common.update
 
+import io.github.magisk317.xposed.logging.MagiskOtel
 import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -34,13 +35,34 @@ object GithubUpdateChecker {
         config: GithubUpdateConfig,
         requestReleaseJson: suspend (String) -> String?,
     ): UpgradeCheckResult = withContext(Dispatchers.IO) {
-        runCatching {
+        val startedAt = System.nanoTime()
+        val result = runCatching {
             val body = requestReleaseJson(config.latestReleaseApiUrl)
                 ?: return@runCatching UpgradeCheckResult.CheckFailed("empty_response")
             parseUpgradeCheckResult(config, body)
         }.getOrElse {
             UpgradeCheckResult.CheckFailed(it.message ?: it.javaClass.simpleName)
         }
+        val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+        val reason = when (result) {
+            is UpgradeCheckResult.Structured -> "structured"
+            is UpgradeCheckResult.ReleaseLink -> "release_link"
+            is UpgradeCheckResult.NoUpdate -> "no_update"
+            is UpgradeCheckResult.CheckFailed -> result.message?.takeIf { it.isNotBlank() } ?: "check_failed"
+        }
+        val statusOk = result !is UpgradeCheckResult.CheckFailed
+        MagiskOtel.event(
+            name = "app.monitor",
+            attributes = mapOf(
+                "result" to if (statusOk) "ok" else "error",
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "stage" to "update_check",
+                "reason" to reason,
+            ),
+            statusOk = statusOk,
+        )
+        result
     }
 
     suspend fun fetchLatestReleaseWithRequester(

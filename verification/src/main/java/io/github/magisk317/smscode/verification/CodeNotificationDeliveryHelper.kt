@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object CodeNotificationDeliveryHelper {
     data class VisualConfig(
@@ -46,6 +47,19 @@ object CodeNotificationDeliveryHelper {
         ) -> Intent,
         ackTimeoutMs: Long = APP_OWNED_ACK_TIMEOUT_MS,
     ): CodeNotificationPayload.DeliveryResult {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+                "stage" to "request",
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "notify.owned", attributes = attrs, statusOk = statusOk)
+        }
+
         if (token.isNullOrBlank()) {
             XLog.w(
                 "Skip app-owned code notification request: ipc token missing, id=%d",
@@ -74,6 +88,11 @@ object CodeNotificationDeliveryHelper {
             token.isNotBlank(),
             result.success,
             result.reason,
+        )
+        emit(
+            result = if (result.success) "ok" else "error",
+            statusOk = result.success,
+            reason = result.reason.ifBlank { "unknown" },
         )
         return result
     }

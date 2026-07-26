@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import android.os.Handler
 import java.util.concurrent.ScheduledExecutorService
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object SmsCodePostParseCoordinator {
     data class Settings(
@@ -78,6 +79,20 @@ object SmsCodePostParseCoordinator {
         recordScheduler: (ScheduledExecutorService, Context, Context, M, String, Boolean) -> Unit,
         operateSmsScheduler: (ScheduledExecutorService, Context, Context, M, List<Long>) -> Unit,
     ) {
+        MagiskOtel.event(
+            name = "sms.pipeline",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "dispatch_plan",
+                "reason" to if (plan.blockSms) "block" else "continue",
+                "event_id_present" to eventId.isNotBlank().toString(),
+                "auto_input_enabled" to (plan.autoInputDelayMs != null).toString(),
+                "should_record" to plan.shouldRecord.toString(),
+            ),
+            statusOk = true,
+        )
         SmsCodeActionDispatcher.dispatchParsedSmsActions(
             uiHandler = uiHandler,
             executor = executor,
@@ -105,6 +120,19 @@ object SmsCodePostParseCoordinator {
         autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean, Long?) -> Unit,
         recordRunner: (Context, Context, M, String, Boolean) -> Unit,
     ) {
+        MagiskOtel.event(
+            name = "sms.pipeline",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "observed_plan",
+                "reason" to "dispatch",
+                "auto_input_enabled" to plan.autoInputEnabled.toString(),
+                "should_record" to plan.shouldRecord.toString(),
+            ),
+            statusOk = true,
+        )
         SmsCodeActionDispatcher.dispatchObservedSmsActions(
             executor = executor,
             pluginContext = pluginContext,

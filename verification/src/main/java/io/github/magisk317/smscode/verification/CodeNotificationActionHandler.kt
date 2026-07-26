@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.verification
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object CodeNotificationActionHandler {
     data class CopyCodeResult(
@@ -22,8 +23,22 @@ object CodeNotificationActionHandler {
         cancelNotification: (Int) -> Unit,
         copyCode: (String) -> Unit,
     ): CopyCodeResult {
+        val startedAt = System.nanoTime()
         val request = CodeNotificationActionPayload.readCopyCodeRequest(intent, expectedAction)
-            ?: return CopyCodeResult(handled = false, notificationCancelled = false, copied = false)
+        if (request == null) {
+            MagiskOtel.event(
+                name = "sms.copy",
+                attributes = mapOf(
+                    "result" to "skip",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "reason" to "ignored_intent",
+                    "stage" to "notification_action",
+                ),
+                statusOk = true,
+            )
+            return CopyCodeResult(handled = false, notificationCancelled = false, copied = false)
+        }
         var notificationCancelled = false
         request.notificationIdToCancel?.let { notificationId ->
             cancelNotification(notificationId)
@@ -34,6 +49,24 @@ object CodeNotificationActionHandler {
             copyCode(smsCode)
             copied = true
         }
+        val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+        MagiskOtel.event(
+            name = "sms.copy",
+            attributes = mapOf(
+                "result" to if (copied) "ok" else "skip",
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "reason" to when {
+                    copied && notificationCancelled -> "copied_and_cancelled"
+                    copied -> "copied"
+                    notificationCancelled -> "cancelled_only"
+                    else -> "no_code"
+                },
+                "stage" to "notification_action",
+                "code_length" to (request.smsCode?.length ?: 0).toString(),
+            ),
+            statusOk = true,
+        )
         return CopyCodeResult(
             handled = true,
             notificationCancelled = notificationCancelled,
@@ -61,9 +94,33 @@ object CodeNotificationActionHandler {
         intent: Intent,
         cancelNotification: (Int) -> Unit,
     ): AutoCancelResult {
+        val startedAt = System.nanoTime()
         val request = CodeNotificationActionPayload.readAutoCancelRequest(intent)
-            ?: return AutoCancelResult(handled = false, notificationCancelled = false)
+        if (request == null) {
+            MagiskOtel.event(
+                name = "notify.cancel",
+                attributes = mapOf(
+                    "result" to "skip",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "reason" to "ignored_intent",
+                ),
+                statusOk = true,
+            )
+            return AutoCancelResult(handled = false, notificationCancelled = false)
+        }
         cancelNotification(request.notificationId)
+        val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+        MagiskOtel.event(
+            name = "notify.cancel",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "reason" to "auto_cancel",
+            ),
+            statusOk = true,
+        )
         return AutoCancelResult(handled = true, notificationCancelled = true)
     }
 

@@ -4,6 +4,7 @@ import android.content.Intent
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.ipc.IpcTokenMatcher
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object AutoInputResultProcessor {
     sealed interface ValidationResult {
@@ -38,6 +39,7 @@ object AutoInputResultProcessor {
         ) {
             AutoInputResultBroadcastContract.ReceiverResult.Ignored -> return ValidationResult.Ignored
             AutoInputResultBroadcastContract.ReceiverResult.MissingAttemptId -> {
+                emitResult(result = "error", statusOk = false, reason = "missing_attempt_id")
                 return ValidationResult.MissingAttemptId
             }
             is AutoInputResultBroadcastContract.ReceiverResult.Accepted -> receiverResult.result
@@ -46,13 +48,35 @@ object AutoInputResultProcessor {
         val expectedToken = expectedTokenProvider()
         val receivedToken = intent.getStringExtra(AutoInputBroadcastContract.EXTRA_IPC_TOKEN)
         if (!IpcTokenMatcher.matches(expectedToken, receivedToken)) {
+            emitResult(result = "error", statusOk = false, reason = "token_rejected")
             return ValidationResult.RejectedToken(
                 result = result,
                 expectedTokenEmpty = expectedToken.isNullOrBlank(),
                 receivedTokenEmpty = receivedToken.isNullOrBlank(),
             )
         }
+        emitResult(
+            result = if (result.success) "ok" else "error",
+            statusOk = result.success,
+            reason = result.reason ?: if (result.success) "accepted" else "failed",
+        )
         return ValidationResult.Accepted(result)
+    }
+
+    private fun emitResult(
+        result: String,
+        statusOk: Boolean = true,
+        reason: String? = null,
+    ) {
+        val attrs = mutableMapOf(
+            "result" to result,
+            "duration_ms" to "0",
+            "process" to "app",
+            "stage" to "result",
+            "source" to "auto_input_result",
+        )
+        if (reason != null) attrs["reason"] = reason
+        MagiskOtel.event(name = "auto.input", attributes = attrs, statusOk = statusOk)
     }
 
     suspend fun persist(

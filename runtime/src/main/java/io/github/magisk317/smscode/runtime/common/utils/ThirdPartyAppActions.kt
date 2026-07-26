@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import io.github.magisk317.smscode.runtime.common.packageenv.PackageEnvCore
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 /**
  * 配置驱动的第三方 App 动作原语（纯 Android 能力）。
@@ -21,11 +22,28 @@ object ThirdPartyAppActions {
      * @return 成功拉起返回 true；目标无启动入口或启动失败返回 false。
      */
     @JvmStatic
-    fun launchPackage(context: Context, packageName: String): Boolean = runCatching {
-        val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
-        context.startActivity(intent)
-        true
-    }.getOrDefault(false)
+    fun launchPackage(context: Context, packageName: String): Boolean {
+        val startedAt = System.nanoTime()
+        val ok = runCatching {
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return@runCatching false
+            context.startActivity(intent)
+            true
+        }.getOrDefault(false)
+        val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+        MagiskOtel.event(
+            name = "app.lifecycle",
+            attributes = mapOf(
+                "result" to if (ok) "ok" else "error",
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "stage" to "launch_package",
+                "reason" to if (ok) "launched" else "launch_failed",
+                "target_package" to packageName,
+            ),
+            statusOk = ok,
+        )
+        return ok
+    }
 
     /**
      * 用 ACTION_VIEW 打开一个 URI（网页、scheme、二维码收款页等）。
@@ -34,13 +52,29 @@ object ThirdPartyAppActions {
      * @return 成功打开返回 true；无可处理组件或打开失败返回 false。
      */
     @JvmStatic
-    fun openViewUri(context: Context, uri: String, newTask: Boolean = true): Boolean = runCatching {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
-            if (newTask) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
-        true
-    }.getOrDefault(false)
+    fun openViewUri(context: Context, uri: String, newTask: Boolean = true): Boolean {
+        val startedAt = System.nanoTime()
+        val ok = runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
+                if (newTask) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            true
+        }.getOrDefault(false)
+        val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+        MagiskOtel.event(
+            name = "app.lifecycle",
+            attributes = mapOf(
+                "result" to if (ok) "ok" else "error",
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "stage" to "open_view_uri",
+                "reason" to if (ok) "opened" else "open_failed",
+            ),
+            statusOk = ok,
+        )
+        return ok
+    }
 
     /**
      * 判断设备是否安装并启用了 Google Play 商店。

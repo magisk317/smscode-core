@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import java.lang.reflect.InvocationTargetException
 import java.util.LinkedHashMap
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class AutoInputActionHelper<M : SmsMessage>(
     private val pluginContext: Context,
@@ -51,22 +52,49 @@ class AutoInputActionHelper<M : SmsMessage>(
     )
 
     fun run() {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+                "code_length" to (smsMsg.smsCode?.length ?: 0).toString(),
+            )
+            if (reason != null) {
+                attrs["reason"] = reason
+            }
+            MagiskOtel.event(
+                name = "auto.input",
+                attributes = attrs,
+                statusOk = statusOk,
+            )
+        }
+
         if (isDeduplicateEnabled() && shouldSkipByRecentAutoInput()) {
+            emit(result = "skip", reason = "dedup")
             return
         }
         val code = smsMsg.smsCode
         if (autoInputBlockedHere()) {
+            emit(result = "skip", reason = "blocked_package")
             return
         }
-        autoInputCode(code)
+        if (code.isNullOrBlank()) {
+            emit(result = "skip", reason = "empty_code")
+            return
+        }
+        autoInputCode(code, emit = { result, statusOk, reason -> emit(result, statusOk, reason) })
     }
 
     private fun isDeduplicateEnabled(): Boolean {
         return deduplicateEnabled ?: deduplicateReader(pluginContext)
     }
 
-    private fun autoInputCode(code: String?) {
-        if (code.isNullOrBlank()) return
+    private fun autoInputCode(
+        code: String,
+        emit: (result: String, statusOk: Boolean, reason: String?) -> Unit,
+    ) {
         val autoEnter = autoEnterReader(pluginContext)
         val inputIntervalMs = inputIntervalReader(pluginContext)
         val attemptId = attemptRecorder(smsMsg, resolveForegroundPackage())
@@ -79,14 +107,19 @@ class AutoInputActionHelper<M : SmsMessage>(
                 code.length,
                 attemptId ?: -1L,
             )
+            emit("ok", true, if (autoEnter) "auto_enter" else "manual_enter")
         } catch (error: SecurityException) {
             XLog.e("Error occurs when auto input code", error)
+            emit("error", false, "SecurityException")
         } catch (error: IllegalArgumentException) {
             XLog.e("Error occurs when auto input code", error)
+            emit("error", false, "IllegalArgumentException")
         } catch (error: IllegalStateException) {
             XLog.e("Error occurs when auto input code", error)
+            emit("error", false, "IllegalStateException")
         } catch (error: UnsupportedOperationException) {
             XLog.e("Error occurs when auto input code", error)
+            emit("error", false, "UnsupportedOperationException")
         }
     }
 

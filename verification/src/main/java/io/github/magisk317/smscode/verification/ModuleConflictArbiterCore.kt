@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class ModuleConflictArbiterCore(
     private val targetPackage: String,
@@ -46,6 +47,19 @@ class ModuleConflictArbiterCore(
                 source,
                 targetPackage,
             )
+            MagiskOtel.event(
+                name = "hook.conflict",
+                attributes = mapOf(
+                    "result" to "skip",
+                    "duration_ms" to "0",
+                    "process" to "hook",
+                    "stage" to "bypass",
+                    "source" to source,
+                    "reason" to BYPASS_REASON_BUILD_FLAG,
+                    "target_package" to targetPackage,
+                ),
+                statusOk = true,
+            )
             decisionLogged = true
         }
     }
@@ -68,6 +82,19 @@ class ModuleConflictArbiterCore(
                     targetPackage,
                 )
             }
+            MagiskOtel.event(
+                name = "hook.conflict",
+                attributes = mapOf(
+                    "result" to if (suppressedByRelay) "ok" else "skip",
+                    "duration_ms" to "0",
+                    "process" to "hook",
+                    "stage" to "decision",
+                    "source" to source,
+                    "reason" to if (suppressedByRelay) SUPPRESSION_REASON else "not_suppressed",
+                    "target_package" to targetPackage,
+                ),
+                statusOk = true,
+            )
             decisionLogged = true
         }
     }

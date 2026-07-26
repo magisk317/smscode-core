@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.verification
 
 import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class SmsDispatchChainBlockDeduplicator(
     windowMs: Long = DEFAULT_WINDOW_MS,
@@ -25,10 +26,22 @@ class SmsDispatchChainBlockDeduplicator(
         }
         val now = timeProvider()
         val key = buildKey(smsMsg, action, reason)
-        return synchronized(lock) {
+        val result = synchronized(lock) {
             val claim = history.claim(key, now)
             Result(shouldSkip = !claim.claimed, ageMs = claim.ageMs)
         }
+        MagiskOtel.event(
+            name = "sms.block",
+            attributes = mapOf(
+                "result" to if (result.shouldSkip) "skip" else "ok",
+                "duration_ms" to (result.ageMs ?: 0L).coerceAtLeast(0L).toString(),
+                "process" to "hook",
+                "stage" to "chain_dedupe",
+                "reason" to if (result.shouldSkip) "duplicate_window" else reason.ifBlank { "unique" },
+            ),
+            statusOk = true,
+        )
+        return result
     }
 
     private fun buildKey(

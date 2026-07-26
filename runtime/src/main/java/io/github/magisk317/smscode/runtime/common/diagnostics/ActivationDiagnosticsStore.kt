@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
+import io.github.magisk317.xposed.logging.MagiskOtel
 import android.os.SystemClock
 import android.util.Log
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
@@ -70,6 +71,18 @@ object ActivationDiagnosticsStore {
                 publishStatusLocked(context, it)
             }
         }
+        MagiskOtel.event(
+            name = "hook.service",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "app",
+                "stage" to "service_bind",
+                "reason" to "bound",
+                "source" to frameworkName.ifBlank { "unknown" },
+            ),
+            statusOk = true,
+        )
         logSnapshotIfVerbose(
             context = context,
             verboseLogging = verboseLogging,
@@ -87,6 +100,17 @@ object ActivationDiagnosticsStore {
         synchronized(lock) {
             publishStatusLocked(context)
         }
+        MagiskOtel.event(
+            name = "hook.service",
+            attributes = mapOf(
+                "result" to "error",
+                "duration_ms" to "0",
+                "process" to "app",
+                "stage" to "service_died",
+                "reason" to "died",
+            ),
+            statusOk = false,
+        )
         logSnapshotIfVerbose(
             context = context,
             verboseLogging = verboseLogging,

@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.runtime.common.update
 
+import io.github.magisk317.xposed.logging.MagiskOtel
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
@@ -125,35 +126,50 @@ object ApkSecurityVerifier {
         expectedSha256: String,
         expectedSigningCertSha256: String,
     ): VerificationResult {
-        if (!apkFile.exists()) return VerificationResult(false, "apk_not_found")
-        if (expectedSha256.isBlank()) return VerificationResult(false, "missing_sha256")
-        if (expectedSigningCertSha256.isBlank()) return VerificationResult(false, "missing_signing_cert")
+        val startedAt = System.nanoTime()
+        fun finish(result: VerificationResult): VerificationResult {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            MagiskOtel.event(
+                name = "app.monitor",
+                attributes = mapOf(
+                    "result" to if (result.success) "ok" else "error",
+                    "duration_ms" to durationMs.toString(),
+                    "process" to "app",
+                    "stage" to "update_verify",
+                    "reason" to (result.reason ?: if (result.success) "verified" else "failed"),
+                ),
+                statusOk = result.success,
+            )
+            return result
+        }
+
+        if (!apkFile.exists()) return finish(VerificationResult(false, "apk_not_found"))
+        if (expectedSha256.isBlank()) return finish(VerificationResult(false, "missing_sha256"))
+        if (expectedSigningCertSha256.isBlank()) return finish(VerificationResult(false, "missing_signing_cert"))
 
         val actualSha = computeSha256(apkFile)
         if (!isDigestMatch(actualSha, expectedSha256)) {
-            return VerificationResult(false, "sha256_mismatch")
+            return finish(VerificationResult(false, "sha256_mismatch"))
         }
 
-        val archiveInfo = getArchivePackageInfo(context.packageManager, apkFile) ?: return VerificationResult(
-            false,
-            "archive_parse_failed",
-        )
+        val archiveInfo = getArchivePackageInfo(context.packageManager, apkFile)
+            ?: return finish(VerificationResult(false, "archive_parse_failed"))
         if (archiveInfo.packageName != context.packageName) {
-            return VerificationResult(false, "package_name_mismatch")
+            return finish(VerificationResult(false, "package_name_mismatch"))
         }
 
         val currentSignatures = getInstalledSigningCertDigests(context.packageManager, context.packageName)
         val archiveSignatures = getArchiveSigningCertDigests(context.packageManager, apkFile)
         if (currentSignatures.isEmpty() || archiveSignatures.isEmpty()) {
-            return VerificationResult(false, "signing_info_missing")
+            return finish(VerificationResult(false, "signing_info_missing"))
         }
         if (!isSigningCertExpected(archiveSignatures, expectedSigningCertSha256)) {
-            return VerificationResult(false, "expected_signing_cert_mismatch")
+            return finish(VerificationResult(false, "expected_signing_cert_mismatch"))
         }
         if (currentSignatures.intersect(archiveSignatures).isEmpty()) {
-            return VerificationResult(false, "installed_signing_cert_mismatch")
+            return finish(VerificationResult(false, "installed_signing_cert_mismatch"))
         }
-        return VerificationResult(true)
+        return finish(VerificationResult(true))
     }
 
     fun computeSha256(file: File): String {

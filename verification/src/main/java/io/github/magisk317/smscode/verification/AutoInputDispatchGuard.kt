@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Context
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object AutoInputDispatchGuard {
     data class ClaimResult(
@@ -16,7 +17,21 @@ object AutoInputDispatchGuard {
         gateClaimer: (Context, String, List<String>, Long, Int) -> ClaimResult,
     ): Boolean {
         val keys = SmsMessageDedupKeys.buildAutoInputKeys(smsMsg)
-        if (keys.isEmpty()) return true
+        if (keys.isEmpty()) {
+            MagiskOtel.event(
+                name = "auto.input",
+                attributes = mapOf(
+                    "result" to "ok",
+                    "duration_ms" to "0",
+                    "process" to "hook",
+                    "stage" to "claim",
+                    "reason" to "no_keys",
+                    "delay_ms" to delayMs.coerceAtLeast(0L).toString(),
+                ),
+                statusOk = true,
+            )
+            return true
+        }
         val windowMs = (delayMs + AUTO_INPUT_DISPATCH_GUARD_EXTRA_MS)
             .coerceAtLeast(AUTO_INPUT_DISPATCH_GUARD_MIN_WINDOW_MS)
         val claim = gateClaimer(
@@ -27,6 +42,18 @@ object AutoInputDispatchGuard {
             MAX_AUTO_INPUT_DISPATCH_GUARD_ENTRIES,
         )
         if (claim.claimed) {
+            MagiskOtel.event(
+                name = "auto.input",
+                attributes = mapOf(
+                    "result" to "ok",
+                    "duration_ms" to "0",
+                    "process" to "hook",
+                    "stage" to "claim",
+                    "reason" to "claimed",
+                    "delay_ms" to delayMs.coerceAtLeast(0L).toString(),
+                ),
+                statusOk = true,
+            )
             return true
         }
         XLog.w(
@@ -35,6 +62,18 @@ object AutoInputDispatchGuard {
             claim.ageMs ?: -1L,
             delayMs,
             windowMs,
+        )
+        MagiskOtel.event(
+            name = "auto.input",
+            attributes = mapOf(
+                "result" to "skip",
+                "duration_ms" to (claim.ageMs ?: 0L).coerceAtLeast(0L).toString(),
+                "process" to "hook",
+                "stage" to "claim",
+                "reason" to "duplicate_window",
+                "delay_ms" to delayMs.coerceAtLeast(0L).toString(),
+            ),
+            statusOk = true,
         )
         return false
     }

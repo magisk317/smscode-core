@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Context
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class ObservedSmsHandler<M : SmsMessage>(
     private val pluginContext: Context,
@@ -35,6 +36,19 @@ class ObservedSmsHandler<M : SmsMessage>(
     )
 
     fun handle(record: ObservedInboxScanRecord): Outcome {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+                "body_length" to record.body.length.toString(),
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "sms.observe", attributes = attrs, statusOk = statusOk)
+        }
+
         val settings = settingsLoader(pluginContext)
         val plan = planFactory(settings)
         val eventId = buildObservedEventId(record.smsId, record.date)
@@ -55,16 +69,19 @@ class ObservedSmsHandler<M : SmsMessage>(
         when (decision.skipReason) {
             SmsInboxObserverDecision.SkipReason.CONFLICT_SUPPRESSED -> {
                 XLog.w("Diag observer conflict skip: event_id=%s sms_id=%d", eventId, record.smsId)
+                emit(result = "skip", reason = "conflict_suppressed")
                 return Outcome(eventId = eventId, decision = decision, dispatched = false)
             }
 
             SmsInboxObserverDecision.SkipReason.MODULE_DISABLED -> {
                 XLog.w("Diag observer skip: module disabled event_id=%s", eventId)
+                emit(result = "skip", reason = "module_disabled")
                 return Outcome(eventId = eventId, decision = decision, dispatched = false)
             }
 
             SmsInboxObserverDecision.SkipReason.DUPLICATED -> {
                 XLog.d("Diag observer duplicate skip: event_id=%s", eventId)
+                emit(result = "skip", reason = "duplicate")
                 return Outcome(eventId = eventId, decision = decision, dispatched = false)
             }
 
@@ -78,9 +95,11 @@ class ObservedSmsHandler<M : SmsMessage>(
                 record.smsId,
                 record.triggerUri,
             )
+            emit(result = "skip", reason = "already_read")
             return Outcome(eventId = eventId, decision = decision, dispatched = false)
         }
         if (!claimObservedSms(eventId, record)) {
+            emit(result = "skip", reason = "claim_failed")
             return Outcome(eventId = eventId, decision = decision, dispatched = false)
         }
 
@@ -107,6 +126,7 @@ class ObservedSmsHandler<M : SmsMessage>(
         }
 
         dispatcher(pluginContext, phoneContext, smsMsg, eventId, plan)
+        emit(result = "ok")
         return Outcome(eventId = eventId, decision = decision, dispatched = true)
     }
 

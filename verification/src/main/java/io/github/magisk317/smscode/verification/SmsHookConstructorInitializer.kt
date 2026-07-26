@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Context
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class SmsHookConstructorInitializer<R : VerificationRuntimeContext>(
     private val runtimeInitializer: (Context) -> R?,
@@ -26,11 +27,24 @@ class SmsHookConstructorInitializer<R : VerificationRuntimeContext>(
     }
 
     fun handle(phoneContext: Context): Outcome {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "hook.init", attributes = attrs, statusOk = statusOk)
+        }
+
         val runtime = runCatching { runtimeInitializer(phoneContext) }
             .onFailure { XLog.e("Create plugin context failed: %s", it) }
             .getOrNull()
         if (runtime == null) {
             XLog.e("Plugin context is null after creation attempt")
+            emit(result = "error", statusOk = false, reason = "runtime_unavailable")
             return Outcome(stopReason = StopReason.RUNTIME_UNAVAILABLE)
         }
 
@@ -49,6 +63,10 @@ class SmsHookConstructorInitializer<R : VerificationRuntimeContext>(
         } else {
             inboxObserverRegistrar(runtime)
         }
+        emit(
+            result = "ok",
+            reason = if (suppressByRelay) "suppressed_by_relay" else "initialized",
+        )
         return Outcome(suppressedByRelay = suppressByRelay)
     }
 

@@ -12,6 +12,7 @@ import io.github.magisk317.xposed.HookEnv
 import io.github.magisk317.xposed.HookHelpers
 import java.lang.reflect.Method
 import io.github.magisk317.xposed.MethodHookParam
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 /**
  * Since Android 12 & 12L(API 31~32)<br/>
@@ -22,26 +23,111 @@ class PermissionManagerServiceHook31(classLoader: ClassLoader) : BaseSubHook(cla
     @RequiresApi(31)
     override fun startHook() {
         try {
-            hookGrantPermissions()
+            if (hookGrantPermissions()) {
+                MagiskOtel.event(
+                    name = "hook.load",
+                    attributes = mapOf(
+                        "result" to "ok",
+                        "duration_ms" to "0",
+                        "process" to "system_server",
+                        "stage" to "permission_grant",
+                        "reason" to "installed",
+                        "source" to "PermissionManagerServiceHook31",
+                    ),
+                    statusOk = true,
+                )
+            }
         } catch (e: ReflectiveOperationException) {
             XLog.e("Failed to hook PermissionManagerService", e)
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to e.javaClass.simpleName,
+                    "source" to "PermissionManagerServiceHook31",
+                ),
+                statusOk = false,
+            )
         } catch (e: IllegalArgumentException) {
             XLog.e("Failed to hook PermissionManagerService", e)
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to e.javaClass.simpleName,
+                    "source" to "PermissionManagerServiceHook31",
+                ),
+                statusOk = false,
+            )
         } catch (e: IllegalStateException) {
             XLog.e("Failed to hook PermissionManagerService", e)
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to e.javaClass.simpleName,
+                    "source" to "PermissionManagerServiceHook31",
+                ),
+                statusOk = false,
+            )
         } catch (e: SecurityException) {
             XLog.e("Failed to hook PermissionManagerService", e)
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to e.javaClass.simpleName,
+                    "source" to "PermissionManagerServiceHook31",
+                ),
+                statusOk = false,
+            )
         } catch (e: UnsupportedOperationException) {
             XLog.e("Failed to hook PermissionManagerService", e)
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to e.javaClass.simpleName,
+                    "source" to "PermissionManagerServiceHook31",
+                ),
+                statusOk = false,
+            )
         }
     }
 
-    private fun hookGrantPermissions() {
+    private fun hookGrantPermissions(): Boolean {
         XLog.d("Hooking grantPermissions() for Android 31+")
         val method = findTargetMethod()
         if (method == null) {
             XLog.e("Cannot find the method to grant relevant permission")
-            return
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "skip",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "no_target",
+                    "source" to "PermissionManagerServiceHook31",
+                ),
+                statusOk = true,
+            )
+            return false
         }
         HookEnv.api.hookMethod(
             method,
@@ -52,6 +138,7 @@ class PermissionManagerServiceHook31(classLoader: ClassLoader) : BaseSubHook(cla
                 }
             },
         )
+        return true
     }
 
     private fun findTargetMethod(): Method? {

@@ -10,6 +10,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledExecutorService
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class CodeWorker<M : SmsMessage, R : SmsParseResult>(
     private val pluginContext: Context,
@@ -57,6 +58,27 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
     )
 
     fun parse(): R? {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+            )
+            if (reason != null) {
+                attrs["reason"] = reason
+            }
+            if (eventId.isNotBlank()) {
+                attrs["event_id_present"] = "true"
+            }
+            MagiskOtel.event(
+                name = "sms.pipeline",
+                attributes = attrs,
+                statusOk = statusOk,
+            )
+        }
+
         val executor = executorFactory()
         return try {
             val settings = settingsLoader(pluginContext)
@@ -86,6 +108,7 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
             if (!moduleEnabled) {
                 XLog.w("Diag: module disabled in settings")
                 XLog.i("XposedSmsCode disabled, exiting")
+                emit(result = "skip", reason = "module_disabled")
                 return null
             }
             if (verboseLog) {
@@ -108,15 +131,18 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
                 settings.deduplicateSmsEnabled,
             ) ?: run {
                 XLog.w("Diag parseRunner returned null: event_id=%s", eventId)
+                emit(result = "skip", reason = "parse_null")
                 return null
             }
             if (parseOutcome.duplicated) {
                 XLog.w("Diag parseOutcome duplicated: event_id=%s", eventId)
+                emit(result = "skip", reason = "duplicate")
                 return parseResultFactory(plan.blockSms)
             }
 
             val smsMsg = parseOutcome.smsMsg ?: run {
                 XLog.w("Diag parseOutcome.smsMsg is null: event_id=%s", eventId)
+                emit(result = "skip", reason = "sms_null")
                 return null
             }
 
@@ -142,46 +168,60 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
                 )
             } catch (error: RejectedExecutionException) {
                 XLog.e("Error occurs when scheduling parsed SMS actions", error)
+                emit(result = "error", statusOk = false, reason = "RejectedExecutionException")
                 return null
             } catch (error: IllegalArgumentException) {
                 XLog.e("Error occurs when scheduling parsed SMS actions", error)
+                emit(result = "error", statusOk = false, reason = "IllegalArgumentException")
                 return null
             } catch (error: IllegalStateException) {
                 XLog.e("Error occurs when scheduling parsed SMS actions", error)
+                emit(result = "error", statusOk = false, reason = "IllegalStateException")
                 return null
             } catch (error: SecurityException) {
                 XLog.e("Error occurs when scheduling parsed SMS actions", error)
+                emit(result = "error", statusOk = false, reason = "SecurityException")
                 return null
             } catch (error: UnsupportedOperationException) {
                 XLog.e("Error occurs when scheduling parsed SMS actions", error)
+                emit(result = "error", statusOk = false, reason = "UnsupportedOperationException")
                 return null
             }
 
+            emit(result = "ok")
             parseResultFactory(plan.blockSms)
         } catch (error: InterruptedException) {
             Thread.currentThread().interrupt()
             XLog.e("Error occurs when running SmsParseAction", error)
+            emit(result = "error", statusOk = false, reason = "InterruptedException")
             null
         } catch (error: ExecutionException) {
             XLog.e("Error occurs when running SmsParseAction", error.cause ?: error)
+            emit(result = "error", statusOk = false, reason = "ExecutionException")
             null
         } catch (error: CancellationException) {
             XLog.e("Error occurs when running SmsParseAction", error)
+            emit(result = "error", statusOk = false, reason = "CancellationException")
             null
         } catch (error: RejectedExecutionException) {
             XLog.e("Error occurs when running SmsParseAction", error)
+            emit(result = "error", statusOk = false, reason = "RejectedExecutionException")
             null
         } catch (error: IllegalArgumentException) {
             XLog.e("Error occurs when running SmsParseAction", error)
+            emit(result = "error", statusOk = false, reason = "IllegalArgumentException")
             null
         } catch (error: IllegalStateException) {
             XLog.e("Error occurs when running SmsParseAction", error)
+            emit(result = "error", statusOk = false, reason = "IllegalStateException")
             null
         } catch (error: SecurityException) {
             XLog.e("Error occurs when running SmsParseAction", error)
+            emit(result = "error", statusOk = false, reason = "SecurityException")
             null
         } catch (error: UnsupportedOperationException) {
             XLog.e("Error occurs when running SmsParseAction", error)
+            emit(result = "error", statusOk = false, reason = "UnsupportedOperationException")
             null
         } finally {
             executor.shutdown()

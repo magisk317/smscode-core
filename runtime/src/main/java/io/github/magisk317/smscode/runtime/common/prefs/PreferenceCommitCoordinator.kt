@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.prefs
 
 import kotlinx.coroutines.CancellationException
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 /** One primitive preference mutation in an atomic [PreferenceChangeSet]. */
 sealed interface PreferenceChange {
@@ -138,16 +139,36 @@ class PreferenceCommitCoordinator(
 
     @Suppress("TooGenericExceptionCaught")
     suspend fun commit(changes: PreferenceChangeSet): PreferenceCommitResult {
-        if (changes.isEmpty) return PreferenceCommitResult.NoChanges(changes)
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "change_count" to changes.changes.size.toString(),
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "prefs.commit", attributes = attrs, statusOk = statusOk)
+        }
+
+        if (changes.isEmpty) {
+            emit(result = "skip", reason = "no_changes")
+            return PreferenceCommitResult.NoChanges(changes)
+        }
 
         val persisted = try {
             persistence.persist(changes)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
+            emit(result = "error", statusOk = false, reason = error.javaClass.simpleName)
             return PreferenceCommitResult.NotPersisted(changes, error)
         }
-        if (!persisted) return PreferenceCommitResult.NotPersisted(changes)
+        if (!persisted) {
+            emit(result = "error", statusOk = false, reason = "not_persisted")
+            return PreferenceCommitResult.NotPersisted(changes)
+        }
 
         val commit = PreferenceCommit(changes)
         val failures = buildList {
@@ -161,6 +182,10 @@ class PreferenceCommitCoordinator(
                 }
             }
         }
+        emit(
+            result = "ok",
+            reason = if (failures.isEmpty()) "persisted" else "persisted_with_hook_failures",
+        )
         return PreferenceCommitResult.Persisted(changes, failures)
     }
 }

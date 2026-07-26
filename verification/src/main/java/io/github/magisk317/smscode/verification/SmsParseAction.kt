@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.Parcelable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
+import io.github.magisk317.xposed.logging.MagiskOtel
 import kotlinx.coroutines.withTimeout
 
 class SmsParseAction<M>(
@@ -39,7 +40,24 @@ class SmsParseAction<M>(
     }
 
     fun parse(): Outcome<M>? {
-        val intent = smsIntent ?: return null
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, extra: Map<String, String> = emptyMap()) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            MagiskOtel.event(
+                name = "sms.parse",
+                attributes = mapOf(
+                    "result" to result,
+                    "duration_ms" to durationMs.toString(),
+                    "process" to "hook",
+                ) + extra,
+                statusOk = statusOk,
+            )
+        }
+
+        val intent = smsIntent ?: run {
+            emit(result = "skip", extra = mapOf("reason" to "missing_intent"))
+            return null
+        }
         val smsMsg = incomingSmsParser(intent)
         XLog.i(
             "Diag SMS parsed from intent: senderPresent=%s, bodyLength=%d, timestamp=%d simSlot=%d subId=%d",
@@ -59,6 +77,7 @@ class SmsParseAction<M>(
 
         if (sender.isNullOrBlank() || msgBody.isNullOrBlank()) {
             XLog.w("Diag SMS parse aborted: sender/body is empty")
+            emit(result = "skip", extra = mapOf("reason" to "empty_sender_or_body"))
             return null
         }
 
@@ -71,6 +90,7 @@ class SmsParseAction<M>(
             }
             if (duplicated) {
                 XLog.i("Duplicate SMS detected by fingerprint, skip parsing.")
+                emit(result = "skip", extra = mapOf("reason" to "duplicate"))
                 return Outcome(duplicated = true)
             }
         }
@@ -88,6 +108,7 @@ class SmsParseAction<M>(
                 "Diag SMS parsed but no code matched, body=%s",
                 summarizeBody(sensitiveDebugLog, msgBody),
             )
+            emit(result = "skip", extra = mapOf("reason" to "no_code_match"))
             return null
         }
 
@@ -100,6 +121,13 @@ class SmsParseAction<M>(
             summarizeBody(sensitiveDebugLog, msgBody),
             resolvedSmsMsg.simSlot,
             resolvedSmsMsg.subId,
+        )
+        emit(
+            result = "ok",
+            extra = mapOf(
+                "code_length" to smsCode.length.toString(),
+                "company_present" to (!resolvedSmsMsg.company.isNullOrBlank()).toString(),
+            ),
         )
         return Outcome(
             smsMsg = resolvedSmsMsg,

@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.verification
 
+import io.github.magisk317.xposed.logging.MagiskOtel
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -40,13 +41,41 @@ object SmsParseActionRunner {
         messageReader: (R) -> M?,
         dispatcher: TimeoutDispatcher = DaemonThreadTimeoutDispatcher,
     ): CodeWorker.ParseOutcome<M>? {
-        val parseResult = dispatcher.run(actionName, timeoutMs, runAction) ?: return null
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean, reason: String) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            MagiskOtel.event(
+                name = "sms.parse",
+                attributes = mapOf(
+                    "result" to result,
+                    "duration_ms" to durationMs.toString(),
+                    "process" to "hook",
+                    "stage" to "timeout_runner",
+                    "reason" to reason,
+                    "source" to actionName,
+                ),
+                statusOk = statusOk,
+            )
+        }
+
+        val parseResult = dispatcher.run(actionName, timeoutMs, runAction)
+        if (parseResult == null) {
+            // DaemonThreadTimeoutDispatcher emits specific failure reasons.
+            return null
+        }
 
         if (duplicatedReader(parseResult)) {
+            emit(result = "skip", statusOk = true, reason = "duplicated")
             return CodeWorker.ParseOutcome(duplicated = true)
         }
+        val message = messageReader(parseResult)
+        if (message == null) {
+            emit(result = "error", statusOk = false, reason = "message_null")
+            return null
+        }
+        emit(result = "ok", statusOk = true, reason = "parsed")
         return CodeWorker.ParseOutcome(
-            smsMsg = messageReader(parseResult) ?: return null,
+            smsMsg = message,
             duplicated = false,
         )
     }
@@ -97,6 +126,11 @@ object SmsParseActionRunner {
                         current,
                         MAX_IN_FLIGHT_WORKERS,
                     )
+                    emitParseFailure(
+                        actionName = actionName,
+                        reason = "in_flight_cap",
+                        foundCount = current,
+                    )
                     return null
                 }
                 if (inFlightWorkers.compareAndSet(current, current + 1)) break
@@ -124,6 +158,7 @@ object SmsParseActionRunner {
                 Thread.currentThread().interrupt()
                 worker.interrupt()
                 XLog.w("%s interrupted while awaiting result", actionName)
+                emitParseFailure(actionName = actionName, reason = "interrupted")
                 return null
             }
 
@@ -133,6 +168,11 @@ object SmsParseActionRunner {
                 // inFlightWorkers stays elevated until the worker's finally block runs.
                 worker.interrupt()
                 XLog.w("%s timed out after %d ms; abandoning worker thread", actionName, timeoutMs)
+                emitParseFailure(
+                    actionName = actionName,
+                    reason = "timeout",
+                    foundCount = inFlightWorkers.get(),
+                )
                 return null
             }
 
@@ -141,9 +181,33 @@ object SmsParseActionRunner {
                 // Mirror the previous Future.get() behaviour: any failure inside the action is
                 // swallowed and reported as no-result rather than propagated into the phone process.
                 XLog.w("%s failed: %s", actionName, error.message ?: error.javaClass.simpleName)
+                emitParseFailure(
+                    actionName = actionName,
+                    reason = error.javaClass.simpleName.ifBlank { "action_failed" },
+                )
                 return null
             }
             return resultRef.get()
         }
     }
+    private fun emitParseFailure(
+        actionName: String,
+        reason: String,
+        foundCount: Int? = null,
+    ) {
+        val attrs = mutableMapOf(
+            "result" to "error",
+            "duration_ms" to "0",
+            "process" to "hook",
+            "stage" to "timeout_runner",
+            "reason" to reason,
+            "source" to actionName,
+        )
+        if (foundCount != null) {
+            attrs["found_count"] = foundCount.toString()
+        }
+        MagiskOtel.event(name = "sms.parse", attributes = attrs, statusOk = false)
+    }
+
+
 }

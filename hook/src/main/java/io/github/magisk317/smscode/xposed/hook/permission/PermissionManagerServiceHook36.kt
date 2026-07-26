@@ -10,6 +10,7 @@ import io.github.magisk317.xposed.HookEnv
 import io.github.magisk317.xposed.HookHelpers
 import java.util.concurrent.atomic.AtomicBoolean
 import io.github.magisk317.xposed.MethodHookParam
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 /**
  * Android 16+ permission hook.
@@ -30,6 +31,31 @@ class PermissionManagerServiceHook36(classLoader: ClassLoader) : BaseSubHook(cla
 
         if (!hooked) {
             XLog.w("No permission hook target matched for Android 16+")
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "skip",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "no_target",
+                    "source" to "PermissionManagerServiceHook36",
+                ),
+                statusOk = true,
+            )
+        } else {
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "ok",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "installed",
+                    "source" to "PermissionManagerServiceHook36",
+                ),
+                statusOk = true,
+            )
         }
     }
 

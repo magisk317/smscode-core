@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.verification
 
 import android.content.Context
 import android.content.Intent
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class SmsDispatchIntentHandler<M : SmsMessage>(
     private val runtimeResolver: (String) -> VerificationRuntimeContext?,
@@ -36,9 +37,23 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
         inboundSmsHandler: Any?,
         receiver: Any?,
     ): Outcome {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+                "event_id_present" to eventId.isNotBlank().toString(),
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "sms.dispatch", attributes = attrs, statusOk = statusOk)
+        }
+
         val runtime = runtimeResolver(DISPATCH_HEARTBEAT_SOURCE)
         if (runtime == null) {
             XLog.e("Context is null, skip parsing. pluginContext: %s, phoneContext: %s", null, null)
+            emit(result = "skip", reason = "runtime_unavailable")
             return Outcome(stopReason = StopReason.RUNTIME_UNAVAILABLE)
         }
         val pluginContext = runtime.pluginContext
@@ -52,6 +67,7 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
             DispatchGateReason.MODULE_DISABLED -> {
                 XLog.w("Diag: module disabled in settings")
                 XLog.i("XposedSmsCode disabled, exiting")
+                emit(result = "skip", reason = "module_disabled")
                 return Outcome(stopReason = StopReason.MODULE_DISABLED)
             }
 
@@ -63,6 +79,7 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
                     eventId,
                     DISPATCH_CONFLICT_SOURCE,
                 )
+                emit(result = "skip", reason = "conflict_suppressed")
                 return Outcome(stopReason = StopReason.CONFLICT_SUPPRESSED)
             }
 
@@ -98,11 +115,13 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
                     blockReason.wireValue,
                     eventId,
                 )
+                emit(result = "skip", reason = "sms_blocked")
                 return Outcome(
                     stopReason = StopReason.SMS_BLOCKED,
                     inboundBlocked = true,
                 )
             }
+            emit(result = "skip", reason = "sms_blocked")
             return Outcome(stopReason = StopReason.SMS_BLOCKED)
         }
         if (decision.shouldAllowSystemPersist) {
@@ -113,6 +132,7 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
                 smsMsg?.body?.length ?: 0,
             )
         }
+        emit(result = "ok")
         return Outcome()
     }
 

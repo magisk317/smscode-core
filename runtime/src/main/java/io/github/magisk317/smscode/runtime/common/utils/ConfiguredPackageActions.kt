@@ -32,8 +32,6 @@ open class ConfiguredPackageActions(
 
     fun hasRootAccess(): Boolean = PackageActions.hasRootAccess()
 
-    fun joinQQGroup(context: Context): String? = PackageActions.joinQQGroup(context, config)
-
     fun isInstalledFromPlay(context: Context): Boolean = PackageActions.isInstalledFromPlay(context)
 
     fun showAppDetailsInPlayStore(context: Context) =

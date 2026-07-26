@@ -1,5 +1,7 @@
 package io.github.magisk317.smscode.xposed.prefs
 
+import io.github.magisk317.xposed.logging.MagiskOtel
+
 interface CorePrefsAccess {
     fun getBoolean(key: String, defaultValue: Boolean): Boolean
     fun getString(key: String, defaultValue: String): String
@@ -12,6 +14,16 @@ object CorePrefs {
 
     fun install(access: CorePrefsAccess) {
         accessRef = access
+        MagiskOtel.event(
+            name = "prefs.access",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "reason" to "installed",
+            ),
+            statusOk = true,
+        )
     }
 
     internal fun resetForTest() {

@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
+import io.github.magisk317.xposed.logging.MagiskOtel
 import android.content.Intent
 import android.util.Log
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
@@ -110,6 +111,18 @@ object LogBundleExporter {
                 makeWorldReadable = true,
                 worldReadableParentDepth = 1,
             )
+            MagiskOtel.event(
+                name = "app.monitor",
+                attributes = mapOf(
+                    "result" to if (result.file != null) "ok" else "error",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "stage" to "log_bundle_export",
+                    "reason" to if (result.file != null) "exported" else "export_failed",
+                    "found_count" to if (result.details.isBlank()) "0" else result.details.count { it == ';' }.plus(1).toString(),
+                ),
+                statusOk = result.file != null,
+            )
             return LogBundleExportResult(result.file, result.details)
         }
     }
@@ -160,6 +173,18 @@ object LogBundleExporter {
                 }
             }
 
+            MagiskOtel.event(
+                name = "app.monitor",
+                attributes = mapOf(
+                    "result" to if (success) "ok" else "error",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "stage" to "log_bundle_clear",
+                    "reason" to if (success) "cleared" else "clear_failed",
+                    "found_count" to details.size.toString(),
+                ),
+                statusOk = success,
+            )
             return LogBundleClearResult(success = success, details = details.joinToString("; "))
         }
     }

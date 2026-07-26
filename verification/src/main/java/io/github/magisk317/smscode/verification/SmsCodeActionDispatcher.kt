@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import android.os.Handler
 import java.util.concurrent.ScheduledExecutorService
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object SmsCodeActionDispatcher {
     fun <M : SmsMessage> dispatchParsedSmsActions(
@@ -19,6 +20,18 @@ object SmsCodeActionDispatcher {
         recordScheduler: (ScheduledExecutorService, Context, Context, M, String, Boolean) -> Unit,
         operateSmsScheduler: (ScheduledExecutorService, Context, Context, M, List<Long>) -> Unit,
     ) {
+        MagiskOtel.event(
+            name = "sms.pipeline",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "dispatch_actions",
+                "event_id_present" to eventId.isNotBlank().toString(),
+                "reason" to "parsed",
+            ),
+            statusOk = true,
+        )
         uiDispatcher(
             uiHandler,
             pluginContext,
@@ -81,6 +94,18 @@ object SmsCodeActionDispatcher {
         autoInputScheduler: (ScheduledExecutorService, Context, Context, M, Long, Boolean, Long?) -> Unit,
         recordRunner: (Context, Context, M, String, Boolean) -> Unit,
     ) {
+        MagiskOtel.event(
+            name = "sms.pipeline",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "dispatch_actions",
+                "event_id_present" to eventId.isNotBlank().toString(),
+                "reason" to "observed",
+            ),
+            statusOk = true,
+        )
         if (plan.autoInputEnabled) {
             val delayMs = plan.autoInputDelayMs ?: 0L
             if (delayMs > 0L && executor != null) {

@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
+import io.github.magisk317.xposed.logging.MagiskOtel
 import android.app.Application
 import android.content.Context
 import android.os.Build
@@ -212,16 +213,44 @@ object RuntimeLogStore {
             buffer.clear()
             pendingFileEntries.clear()
         }
-        val logDir = getLogDir() ?: return
-        runCatching {
+        val logDir = getLogDir()
+        if (logDir == null) {
+            MagiskOtel.event(
+                name = "app.monitor",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "stage" to "runtime_log_clear",
+                    "reason" to "log_dir_missing",
+                ),
+                statusOk = false,
+            )
+            return
+        }
+        val deleted = runCatching {
             logDir.listFiles()
                 ?.filter { isRuntimeLogFileName(it.name) }
-                ?.forEach { file ->
+                ?.onEach { file ->
                     if (!file.delete()) {
                         file.writeText("")
                     }
                 }
-        }
+                ?.size
+                ?: 0
+        }.getOrDefault(0)
+        MagiskOtel.event(
+            name = "app.monitor",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "app",
+                "stage" to "runtime_log_clear",
+                "reason" to "cleared",
+                "found_count" to deleted.toString(),
+            ),
+            statusOk = true,
+        )
     }
 
     fun query(minutes: Int?, keyword: String?, limit: Int = 600): List<RuntimeLogEntry> {
@@ -256,17 +285,44 @@ object RuntimeLogStore {
     }
 
     fun exportToFile(context: Context, minutes: Int?, keyword: String?, limit: Int = 1200): File? {
+        val startedAt = System.nanoTime()
         val dir = StorageUtils.getPrivateLogExportDir(context)
-        if (!dir.exists() && !dir.mkdirs()) return null
+        if (!dir.exists() && !dir.mkdirs()) {
+            MagiskOtel.event(
+                name = "app.monitor",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "stage" to "runtime_log_export",
+                    "reason" to "export_dir_failed",
+                ),
+                statusOk = false,
+            )
+            return null
+        }
 
         val fileName = "runtime_log_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.txt"
         val file = File(dir, fileName)
         val content = exportText(minutes = minutes, keyword = keyword, limit = limit)
-        return runCatching {
+        val exported = runCatching {
             file.writeText(content.ifBlank { "No logs." })
             StorageUtils.setFileWorldReadable(file, 2)
             file
         }.getOrNull()
+        val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+        MagiskOtel.event(
+            name = "app.monitor",
+            attributes = mapOf(
+                "result" to if (exported != null) "ok" else "error",
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "stage" to "runtime_log_export",
+                "reason" to if (exported != null) "exported" else "export_failed",
+            ),
+            statusOk = exported != null,
+        )
+        return exported
     }
 
     fun summarizeFiles(): RuntimeLogFileSummary {

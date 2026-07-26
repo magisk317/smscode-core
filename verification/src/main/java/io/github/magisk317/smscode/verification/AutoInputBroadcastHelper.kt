@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object AutoInputBroadcastHelper {
     fun sendText(
@@ -38,6 +39,18 @@ object AutoInputBroadcastHelper {
             text.length,
             autoEnter,
             inputIntervalMs,
+        )
+        MagiskOtel.event(
+            name = "auto.input",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "broadcast",
+                "code_length" to text.length.toString(),
+                "strategy" to if (autoEnter) "broadcast_auto_enter" else "broadcast",
+            ),
+            statusOk = true,
         )
     }
 

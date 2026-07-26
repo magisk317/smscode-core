@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.xposed.runtime
 
 import android.util.Log
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 interface CoreRuntimeAccess {
     val logTag: String
@@ -31,6 +32,16 @@ object CoreRuntime {
                     sensitive = event.sensitive,
                 )
             },
+        )
+        MagiskOtel.event(
+            name = "hook.load",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "application_id_present" to access.applicationId.isNotBlank().toString(),
+            ),
+            statusOk = true,
         )
     }
 

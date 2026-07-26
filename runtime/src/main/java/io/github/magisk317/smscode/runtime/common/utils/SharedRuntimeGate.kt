@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.common.utils
 
 import android.content.Context
 import android.util.Log
+import io.github.magisk317.xposed.logging.MagiskOtel
 import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
 import java.io.File
 import java.io.RandomAccessFile
@@ -63,7 +64,22 @@ object SharedRuntimeGate {
             writeEntries(raf, history.snapshot())
             ClaimResult(claimed = true)
         }
-        return result ?: ClaimResult(claimed = true)
+        val resolved = result ?: ClaimResult(claimed = true)
+        if (!resolved.claimed || result == null) {
+            MagiskOtel.event(
+                name = "sms.dispatch",
+                attributes = mapOf(
+                    "result" to if (resolved.claimed) "ok" else "skip",
+                    "duration_ms" to (resolved.ageMs ?: 0L).coerceAtLeast(0L).toString(),
+                    "process" to "hook",
+                    "stage" to "runtime_gate",
+                    "reason" to if (result == null) "lock_unavailable_allow" else "duplicate_window",
+                    "found_count" to normalizedKeys.size.toString(),
+                ),
+                statusOk = true,
+            )
+        }
+        return resolved
     }
 
     fun <T> withFileLock(

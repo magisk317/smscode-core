@@ -12,6 +12,7 @@ import io.github.magisk317.xposed.MethodHook
 import io.github.magisk317.xposed.HookEnv
 import java.lang.reflect.Method
 import io.github.magisk317.xposed.MethodHookParam
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 /**
  * Android 4.4 ~ Android 8.1 (API 19 - 27)<br/>
@@ -23,15 +24,105 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
     override fun startHook() {
         try {
             hookGrantPermissionsLPw()
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "ok",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "installed",
+                    "source" to "PackageManagerServiceHook",
+                ),
+                statusOk = true,
+            )
         } catch (e: ReflectiveOperationException) {
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "install_failed",
+                    "source" to "PackageManagerServiceHook",
+                    "error_class" to e.javaClass.simpleName,
+                ),
+                statusOk = false,
+            )
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "install_failed",
+                    "source" to "PackageManagerServiceHook",
+                    "error_class" to e.javaClass.simpleName,
+                ),
+                statusOk = false,
+            )
             XLog.e("Failed to hook PackageManagerService", e)
         } catch (e: IllegalArgumentException) {
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "install_failed",
+                    "source" to "PackageManagerServiceHook",
+                    "error_class" to e.javaClass.simpleName,
+                ),
+                statusOk = false,
+            )
             XLog.e("Failed to hook PackageManagerService", e)
         } catch (e: IllegalStateException) {
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "install_failed",
+                    "source" to "PackageManagerServiceHook",
+                    "error_class" to e.javaClass.simpleName,
+                ),
+                statusOk = false,
+            )
             XLog.e("Failed to hook PackageManagerService", e)
         } catch (e: SecurityException) {
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "install_failed",
+                    "source" to "PackageManagerServiceHook",
+                    "error_class" to e.javaClass.simpleName,
+                ),
+                statusOk = false,
+            )
             XLog.e("Failed to hook PackageManagerService", e)
         } catch (e: UnsupportedOperationException) {
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "install_failed",
+                    "source" to "PackageManagerServiceHook",
+                    "error_class" to e.javaClass.simpleName,
+                ),
+                statusOk = false,
+            )
             XLog.e("Failed to hook PackageManagerService", e)
         }
     }

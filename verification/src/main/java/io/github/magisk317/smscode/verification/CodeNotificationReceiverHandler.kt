@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object CodeNotificationReceiverHandler {
     data class DeliveryDiagnostics(
@@ -65,6 +66,24 @@ object CodeNotificationReceiverHandler {
         request: CodeNotificationPayload.ReceiverRequest.Accepted,
         config: Config,
     ) {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+            )
+            if (reason != null) {
+                attrs["reason"] = reason
+            }
+            MagiskOtel.event(
+                name = "notify.owned",
+                attributes = attrs,
+                statusOk = statusOk,
+            )
+        }
+
         val payload = request.payload
         val smsCode = request.smsCode
         val appContext = context.applicationContext
@@ -111,6 +130,7 @@ object CodeNotificationReceiverHandler {
                 receiver,
                 CodeNotificationPayload.RESULT_DATA_MISSING_NOTIFICATION_MANAGER,
             )
+            emit(result = "error", statusOk = false, reason = "missing_notification_manager")
             return
         }
 
@@ -137,6 +157,7 @@ object CodeNotificationReceiverHandler {
                 receiver,
                 CodeNotificationPayload.RESULT_DATA_NOTIFY_FAILED,
             )
+            emit(result = "error", statusOk = false, reason = "notify_failed")
             return
         }
         XLog.i("%s posted app-owned notification id=%d", config.source, notificationId)
@@ -145,6 +166,7 @@ object CodeNotificationReceiverHandler {
             CodeNotificationPayload.RESULT_DATA_POSTED,
             success = true,
         )
+        emit(result = "ok")
 
         if (autoCancelEnabled && retentionTimeMs > 0L) {
             CodeNotificationAutoCancelScheduler.scheduleSafely(

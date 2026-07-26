@@ -32,6 +32,7 @@ import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
 import io.github.magisk317.xposed.runNonFatalCatching
 import io.github.magisk317.xposed.runNonFatalOrNull
 import java.util.Locale
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class NotificationManagerHook : BaseHook() {
     private data class ModuleEndpoint(
@@ -114,6 +115,21 @@ class NotificationManagerHook : BaseHook() {
     }
 
     private fun handleEnqueueNotificationInternal(param: MethodHookParam) {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null, msgType: String? = null, targetPackage: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "system",
+                "source" to "nms_hook",
+            )
+            if (reason != null) attrs["reason"] = reason
+            if (!msgType.isNullOrBlank()) attrs["msg_type"] = msgType
+            if (!targetPackage.isNullOrBlank()) attrs["target_package"] = targetPackage
+            MagiskOtel.event(name = "notify.intercept", attributes = attrs, statusOk = statusOk)
+        }
+
         var pkg: String? = null
         var notification: Notification? = null
 
@@ -131,6 +147,7 @@ class NotificationManagerHook : BaseHook() {
                 pkg ?: "<null>",
                 notification != null,
             )
+            emit(result = "skip", reason = "invalid_args")
             return
         }
 
@@ -140,17 +157,20 @@ class NotificationManagerHook : BaseHook() {
 
         if (systemContext == null) {
             XLog.w("NotificationManagerHook: failed to get Context")
+            emit(result = "skip", reason = "no_context", targetPackage = pkg)
             return
         }
 
         val endpoint = getModuleEndpoint(systemContext) ?: run {
             XLog.w("NotificationManagerHook: failed to resolve module endpoint")
+            emit(result = "skip", reason = "no_endpoint", targetPackage = pkg)
             return
         }
         val modulePackage = endpoint.packageName
 
         if (pkg == modulePackage) {
             XLog.d("NotificationManagerHook: skip self notification. pkg=%s", pkg)
+            emit(result = "skip", reason = "self", targetPackage = pkg)
             return
         }
 
@@ -174,6 +194,7 @@ class NotificationManagerHook : BaseHook() {
                 )
             }
             XLog.d("NotificationManagerHook: skip blank content. pkg=%s", pkg)
+            emit(result = "skip", reason = "blank_content", targetPackage = pkg)
             return
         }
         val notifyRoute = resolveNotifyRoute(
@@ -202,6 +223,7 @@ class NotificationManagerHook : BaseHook() {
                 Integer.toHexString(notification.flags),
                 notification.category ?: "<null>",
             )
+            emit(result = "skip", reason = skipReason, targetPackage = pkg, msgType = notifyRoute.msgType)
             return
         }
         val eventId = buildEventId(pkg)
@@ -271,6 +293,12 @@ class NotificationManagerHook : BaseHook() {
             NotificationLogSanitizer.formatBody(body, sensitiveDebugLog),
         )
         dispatchForwardBroadcast(systemContext, forwardIntent, pkg, eventId, endpoint)
+        emit(
+            result = "ok",
+            reason = "forwarded",
+            targetPackage = pkg,
+            msgType = notifyRoute.msgType,
+        )
     }
 
     private fun resolveNotifyRoute(

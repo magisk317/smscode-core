@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.verification
 
 import android.content.Context
 import android.os.Bundle
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class RecordSmsActionHelper<M : SmsMessage>(
     private val pluginContext: Context,
@@ -21,13 +22,36 @@ class RecordSmsActionHelper<M : SmsMessage>(
     )
 
     fun run(): Bundle? {
-        if (enabled) {
-            recordSmsMsg(smsMsg)
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+            )
+            if (reason != null) {
+                attrs["reason"] = reason
+            }
+            MagiskOtel.event(
+                name = "sms.record",
+                attributes = attrs,
+                statusOk = statusOk,
+            )
         }
+
+        if (!enabled) {
+            emit(result = "skip", reason = "disabled")
+            return null
+        }
+        recordSmsMsg(smsMsg, emit = { result, statusOk, reason -> emit(result, statusOk, reason) })
         return null
     }
 
-    private fun recordSmsMsg(smsMsg: M) {
+    private fun recordSmsMsg(
+        smsMsg: M,
+        emit: (result: String, statusOk: Boolean, reason: String?) -> Unit,
+    ) {
         val eventLabel = eventId.ifBlank { "<none>" }
         XLog.i(
             "Diag record start: event_id=%s sender_hash=%s body_len=%d code_present=%s simSlot=%d subId=%d",
@@ -43,20 +67,28 @@ class RecordSmsActionHelper<M : SmsMessage>(
                 if (shouldSkipByDedup(smsMsg, eventLabel)) {
                     return@withFileLock false
                 }
-                persistSmsMsg(smsMsg, eventLabel)
+                persistSmsMsg(smsMsg, eventLabel, emit)
                 true
             }
             if (locked != null) {
+                if (!locked) {
+                    emit("skip", true, "duplicate")
+                }
                 return
             }
             if (shouldSkipByDedup(smsMsg, eventLabel)) {
+                emit("skip", true, "duplicate")
                 return
             }
         }
-        persistSmsMsg(smsMsg, eventLabel)
+        persistSmsMsg(smsMsg, eventLabel, emit)
     }
 
-    private fun persistSmsMsg(smsMsg: M, eventLabel: String) {
+    private fun persistSmsMsg(
+        smsMsg: M,
+        eventLabel: String,
+        emit: (result: String, statusOk: Boolean, reason: String?) -> Unit,
+    ) {
         val insertResult = primaryInserter(smsMsg)
         if (insertResult.success) {
             XLog.i(
@@ -64,6 +96,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
                 eventLabel,
                 insertResult.detail ?: "",
             )
+            emit("ok", true, "provider")
             return
         }
         XLog.w(
@@ -73,8 +106,10 @@ class RecordSmsActionHelper<M : SmsMessage>(
         )
         if (fallbackExporter(smsMsg)) {
             XLog.i("Diag record file fallback success: event_id=%s", eventLabel)
+            emit("ok", true, "fallback")
         } else {
             XLog.w("Diag record file fallback failed: event_id=%s", eventLabel)
+            emit("error", false, "insert_failed")
         }
     }
 

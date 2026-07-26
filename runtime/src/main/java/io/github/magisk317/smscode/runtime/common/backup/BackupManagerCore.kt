@@ -19,6 +19,7 @@ import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 data class BackupManagerConfig(
     val backupDirectoryName: String,
@@ -130,6 +131,21 @@ object BackupManagerCore {
         hooks: BackupDatabaseHooks = BackupDatabaseHooks(),
         includeDatabase: Boolean = false,
     ): ExportResult {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "stage" to "export_backup",
+                "include_database" to includeDatabase.toString(),
+                "rule_count" to ruleList.size.toString(),
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "prefs.backup", attributes = attrs, statusOk = statusOk)
+        }
+
         Log.i(
             LOG_TAG,
             "exportBackup start: " +
@@ -144,12 +160,15 @@ object BackupManagerCore {
             return try {
                 exportBackupZipWithDatabase(context, uri, ruleList, preferences, records, appVersion, config, hooks)
                 Log.i(LOG_TAG, "exportBackup success (zip with database)")
+                emit(result = "ok", reason = "zip_with_database")
                 ExportResult.SUCCESS
             } catch (e: IOException) {
                 Log.e(LOG_TAG, "Export backup(zip) failed", e)
+                emit(result = "error", statusOk = false, reason = "IOException")
                 ExportResult.FAILED
             } catch (e: IllegalStateException) {
                 Log.e(LOG_TAG, "Export backup(zip) failed", e)
+                emit(result = "error", statusOk = false, reason = "IllegalStateException")
                 ExportResult.FAILED
             }
         }
@@ -157,10 +176,12 @@ object BackupManagerCore {
             RuleExporter(context.contentResolver.openOutputStream(uri)).use { exporter ->
                 exporter.doExport(ruleList, appVersion, preferences, records)
                 Log.i(LOG_TAG, "exportBackup success")
+                emit(result = "ok", reason = "rules_only")
                 ExportResult.SUCCESS
             }
         } catch (e: IOException) {
             Log.e(LOG_TAG, "Export backup failed", e)
+            emit(result = "error", statusOk = false, reason = "IOException")
             ExportResult.FAILED
         }
     }
@@ -189,11 +210,27 @@ object BackupManagerCore {
 
     @JvmStatic
     fun importRuleList(context: Context, uri: Uri, currentAppVersion: String): BackupImportResult {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "stage" to "import_rules",
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "prefs.restore", attributes = attrs, statusOk = statusOk)
+        }
+
         var ruleImporter: RuleImporter? = null
         try {
             Log.i(LOG_TAG, "importRuleList start: uri=$uri")
             val payloadBytes = readPayloadBytes(context, uri)
-                ?: return BackupImportResult(ImportResult.READ_FAILED)
+            if (payloadBytes == null) {
+                emit(result = "error", statusOk = false, reason = "read_failed")
+                return BackupImportResult(ImportResult.READ_FAILED)
+            }
             ruleImporter = RuleImporter(ByteArrayInputStream(payloadBytes))
             val payload = ruleImporter.parsePayload()
             val schemaVersion = payload.schemaVersion
@@ -207,12 +244,18 @@ object BackupManagerCore {
                     "records=${payload.records?.size ?: 0}",
             )
             if (schemaVersion > BackupConst.BACKUP_VERSION) {
+                emit(result = "skip", reason = "version_too_new")
                 return BackupImportResult(ImportResult.VERSION_TOO_NEW)
             }
             if (schemaVersion < BackupConst.BACKUP_VERSION) {
+                emit(result = "skip", reason = "version_too_old")
                 return BackupImportResult(ImportResult.VERSION_TOO_OLD)
             }
             val warning = resolveWarning(payload.appVersion, currentAppVersion)
+            emit(
+                result = "ok",
+                reason = if (warning != null) "success_with_warning" else "success",
+            )
             return BackupImportResult(
                 ImportResult.SUCCESS,
                 payload.rules,
@@ -222,15 +265,19 @@ object BackupManagerCore {
             )
         } catch (e: IOException) {
             Log.e(LOG_TAG, "Error occurs in importRuleList", e)
+            emit(result = "error", statusOk = false, reason = "IOException")
             return BackupImportResult(ImportResult.READ_FAILED)
         } catch (e: VersionMissedException) {
             Log.e(LOG_TAG, "Error occurs in importRuleList", e)
+            emit(result = "error", statusOk = false, reason = "version_missed")
             return BackupImportResult(ImportResult.VERSION_MISSED)
         } catch (e: VersionInvalidException) {
             Log.e(LOG_TAG, "Error occurs in importRuleList", e)
+            emit(result = "error", statusOk = false, reason = "version_unknown")
             return BackupImportResult(ImportResult.VERSION_UNKNOWN)
         } catch (e: BackupInvalidException) {
             Log.e(LOG_TAG, "Error occurs in importRuleList", e)
+            emit(result = "error", statusOk = false, reason = "backup_invalid")
             return BackupImportResult(ImportResult.BACKUP_INVALID)
         } finally {
             ruleImporter?.close()
@@ -257,6 +304,19 @@ object BackupManagerCore {
         config: BackupManagerConfig,
         hooks: BackupDatabaseHooks = BackupDatabaseHooks(),
     ): Boolean {
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "stage" to "restore_database",
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "prefs.restore", attributes = attrs, statusOk = statusOk)
+        }
+
         context.contentResolver.openInputStream(uri)?.use { raw ->
             val pb = PushbackInputStream(BufferedInputStream(raw), 4)
             val header = ByteArray(4)
@@ -269,6 +329,7 @@ object BackupManagerCore {
                 header[1] == 0x4B.toByte()
             if (!isZip) {
                 Log.w(LOG_TAG, "restoreDatabaseFromBackup skipped: not zip uri=$uri")
+                emit(result = "skip", reason = "not_zip")
                 return false
             }
 
@@ -307,6 +368,7 @@ object BackupManagerCore {
 
                 if (!foundMainDb) {
                     Log.w(LOG_TAG, "restoreDatabaseFromBackup failed: main db not found in zip")
+                    emit(result = "error", statusOk = false, reason = "main_db_missing")
                     return false
                 }
 
@@ -331,12 +393,18 @@ object BackupManagerCore {
                     LOG_TAG,
                     "restoreDatabaseFromBackup copied: mainDb=$copiedMainDb path=${dbDir.absolutePath}",
                 )
+                emit(
+                    result = if (copiedMainDb) "ok" else "error",
+                    statusOk = copiedMainDb,
+                    reason = if (copiedMainDb) "copied" else "copy_failed",
+                )
                 return copiedMainDb
             } finally {
                 runCatching { tmpDir.deleteRecursively() }
             }
         }
         Log.w(LOG_TAG, "restoreDatabaseFromBackup failed: openInputStream null uri=$uri")
+        emit(result = "error", statusOk = false, reason = "open_stream_null")
         return false
     }
 

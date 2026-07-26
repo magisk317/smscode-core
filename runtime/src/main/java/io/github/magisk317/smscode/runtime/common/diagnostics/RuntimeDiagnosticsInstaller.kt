@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class RuntimeDiagnosticsInstaller(
     private val install: (RuntimeDiagnosticsConfig) -> Unit = RuntimeDiagnosticsEnvironment::install,
@@ -13,8 +14,35 @@ class RuntimeDiagnosticsInstaller(
         if (installed) return
         synchronized(this) {
             if (installed) return
-            install(configProvider())
-            installed = true
+            runCatching {
+                install(configProvider())
+                installed = true
+                MagiskOtel.event(
+                    name = "app.monitor",
+                    attributes = mapOf(
+                        "result" to "ok",
+                        "duration_ms" to "0",
+                        "process" to "app",
+                        "stage" to "diagnostics_install",
+                        "reason" to "installed",
+                    ),
+                    statusOk = true,
+                )
+            }.onFailure { error ->
+                MagiskOtel.event(
+                    name = "app.monitor",
+                    attributes = mapOf(
+                        "result" to "error",
+                        "duration_ms" to "0",
+                        "process" to "app",
+                        "stage" to "diagnostics_install",
+                        "reason" to "install_failed",
+                        "error_class" to error.javaClass.simpleName,
+                    ),
+                    statusOk = false,
+                )
+                throw error
+            }
         }
     }
 }

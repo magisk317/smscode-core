@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.verification
 import android.content.Context
 import io.github.magisk317.smscode.runtime.contract.notification.NotificationDeliveryDiagnostics
 import io.github.magisk317.smscode.runtime.contract.notification.NotificationPlatformBridge
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class NotifyActionHelper<M : SmsMessage, R>(
     private val pluginContext: Context,
@@ -31,7 +32,28 @@ class NotifyActionHelper<M : SmsMessage, R>(
     )
 
     fun run(): R? {
-        if (!enabled) return null
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "hook",
+            )
+            if (reason != null) {
+                attrs["reason"] = reason
+            }
+            MagiskOtel.event(
+                name = "notify.owned",
+                attributes = attrs,
+                statusOk = statusOk,
+            )
+        }
+
+        if (!enabled) {
+            emit(result = "skip", reason = "disabled")
+            return null
+        }
 
         // Use bridge for channel initialization if available, otherwise fall back to lambda
         if (notificationBridge != null && channelId.isNotEmpty()) {
@@ -57,9 +79,10 @@ class NotifyActionHelper<M : SmsMessage, R>(
                 "Code notification unavailable: %s",
                 diag.summary,
             )
+            emit(result = "skip", reason = "cannot_post")
             return null
         }
-        return notifier(
+        val posted = notifier(
             AppOwnedNotificationRequest(
                 smsMsg = smsMsg,
                 notificationId = smsMsg.hashCode(),
@@ -68,5 +91,11 @@ class NotifyActionHelper<M : SmsMessage, R>(
                 token = tokenProvider(pluginContext),
             ),
         )
+        if (posted == null) {
+            emit(result = "skip", reason = "notifier_null")
+        } else {
+            emit(result = "ok")
+        }
+        return posted
     }
 }

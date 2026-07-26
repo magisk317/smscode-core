@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 object ConflictNotificationHelper {
     data class VisualConfig(
@@ -34,7 +35,20 @@ object ConflictNotificationHelper {
     fun showConflictNotification(request: Request): Boolean {
         val manager = request.phoneContext.getSystemService(
             Context.NOTIFICATION_SERVICE,
-        ) as NotificationManager? ?: return false
+        ) as NotificationManager? ?: run {
+            MagiskOtel.event(
+                name = "notify.owned",
+                attributes = mapOf(
+                    "result" to "error",
+                    "duration_ms" to "0",
+                    "process" to "app",
+                    "stage" to "conflict",
+                    "reason" to "no_manager",
+                ),
+                statusOk = false,
+            )
+            return false
+        }
         val contentIntent = createLaunchActivityPendingIntent(
             phoneContext = request.phoneContext,
             pluginContext = request.pluginContext,
@@ -56,6 +70,17 @@ object ConflictNotificationHelper {
             builder.setContentIntent(contentIntent)
         }
         manager.notify(request.visualConfig.notificationId, builder.build())
+        MagiskOtel.event(
+            name = "notify.owned",
+            attributes = mapOf(
+                "result" to "ok",
+                "duration_ms" to "0",
+                "process" to "app",
+                "stage" to "conflict",
+                "application_id_present" to request.applicationId.isNotBlank().toString(),
+            ),
+            statusOk = true,
+        )
         return true
     }
 

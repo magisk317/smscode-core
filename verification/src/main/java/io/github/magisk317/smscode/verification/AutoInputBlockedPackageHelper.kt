@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.CursorIndexOutOfBoundsException
 import android.database.SQLException
 import android.net.Uri
+import io.github.magisk317.xposed.logging.MagiskOtel
 import android.os.OperationCanceledException
 
 object AutoInputBlockedPackageHelper {
@@ -13,10 +14,41 @@ object AutoInputBlockedPackageHelper {
         fallbackChecker: (String) -> Boolean = { false },
         fallbackLogger: (String, Boolean) -> Unit = { _, _ -> },
     ): Boolean {
-        primaryChecker(packageName)?.let { return it }
+        primaryChecker(packageName)?.let { blocked ->
+            emitBlockedState(
+                packageName = packageName,
+                blocked = blocked,
+                reason = if (blocked) "primary_blocked" else "primary_allowed",
+            )
+            return blocked
+        }
         val blocked = fallbackChecker(packageName)
         fallbackLogger(packageName, blocked)
+        emitBlockedState(
+            packageName = packageName,
+            blocked = blocked,
+            reason = if (blocked) "fallback_blocked" else "fallback_allowed",
+        )
         return blocked
+    }
+
+    private fun emitBlockedState(
+        packageName: String,
+        blocked: Boolean,
+        reason: String,
+    ) {
+        MagiskOtel.event(
+            name = "auto.input",
+            attributes = mapOf(
+                "result" to if (blocked) "skip" else "ok",
+                "duration_ms" to "0",
+                "process" to "app",
+                "stage" to "blocked_package",
+                "reason" to reason,
+                "target_package" to packageName,
+            ),
+            statusOk = true,
+        )
     }
 
     fun queryBlockedStateByProvider(

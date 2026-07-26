@@ -8,6 +8,7 @@ import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
 import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
 import io.github.magisk317.smscode.domain.utils.SmsBlacklistUtils
 import io.github.magisk317.smscode.domain.utils.SmsCodeUtils
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 fun interface SmsKeywordProvider {
     suspend fun getKeywordsRegex(context: Context, overrideKeywordsRegex: String?): String
@@ -70,10 +71,26 @@ class RuntimeSmsBlacklistAdapter(
     private val configProvider: SmsBlacklistConfigProvider,
 ) {
     fun match(context: Context, sender: String?, body: String?): SmsBlacklistMatchResult {
-        return SmsBlacklistUtils.match(
+        val startedAt = System.nanoTime()
+        val result = SmsBlacklistUtils.match(
             config = configProvider.getConfig(context),
             sender = sender,
             body = body,
         )
+        val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+        MagiskOtel.event(
+            name = "sms.block",
+            attributes = mapOf(
+                "result" to if (result.matched) "ok" else "skip",
+                "duration_ms" to durationMs.toString(),
+                "process" to "app",
+                "stage" to "match",
+                "reason" to if (result.matched) (result.matchType ?: "matched") else "no_match",
+                "action_block" to result.actionBlock.toString(),
+                "action_delete" to result.actionDelete.toString(),
+            ),
+            statusOk = true,
+        )
+        return result
     }
 }

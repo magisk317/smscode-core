@@ -34,6 +34,7 @@ import io.github.magisk317.xposed.runNonFatalCatching
 import io.github.magisk317.xposed.runNonFatalOrNull
 import java.lang.reflect.Method
 import java.util.Locale
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 class SystemInputInjectorHook : BaseHook() {
     @Volatile
@@ -759,7 +760,24 @@ class SystemInputInjectorHook : BaseHook() {
         autoEnter: Boolean = false,
         inputIntervalMs: Long = 0L,
     ): InjectResult {
-        val managerPair = getInputManagerGlobal() ?: return InjectResult(false, "manager_unresolved")
+        val startedAt = System.nanoTime()
+        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
+            val attrs = mutableMapOf(
+                "result" to result,
+                "duration_ms" to durationMs.toString(),
+                "process" to "system",
+                "source" to "injector",
+                "code_length" to text.length.toString(),
+            )
+            if (reason != null) attrs["reason"] = reason
+            MagiskOtel.event(name = "auto.input", attributes = attrs, statusOk = statusOk)
+        }
+
+        val managerPair = getInputManagerGlobal() ?: run {
+            emit(result = "error", statusOk = false, reason = "manager_unresolved")
+            return InjectResult(false, "manager_unresolved")
+        }
         val (manager, method) = managerPair
         val mode = 0 // InputManager.INJECT_INPUT_EVENT_MODE_ASYNC
         var injectedCount = 0
@@ -798,6 +816,11 @@ class SystemInputInjectorHook : BaseHook() {
                 success = false
             }
         }
+        emit(
+            result = if (success) "ok" else "error",
+            statusOk = success,
+            reason = failReason ?: if (success) (if (autoEnter) "auto_enter" else "typed") else "inject_failed",
+        )
         return InjectResult(success, failReason)
     }
 

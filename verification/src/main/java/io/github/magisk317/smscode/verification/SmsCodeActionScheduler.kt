@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Context
+import io.github.magisk317.xposed.logging.MagiskOtel
 import java.util.concurrent.Callable
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -23,8 +24,20 @@ object SmsCodeActionScheduler {
         actionFactory: () -> Callable<R>,
     ) {
         if (!claimAutoInputDispatch(pluginContext, smsMsg, claimDelayMs)) {
+            emitAutoInputSchedule(
+                result = "skip",
+                stage = "run_now",
+                reason = "claim_rejected",
+                delayMs = claimDelayMs,
+            )
             return
         }
+        emitAutoInputSchedule(
+            result = "ok",
+            stage = "run_now",
+            reason = "claimed",
+            delayMs = claimDelayMs,
+        )
         actionFactory().call()
     }
 
@@ -37,8 +50,20 @@ object SmsCodeActionScheduler {
         actionFactory: () -> Callable<R>,
     ) {
         if (!claimAutoInputDispatch(pluginContext, smsMsg, delayMs)) {
+            emitAutoInputSchedule(
+                result = "skip",
+                stage = "schedule",
+                reason = "claim_rejected",
+                delayMs = delayMs,
+            )
             return
         }
+        emitAutoInputSchedule(
+            result = "ok",
+            stage = "schedule",
+            reason = "claimed",
+            delayMs = delayMs,
+        )
         executor.schedule(actionFactory(), delayMs, TimeUnit.MILLISECONDS)
     }
 
@@ -57,5 +82,26 @@ object SmsCodeActionScheduler {
         delays.forEach { delayMs ->
             executor.schedule(actionFactory(delayMs), delayMs, TimeUnit.MILLISECONDS)
         }
+    }
+
+    private fun emitAutoInputSchedule(
+        result: String,
+        stage: String,
+        reason: String,
+        delayMs: Long,
+    ) {
+        MagiskOtel.event(
+            name = "sms.schedule",
+            attributes = mapOf(
+                "result" to result,
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to stage,
+                "reason" to reason,
+                "delay_ms" to delayMs.coerceAtLeast(0L).toString(),
+                "source" to "auto_input",
+            ),
+            statusOk = true,
+        )
     }
 }

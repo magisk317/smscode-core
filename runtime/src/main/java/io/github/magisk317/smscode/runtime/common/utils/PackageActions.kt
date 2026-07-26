@@ -52,15 +52,6 @@ object PackageActions {
     fun hasRootAccess(): Boolean = PackageEnvCore.hasRootAccess()
 
     @JvmStatic
-    fun joinQQGroup(context: Context, config: PackageActionConfig): String? {
-        return if (ThirdPartyAppActions.openViewUri(context, config.qqGroupUrl)) {
-            null
-        } else {
-            context.getString(config.joinQqGroupFailedMessageResId)
-        }
-    }
-
-    @JvmStatic
     fun isInstalledFromPlay(context: Context): Boolean = try {
         PackageEnvCore.isInstalledFromPlay(context)
     } catch (_: Exception) {

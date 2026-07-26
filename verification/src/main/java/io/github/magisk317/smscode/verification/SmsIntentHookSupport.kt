@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.verification
 
 import android.content.Intent
+import io.github.magisk317.xposed.logging.MagiskOtel
 import android.provider.Telephony
 import kotlin.math.abs
 
@@ -44,6 +45,18 @@ object SmsIntentHookSupport {
         val normalizedHandlerKey = handlerKey.trim().ifBlank { DEFAULT_HANDLER_KEY }
         val key = "$DISPATCH_HANDLED_EXTRA_PREFIX$normalizedHandlerKey:$action"
         if (intent.getBooleanExtra(key, false)) {
+            MagiskOtel.event(
+                name = "sms.dispatch",
+                attributes = mapOf(
+                    "result" to "skip",
+                    "duration_ms" to "0",
+                    "process" to "hook",
+                    "stage" to "handled_mark",
+                    "reason" to "already_handled",
+                    "source" to normalizedHandlerKey,
+                ),
+                statusOk = true,
+            )
             return true
         }
         intent.putExtra(key, true)
@@ -70,6 +83,18 @@ object SmsIntentHookSupport {
         error: RuntimeException,
         onFailure: (Throwable) -> Unit,
     ): Int {
+        MagiskOtel.event(
+            name = "sms.dispatch",
+            attributes = mapOf(
+                "result" to "error",
+                "duration_ms" to "0",
+                "process" to "hook",
+                "stage" to "pdu_count",
+                "reason" to "extract_failed",
+                "error_class" to error.javaClass.simpleName,
+            ),
+            statusOk = false,
+        )
         onFailure(error)
         return -1
     }

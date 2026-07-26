@@ -8,8 +8,6 @@ package io.github.magisk317.smscode.runtime.common.utils
  */
 data class PackageActionConfig(
     val applicationId: String,
-    val qqGroupUrl: String,
     val githubLatestReleaseUrl: String,
-    val joinQqGroupFailedMessageResId: Int,
     val browserMissingMessageResId: Int,
 )

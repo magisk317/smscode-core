@@ -12,6 +12,7 @@ import io.github.magisk317.xposed.MethodHook
 import io.github.magisk317.xposed.HookEnv
 import java.lang.reflect.Method
 import io.github.magisk317.xposed.MethodHookParam
+import io.github.magisk317.xposed.logging.MagiskOtel
 
 /**
  * Since Android P(API 28)<br/>
@@ -23,17 +24,50 @@ class PermissionManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(class
     override fun startHook() {
         try {
             hookGrantPermissions()
+            MagiskOtel.event(
+                name = "hook.load",
+                attributes = mapOf(
+                    "result" to "ok",
+                    "duration_ms" to "0",
+                    "process" to "system_server",
+                    "stage" to "permission_grant",
+                    "reason" to "installed",
+                    "source" to "PermissionManagerServiceHook",
+                ),
+                statusOk = true,
+            )
         } catch (e: ReflectiveOperationException) {
+            emitPermissionInstallError(e)
             XLog.e("Failed to hook PermissionManagerService", e)
         } catch (e: IllegalArgumentException) {
+            emitPermissionInstallError(e)
             XLog.e("Failed to hook PermissionManagerService", e)
         } catch (e: IllegalStateException) {
+            emitPermissionInstallError(e)
             XLog.e("Failed to hook PermissionManagerService", e)
         } catch (e: SecurityException) {
+            emitPermissionInstallError(e)
             XLog.e("Failed to hook PermissionManagerService", e)
         } catch (e: UnsupportedOperationException) {
+            emitPermissionInstallError(e)
             XLog.e("Failed to hook PermissionManagerService", e)
         }
+    }
+
+    private fun emitPermissionInstallError(error: Throwable) {
+        MagiskOtel.event(
+            name = "hook.load",
+            attributes = mapOf(
+                "result" to "error",
+                "duration_ms" to "0",
+                "process" to "system_server",
+                "stage" to "permission_grant",
+                "reason" to "install_failed",
+                "source" to "PermissionManagerServiceHook",
+                "error_class" to error.javaClass.simpleName,
+            ),
+            statusOk = false,
+        )
     }
 
     private fun hookGrantPermissions() {
@@ -130,6 +164,8 @@ class PermissionManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(class
                 val permissions = HookHelpers.getObjectField(settings, "mPermissions")
 
                 val permissionsToGrant = PACKAGE_PERMISSIONS[packageName] ?: continue
+                var grantedCount = 0
+                var alreadyCount = 0
                 for (permissionToGrant in permissionsToGrant) {
                     if (requestedPermissions?.contains(permissionToGrant) != true) {
                         val granted = HookHelpers.callMethod(
@@ -145,11 +181,27 @@ class PermissionManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(class
                                 bpToGrant,
                             ) as Int
                             XLog.d("Add $bpToGrant; result = $result")
+                            grantedCount += 1
                         } else {
                             XLog.d("Already have $permissionToGrant permission")
+                            alreadyCount += 1
                         }
                     }
                 }
+                MagiskOtel.event(
+                    name = "prefs.access",
+                    attributes = mapOf(
+                        "result" to "ok",
+                        "duration_ms" to "0",
+                        "process" to "system_server",
+                        "stage" to "permission_grant",
+                        "reason" to "grant_apply",
+                        "target_package" to packageName,
+                        "found_count" to grantedCount.toString(),
+                        "change_count" to (grantedCount + alreadyCount).toString(),
+                    ),
+                    statusOk = true,
+                )
             }
         }
     }
