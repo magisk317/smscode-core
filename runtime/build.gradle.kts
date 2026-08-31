@@ -1,27 +1,10 @@
 plugins {
-    id("com.android.library")
+    id("magisk.android.library")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
     namespace = "io.github.magisk317.smscode.runtime.common"
-    compileSdk = 37
-    compileSdkMinor = 0
-
-    defaultConfig {
-        minSdk = 26
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaBytecode.get())
-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaBytecode.get())
-    }
-
-    testOptions {
-        unitTests.all {
-            it.useJUnitPlatform()
-        }
-    }
 }
 
 dependencies {
@@ -32,12 +15,24 @@ dependencies {
     } else {
         ":domain"
     }
+    val ruleProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:rule"
+    } else {
+        ":rule"
+    }
     val runtimeContractProjectPath = if (project.path.startsWith(":smscode-core:")) {
         ":smscode-core:contract"
     } else {
         ":contract"
     }
+    val verificationProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:verification"
+    } else {
+        ":verification"
+    }
     implementation(project(domainProjectPath))
+    implementation(project(ruleProjectPath))
+    implementation(project(verificationProjectPath))
     api(project(runtimeContractProjectPath))
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.browser)
@@ -45,6 +40,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
+    testImplementation(libs.mockk)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
 }

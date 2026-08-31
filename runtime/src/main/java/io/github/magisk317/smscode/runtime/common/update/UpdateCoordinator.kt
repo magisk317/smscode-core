@@ -1,5 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.update
 
+import io.github.magisk317.smscode.runtime.contract.update.GithubReleaseInfo
+
 object UpdateCoordinator {
 
     enum class PlayAction {

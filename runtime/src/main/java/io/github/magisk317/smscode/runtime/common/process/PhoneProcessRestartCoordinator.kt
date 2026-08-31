@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.os.Build
 import android.telephony.TelephonyManager
+import androidx.core.content.edit
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -50,7 +51,9 @@ class PhoneProcessRestartCoordinator(
                 emitRestart(result = "skip", reason = "cooldown")
                 return
             }
-            prefs.edit().putLong(KEY_LAST_RESTART_ATTEMPT_AT, now).apply()
+            prefs.edit {
+                putLong(KEY_LAST_RESTART_ATTEMPT_AT, now)
+            }
 
             if (isPhoneCallActive(appContext)) {
                 logger.info("Skip target process restart because call state is active.")
@@ -65,7 +68,9 @@ class PhoneProcessRestartCoordinator(
 
             val restartResult = restartTargetProcessesViaRoot()
             if (restartResult.shouldMarkInstallHandled) {
-                prefs.edit().putString(KEY_LAST_HANDLED_INSTALL_TOKEN, installToken).apply()
+                prefs.edit {
+                    putString(KEY_LAST_HANDLED_INSTALL_TOKEN, installToken)
+                }
                 logger.info(
                     "Target process restart completed after install/update change: " +
                         "found=${restartResult.summary?.found ?: 0} killed=${restartResult.summary?.killed ?: 0}",

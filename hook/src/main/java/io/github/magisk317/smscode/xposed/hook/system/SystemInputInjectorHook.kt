@@ -1,5 +1,8 @@
 package io.github.magisk317.smscode.xposed.hook.system
 
+import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputFallbackPolicy
+
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -506,6 +509,7 @@ class SystemInputInjectorHook : BaseHook() {
         }.orEmpty()
     }
 
+    @SuppressLint("QueryPermissionsNeeded")
     private fun queryIntentActivitiesCompat(
         packageManager: PackageManager,
         intent: Intent,
@@ -565,18 +569,16 @@ class SystemInputInjectorHook : BaseHook() {
         }
         if (direct != null) return direct
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            val pendingResult = runNonFatalOrNull { HookHelpers.callMethod(receiver, "getPendingResult") }
-                ?: runNonFatalOrNull { HookHelpers.getObjectField(receiver, "mPendingResult") }
-            if (pendingResult != null) {
-                val candidates = listOf("mSentFromUid", "mSendingUid", "mSenderUid", "mCallingUid")
-                for (field in candidates) {
-                    runNonFatalOrNull { HookHelpers.getIntField(pendingResult, field) }?.let { return it }
-                }
-                logPendingResultFieldsOnce(pendingResult)
-            } else {
-                logPendingResultMissingOnce()
+        val pendingResult = runNonFatalOrNull { HookHelpers.callMethod(receiver, "getPendingResult") }
+            ?: runNonFatalOrNull { HookHelpers.getObjectField(receiver, "mPendingResult") }
+        if (pendingResult != null) {
+            val candidates = listOf("mSentFromUid", "mSendingUid", "mSenderUid", "mCallingUid")
+            for (field in candidates) {
+                runNonFatalOrNull { HookHelpers.getIntField(pendingResult, field) }?.let { return it }
             }
+            logPendingResultFieldsOnce(pendingResult)
+        } else {
+            logPendingResultMissingOnce()
         }
         return -1
     }
@@ -651,11 +653,11 @@ class SystemInputInjectorHook : BaseHook() {
         if (cachedManager != null && cachedMethod != null) return cachedManager to cachedMethod
         return synchronized(this) {
             val manager = inputManagerGlobal
-	            val method = injectMethod
-	            if (manager != null && method != null) {
-	                manager to method
-	            } else {
-	                runNonFatalCatching {
+            val method = injectMethod
+            if (manager != null && method != null) {
+                manager to method
+            } else {
+                runNonFatalCatching {
 	                    val classCandidates = buildList {
 	                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
 	                            add("android.hardware.input.InputManagerGlobal")

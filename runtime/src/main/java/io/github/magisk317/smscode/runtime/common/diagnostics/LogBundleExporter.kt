@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
 import android.content.Intent
 import android.util.Log
+import io.github.magisk317.xposed.diagnostics.DiagnosticExportMode
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import io.github.magisk317.xposed.diagnostics.DiagnosticArchive
 import io.github.magisk317.xposed.diagnostics.DiagnosticTextSanitizer
@@ -30,6 +31,13 @@ data class LogBundleClearResult(
 )
 
 object LogBundleExporter {
+    internal fun logcatCommand(mode: DiagnosticExportMode): List<String> =
+        if (mode.usesBoundedLogcat) {
+            listOf("logcat", "-d", "-v", "threadtime", "-t", "24h", "-b", "main,system,crash")
+        } else {
+            listOf("logcat", "-d", "-v", "threadtime", "-b", "all")
+        }
+
     private const val LSPOSED_ROTATING_LOGS_PER_KIND = 2
     private val LSPOSED_LOG_DIRS = listOf(
         "/data/adb/lspd/log",
@@ -44,6 +52,7 @@ object LogBundleExporter {
     @Suppress("TooGenericExceptionCaught")
     fun buildLogBundle(
         context: Context,
+        mode: DiagnosticExportMode,
         sanitizeLogs: Boolean = true,
     ): LogBundleExportResult {
         synchronized(opLock) {
@@ -58,6 +67,7 @@ object LogBundleExporter {
                 stagingDirPrefix = config.stagingDirPrefix,
                 deletePath = { path -> deleteRecursivelyWithSuFallback(config.logTag, path) },
                 collect = { stagingDir, details ->
+                    details += "export mode=" + mode.name
                     val appLogSrc = StorageUtils.getLogDir(context)
                     if (appLogSrc != null && appLogSrc.exists()) {
                         val deletedLegacyLogs = deleteLegacyTextLogFiles(appLogSrc)
@@ -95,12 +105,21 @@ object LogBundleExporter {
                         details += "crash log missing"
                     }
 
-                    val lsposedCopied = copyLsposedLogs(config.logTag, stagingDir, details)
+                    val lsposedCopied = copyLsposedLogs(
+                        logTag = config.logTag,
+                        stagingDir = stagingDir,
+                        details = details,
+                        allowSuFallback = mode.capturesRootHeavyDiagnostics,
+                    )
                     if (!lsposedCopied) {
-                        details += "lsposed log missing or unreadable"
+                        details += if (mode.capturesRootHeavyDiagnostics) {
+                            "lsposed log missing or unreadable"
+                        } else {
+                            "lsposed log unavailable without direct access in standard mode"
+                        }
                     }
 
-                    captureLogcat(config.logTag, stagingDir, details, sanitizeLogs)
+                    captureLogcat(config.logTag, stagingDir, details, sanitizeLogs, mode)
                 },
                 onInfo = { message -> logInfo(config.logTag, message) },
                 onWarning = { message -> logWarn(config.logTag, message) },
@@ -189,7 +208,12 @@ object LogBundleExporter {
         }
     }
 
-    private fun copyLsposedLogs(logTag: String, stagingDir: File, details: MutableList<String>): Boolean {
+    private fun copyLsposedLogs(
+        logTag: String,
+        stagingDir: File,
+        details: MutableList<String>,
+        allowSuFallback: Boolean,
+    ): Boolean {
         val lsposedTargetRoot = File(stagingDir, "lsposed")
         var copied = false
 
@@ -207,6 +231,11 @@ object LogBundleExporter {
             }
         }
         if (copied) return true
+
+        if (!allowSuFallback) {
+            details += "lsposed su fallback skipped in standard mode"
+            return false
+        }
 
         val targetPath = lsposedTargetRoot.absolutePath
         val targetUid = runCatching { android.os.Process.myUid() }.getOrDefault(-1)
@@ -246,19 +275,26 @@ object LogBundleExporter {
         stagingDir: File,
         details: MutableList<String>,
         sanitizeLogs: Boolean,
+        mode: DiagnosticExportMode,
     ) {
         val logcatDir = File(stagingDir, "logcat")
         if (!ensureDirectory(logcatDir, recreateWhenFile = true)) return
         val output = File(logcatDir, "logcat_all.txt")
-        val command = listOf("logcat", "-d", "-v", "threadtime", "-b", "all")
+        val command = logcatCommand(mode)
         val ok = dumpCommandOutput(command, output, logTag, sanitizeLogs)
         if (ok) {
-            details += "logcat: direct"
+            details += if (mode.usesBoundedLogcat) {
+                "logcat: direct bounded main,system,crash 24h"
+            } else {
+                "logcat: direct"
+            }
             return
         }
-        val okSu = dumpCommandOutput(listOf("su", "-c", "logcat -d -v threadtime -b all"), output, logTag, sanitizeLogs)
-        if (okSu) {
-            details += "logcat: su"
+        if (mode.capturesRootHeavyDiagnostics) {
+            val okSu = dumpCommandOutput(listOf("su", "-c", "logcat -d -v threadtime -b all"), output, logTag, sanitizeLogs)
+            if (okSu) {
+                details += "logcat: su"
+            }
         }
     }
 

@@ -1,10 +1,10 @@
 package io.github.magisk317.smscode.runtime.common.sms
 
 import android.content.ContextWrapper
-import io.github.magisk317.smscode.domain.model.SmsBlacklistConfig
-import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
-import io.github.magisk317.smscode.domain.model.SmsCodeParseSourceKind
-import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
+import io.github.magisk317.smscode.rule.model.SmsBlacklistConfig
+import io.github.magisk317.smscode.rule.model.SmsCodeParseSource
+import io.github.magisk317.smscode.rule.model.SmsCodeParseSourceKind
+import io.github.magisk317.smscode.rule.model.SmsCodeRuleSpec
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue

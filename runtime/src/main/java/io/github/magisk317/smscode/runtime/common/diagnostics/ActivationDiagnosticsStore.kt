@@ -1,5 +1,9 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
+import io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationDiagnosticsSnapshot
+import io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationStatusInputs
+import io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationStatusState
+
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
 import android.os.SystemClock
@@ -16,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 object ActivationDiagnosticsStore {
     private const val FILE_NAME = "activation_diagnostics"
+    private const val INTERNAL_DIR_NAME = "runtime_diagnostics"
     private const val KEY_LAST_SERVICE_BIND_AT_MS = "last_service_bind_at_ms"
     private const val KEY_LAST_SERVICE_FRAMEWORK_NAME = "last_service_framework_name"
     private const val KEY_LAST_SERVICE_FRAMEWORK_VERSION = "last_service_framework_version"
@@ -280,7 +285,22 @@ object ActivationDiagnosticsStore {
     }
 
     private fun getStoreFile(context: Context): File {
-        return File(StorageUtils.getExternalFilesDir(context), FILE_NAME)
+        val target = File(File(context.noBackupFilesDir, INTERNAL_DIR_NAME), FILE_NAME)
+        if (!target.exists()) {
+            migrateLegacyStore(context, target)
+        }
+        return target
+    }
+
+    private fun migrateLegacyStore(context: Context, target: File) {
+        val legacy = runCatching {
+            File(StorageUtils.getExternalFilesDir(context), FILE_NAME)
+        }.getOrNull() ?: return
+        if (!legacy.isFile) return
+        runCatching {
+            target.parentFile?.mkdirs()
+            legacy.copyTo(target, overwrite = false)
+        }
     }
 
     private fun formatTime(timestampMs: Long): String {

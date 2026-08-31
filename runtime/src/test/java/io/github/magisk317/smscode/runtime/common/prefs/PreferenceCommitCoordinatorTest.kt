@@ -1,5 +1,11 @@
 package io.github.magisk317.smscode.runtime.common.prefs
 
+import io.github.magisk317.smscode.runtime.contract.prefs.AtomicPreferencePersistence
+import io.github.magisk317.smscode.runtime.contract.prefs.PreferenceChangeSet
+import io.github.magisk317.smscode.runtime.contract.prefs.PreferenceCommitResult
+import io.github.magisk317.smscode.runtime.contract.prefs.PreferencePostCommitHooks
+import io.github.magisk317.smscode.runtime.contract.prefs.PreferenceSpec
+
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse

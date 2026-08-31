@@ -1,26 +1,9 @@
 plugins {
-    id("com.android.library")
+    id("magisk.android.library")
 }
 
 android {
     namespace = "io.github.magisk317.smscode.hook.core"
-    compileSdk = 37
-    compileSdkMinor = 0
-
-    defaultConfig {
-        minSdk = 26
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.toVersion(libs.versions.javaBytecode.get())
-        targetCompatibility = JavaVersion.toVersion(libs.versions.javaBytecode.get())
-    }
-
-    testOptions {
-        unitTests.all {
-            it.useJUnitPlatform()
-        }
-    }
 }
 
 dependencies {
@@ -34,13 +17,21 @@ dependencies {
     } else {
         ":domain"
     }
-    val xposedKitProjectPath = if (project.path.startsWith(":smscode-core:")) {
-        ":magisk-xposed-kit"
+    val ruleProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:rule"
     } else {
-        ":magisk-xposed-kit"
+        ":rule"
     }
+    val runtimeProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:runtime"
+    } else {
+        ":runtime"
+    }
+    val xposedKitProjectPath = ":magisk-xposed-kit"
     api(project(runtimeContractProjectPath))
     implementation(project(domainProjectPath))
+    implementation(project(ruleProjectPath))
+    implementation(project(runtimeProjectPath))
     api(project(xposedKitProjectPath))
     compileOnly(libs.libxposed.api)
     compileOnly(libs.androidx.annotation)

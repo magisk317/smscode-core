@@ -6,6 +6,7 @@ interface VerificationPrefs {
     fun notificationRetentionMs(): Long
     fun autoInputEnabled(): Boolean
     fun autoInputDelayMs(): Long
+    fun inputIntervalMs(): Long
     fun copyToClipboardEnabled(): Boolean
     fun showToast(): Boolean
     fun recordSmsEnabled(): Boolean

@@ -1,5 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.update
 
+import io.github.magisk317.smscode.runtime.contract.update.UpgradeApkAsset
+
 import io.github.magisk317.xposed.logging.MagiskOtel
 import android.content.Context
 import android.content.Intent
@@ -203,14 +205,20 @@ object ApkSecurityVerifier {
         pm: PackageManager,
         packageName: String,
     ): Set<String> {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
         val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pm.getPackageInfo(
                 packageName,
-                PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()),
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
             )
         } else {
             @Suppress("DEPRECATION")
-            pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            pm.getPackageInfo(packageName, flags)
         }
         return extractSigningDigests(packageInfo)
     }
@@ -221,14 +229,20 @@ object ApkSecurityVerifier {
     }
 
     private fun getArchivePackageInfo(pm: PackageManager, apkFile: File): PackageInfo? {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             pm.getPackageArchiveInfo(
                 apkFile.absolutePath,
-                PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()),
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
             )
         } else {
             @Suppress("DEPRECATION")
-            pm.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
+            pm.getPackageArchiveInfo(apkFile.absolutePath, flags)
         }
     }
 
@@ -260,11 +274,7 @@ object ApkSecurityVerifier {
 object UpgradeInstaller {
 
     fun canRequestPackageInstalls(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.packageManager.canRequestPackageInstalls()
-        } else {
-            true
-        }
+        return context.packageManager.canRequestPackageInstalls()
     }
 
     fun buildUnknownSourceSettingsIntent(context: Context): Intent {

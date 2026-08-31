@@ -1,5 +1,9 @@
 package io.github.magisk317.smscode.runtime.common.update
 
+import io.github.magisk317.smscode.runtime.contract.update.GithubUpdateConfig
+import io.github.magisk317.smscode.runtime.contract.update.UpgradeApkAsset
+import io.github.magisk317.smscode.runtime.contract.update.UpgradeCheckResult
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -11,14 +15,14 @@ import java.io.IOException
 class GithubUpdateCheckerTest {
 
     private val relayConfig = GithubUpdateConfig(
-        latestReleaseApiUrl = "https://api.github.com/repos/magisk317/xinyi-relay/releases/latest",
-        defaultReleaseHtmlUrl = "https://github.com/magisk317/xinyi-relay/releases/latest",
+        latestReleaseApiUrl = "https://api.github.com/repos/magisk3171/xinyi-relay/releases/latest",
+        defaultReleaseHtmlUrl = "https://github.com/magisk3171/xinyi-relay/releases/latest",
         userAgent = "XinyiRelay",
     )
 
     private val smscodeConfig = GithubUpdateConfig(
-        latestReleaseApiUrl = "https://smscode.usdt.edu.kg/repos/magisk317/XposedSmsCode/releases/latest",
-        defaultReleaseHtmlUrl = "https://github.com/magisk317/XposedSmsCode/releases/latest",
+        latestReleaseApiUrl = "https://smscode.usdt.edu.kg/repos/magisk3171/XposedSmsCode/releases/latest",
+        defaultReleaseHtmlUrl = "https://github.com/magisk3171/XposedSmsCode/releases/latest",
         userAgent = "XposedSmsCode",
     )
 
@@ -43,14 +47,14 @@ class GithubUpdateCheckerTest {
 
     @Test
     fun parseLatestReleaseJson_parsesVersionAndUrl() {
-        val json = """{"tag_name":"v3.1.1","html_url":"https://github.com/magisk317/XposedSmsCode/releases/tag/v3.1.1"}"""
+        val json = """{"tag_name":"v3.1.1","html_url":"https://github.com/magisk3171/XposedSmsCode/releases/tag/v3.1.1"}"""
 
         val release = GithubUpdateChecker.parseLatestReleaseJson(smscodeConfig, json)
 
         assertNotNull(release)
         assertEquals("3.1.1", release?.versionName)
         assertEquals(
-            "https://github.com/magisk317/XposedSmsCode/releases/tag/v3.1.1",
+            "https://github.com/magisk3171/XposedSmsCode/releases/tag/v3.1.1",
             release?.htmlUrl,
         )
     }
@@ -108,7 +112,7 @@ class GithubUpdateCheckerTest {
     fun fetchLatestReleaseWithRequester_returnsParsedReleaseOnSuccess() {
         val release = kotlinx.coroutines.runBlocking {
             GithubUpdateChecker.fetchLatestReleaseWithRequester(relayConfig) {
-                """{"tag_name":"v9.9.9","html_url":"https://github.com/magisk317/xinyi-relay/releases/tag/v9.9.9"}"""
+                """{"tag_name":"v9.9.9","html_url":"https://github.com/magisk3171/xinyi-relay/releases/tag/v9.9.9"}"""
             }
         }
         assertNotNull(release)
@@ -121,7 +125,7 @@ class GithubUpdateCheckerTest {
             {
               "versionCode": 31800,
               "versionName": "3.1.8",
-              "htmlUrl": "https://github.com/magisk317/XposedSmsCode/releases/tag/v3.1.8",
+              "htmlUrl": "https://github.com/magisk3171/XposedSmsCode/releases/tag/v3.1.8",
               "changelog": "fixes",
               "versionLogs": [{"name":"3.1.8","code":31800,"desc":"line1"}],
               "apks": [

@@ -3,7 +3,6 @@ package io.github.magisk317.smscode.xposed.utils
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
 import java.io.File
-import java.io.IOException
 
 object ModuleActivationStore {
     private const val FILE_NAME = "module_activated"
@@ -12,14 +11,11 @@ object ModuleActivationStore {
 
     fun markActivated(context: Context) {
         val startedAt = System.nanoTime()
-        val file = getStoreFile(context)
-        val ok = try {
+        val ok = runCatching {
+            val file = getStoreFile(context)
             file.parentFile?.mkdirs()
             file.writeText(System.currentTimeMillis().toString())
-            true
-        } catch (_: IOException) {
-            false
-        }
+        }.isSuccess
         MagiskOtel.event(
             name = "hook.load",
             attributes = mapOf(
@@ -51,17 +47,28 @@ object ModuleActivationStore {
     }
 
     private fun getLastActivated(context: Context): Long {
-        val file = getStoreFile(context)
-        return try {
+        val current = runCatching {
+            val file = getStoreFile(context)
             val text = file.readText().trim()
             text.toLongOrNull() ?: file.lastModified()
-        } catch (_: IOException) {
-            0L
-        }
+        }.getOrDefault(0L)
+        if (current > 0L) return current
+        return readLegacyActivation(context)
     }
 
     private fun getStoreFile(context: Context): File {
-        val dir = context.getExternalFilesDir(null) ?: context.filesDir
-        return File(dir, FILE_NAME)
+        return File(File(context.noBackupFilesDir, INTERNAL_DIR_NAME), FILE_NAME)
     }
+
+    private fun readLegacyActivation(context: Context): Long {
+        val file = runCatching {
+            File(context.getExternalFilesDir(null) ?: return 0L, FILE_NAME)
+        }.getOrNull() ?: return 0L
+        return runCatching {
+            val text = file.readText().trim()
+            text.toLongOrNull() ?: file.lastModified()
+        }.getOrDefault(0L)
+    }
+
+    private const val INTERNAL_DIR_NAME = "runtime_diagnostics"
 }

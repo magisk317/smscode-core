@@ -1,5 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.system
 
+import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputFallbackPolicy
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue

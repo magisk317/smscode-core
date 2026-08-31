@@ -2,9 +2,9 @@ package io.github.magisk317.smscode.runtime.common.utils
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import io.github.magisk317.smscode.runtime.common.packageenv.PackageEnvCore
 import io.github.magisk317.xposed.logging.MagiskOtel
+import androidx.core.net.toUri
 
 /**
  * 配置驱动的第三方 App 动作原语（纯 Android 能力）。
@@ -55,7 +55,7 @@ object ThirdPartyAppActions {
     fun openViewUri(context: Context, uri: String, newTask: Boolean = true): Boolean {
         val startedAt = System.nanoTime()
         val ok = runCatching {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
+            val intent = Intent(Intent.ACTION_VIEW, uri.toUri()).apply {
                 if (newTask) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
@@ -92,7 +92,7 @@ object ThirdPartyAppActions {
     fun openMarketDetails(context: Context, applicationId: String) {
         val marketIntent = Intent(
             Intent.ACTION_VIEW,
-            Uri.parse("market://details?id=$applicationId"),
+            "market://details?id=$applicationId".toUri(),
         ).apply {
             setPackage(PLAY_STORE_PACKAGE_NAME)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -102,7 +102,7 @@ object ThirdPartyAppActions {
         } catch (ignored: Exception) {
             val webIntent = Intent(
                 Intent.ACTION_VIEW,
-                Uri.parse("https://play.google.com/store/apps/details?id=$applicationId"),
+                "https://play.google.com/store/apps/details?id=$applicationId".toUri(),
             ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
             context.startActivity(webIntent)
         }

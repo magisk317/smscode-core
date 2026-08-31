@@ -1,7 +1,5 @@
 package io.github.magisk317.smscode.xposed.hook.permission
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.smscode.xposed.utils.XLog
@@ -20,7 +18,6 @@ import io.github.magisk317.xposed.logging.MagiskOtel
  */
 class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoader) {
 
-    @RequiresApi(Build.VERSION_CODES.KITKAT)
     override fun startHook() {
         try {
             hookGrantPermissionsLPw()
@@ -130,31 +127,17 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
     private fun hookGrantPermissionsLPw() {
         val pmsClass = runCatching { HookHelpers.findClass(CLASS_PACKAGE_MANAGER_SERVICE, mClassLoader) }.getOrNull()
         val method: Method = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                // Android 5.0 +
-                XLog.d("Hooking grantPermissionsLPw() for Android 21+")
-                HookHelpers.findMethodExact(
-                    pmsClass,
-                    "grantPermissionsLPw",
-                    /* PackageParser.Package pkg */
-                    CLASS_PACKAGE_PARSER_PACKAGE,
-                    /* boolean replace           */
-                    Boolean::class.javaPrimitiveType,
-                    /* String packageOfInterest  */
-                    String::class.java,
-                )
-            } else {
-                // Android 4.4 +
-                XLog.d("Hooking grantPermissionsLPw() for Android 19+")
-                HookHelpers.findMethodExact(
-                    pmsClass,
-                    "grantPermissionsLPw",
-                    /* PackageParser.Package pkg */
-                    CLASS_PACKAGE_PARSER_PACKAGE,
-                    /* boolean replace           */
-                    Boolean::class.javaPrimitiveType,
-                )
-            }
+            XLog.d("Hooking grantPermissionsLPw() for Android 21+")
+            HookHelpers.findMethodExact(
+                pmsClass,
+                "grantPermissionsLPw",
+                /* PackageParser.Package pkg */
+                CLASS_PACKAGE_PARSER_PACKAGE,
+                /* boolean replace           */
+                Boolean::class.javaPrimitiveType,
+                /* String packageOfInterest  */
+                String::class.java,
+            )
         } catch (e: ReflectiveOperationException) {
             PermissionDebugProbe.logFailure("PackageManagerServiceHook grantPermissionsLPw", e)
             PermissionDebugProbe.dumpClass("PackageManagerServiceHook target", pmsClass)
@@ -181,11 +164,7 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
             method,
             object : MethodHookWrapper(LogRoute.PERMISSION_HOOK) {
                 override fun after(param: MethodHookParam) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        grantPermissionsLPwSinceM(param)
-                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                        grantPermissionsLPwSinceK(param)
-                    }
+                    grantPermissionsLPwSinceM(param)
                 }
             },
         )

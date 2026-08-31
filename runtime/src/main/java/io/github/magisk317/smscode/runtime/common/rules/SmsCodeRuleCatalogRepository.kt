@@ -1,6 +1,11 @@
 package io.github.magisk317.smscode.runtime.common.rules
 
 import android.content.Context
+import io.github.magisk317.smscode.rule.catalog.OfficialSmsCodeRule
+import io.github.magisk317.smscode.rule.catalog.SmsCodeRuleCatalogFile
+import io.github.magisk317.smscode.rule.catalog.SmsCodeRuleCatalogIndex
+import io.github.magisk317.smscode.rule.catalog.SmsCodeRuleDocument
+import io.github.magisk317.smscode.rule.catalog.SmsCodeRuleSetDocument
 import io.github.magisk317.smscode.runtime.common.serialization.JsonConfig
 import java.io.File
 import java.security.MessageDigest

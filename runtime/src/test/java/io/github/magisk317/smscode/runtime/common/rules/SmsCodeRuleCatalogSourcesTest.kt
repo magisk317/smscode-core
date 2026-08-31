@@ -26,7 +26,7 @@ class SmsCodeRuleCatalogSourcesTest {
         assertEquals("rule", source.readRule("rules/acme rule.json"))
         assertEquals(
             listOf(
-                "https://raw.githubusercontent.com/magisk317/smscode-rules/main/_meta/rules-index.json",
+                "https://raw.githubusercontent.com/magisk3171/smscode-rules/main/_meta/rules-index.json",
                 "https://gitlab.com/magisk3171/magisk-smscode-rules/-/raw/main/_meta/rules-index.json",
                 "https://gitlab.com/magisk3171/magisk-smscode-rules/-/raw/main/rules/acme%20rule.json",
             ),
@@ -47,8 +47,8 @@ class SmsCodeRuleCatalogSourcesTest {
 
         assertEquals(
             listOf(
-                "https://raw.githubusercontent.com/magisk317/smscode-rules/main/_meta/rules-index.json",
-                "https://raw.githubusercontent.com/magisk317/smscode-rules/main/rules/acme.json",
+                "https://raw.githubusercontent.com/magisk3171/smscode-rules/main/_meta/rules-index.json",
+                "https://raw.githubusercontent.com/magisk3171/smscode-rules/main/rules/acme.json",
             ),
             requestedUrls,
         )

@@ -1,5 +1,11 @@
 package io.github.magisk317.smscode.runtime.common.backup
 
+import io.github.magisk317.smscode.runtime.contract.backup.BackupConst
+
+import io.github.magisk317.smscode.runtime.contract.backup.BackupParseResult
+import io.github.magisk317.smscode.runtime.contract.backup.BackupRule
+import io.github.magisk317.smscode.runtime.contract.backup.BackupSmsRecord
+
 import android.util.Log
 import io.github.magisk317.smscode.runtime.common.utils.JsonUtils
 import kotlinx.serialization.SerializationException

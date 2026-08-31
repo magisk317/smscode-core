@@ -1,10 +1,13 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
+import android.annotation.SuppressLint
 import io.github.magisk317.xposed.logging.MagiskOtel
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.util.Log
+import io.github.magisk317.smscode.runtime.contract.ipc.RuntimeStateProviderContract
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.logging.LogEvent
 import io.github.magisk317.xposed.logging.LogLevel
@@ -141,11 +144,6 @@ object RuntimeLogStore {
 
     fun setRetentionDays(days: Int) {
         retentionDays = days.coerceAtLeast(MIN_RETENTION_DAYS)
-    }
-
-    @Deprecated("Use setRetentionDays; runtime logs now rotate by day.")
-    fun setMaxFileSizeMb(sizeMb: Int) {
-        setRetentionDays(sizeMb)
     }
 
     fun append(
@@ -440,6 +438,7 @@ object RuntimeLogStore {
         return@synchronized resolved
     }
 
+    @SuppressLint("PrivateApi", "DiscouragedPrivateApi")
     private fun resolveContextFromActivityThreadLocked(): Context? {
         val application = runCatching {
             val activityThreadClass = Class.forName("android.app.ActivityThread")
@@ -550,10 +549,26 @@ object RuntimeLogStore {
     }
 
     private fun readConfiguredRetentionDays(context: Context): Int {
+        // Try Provider first — works in hook process across UIDs where direct
+        // SharedPreferences access fails with a ContextImpl warning.
+        val providerBundle = runCatching {
+            context.contentResolver.call(
+                Uri.parse("content://${context.packageName}.db.provider"),
+                RuntimeStateProviderContract.METHOD_GET_RETENTION_DAYS,
+                null,
+                null,
+            )
+        }.getOrNull()
+        if (providerBundle != null) {
+            return providerBundle.getInt(
+                RuntimeStateProviderContract.RESULT_RETENTION_DAYS,
+                DEFAULT_RETENTION_DAYS,
+            )
+        }
+
+        // Fallback to direct read (works in app process).
         val config = RuntimeDiagnosticsEnvironment.current()
-        @Suppress("DEPRECATION")
         return config.logRetentionDaysProvider?.invoke(context)
-            ?: config.maxLogFileSizeMbProvider?.invoke(context)
             ?: DEFAULT_RETENTION_DAYS
     }
 

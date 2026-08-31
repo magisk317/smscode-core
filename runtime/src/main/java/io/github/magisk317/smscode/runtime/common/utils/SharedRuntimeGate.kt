@@ -33,9 +33,35 @@ object SharedRuntimeGate {
         )
     }
 
+    fun claimWithinWindow(
+        file: File,
+        key: String,
+        windowMs: Long,
+        maxEntries: Int = DEFAULT_MAX_ENTRIES,
+    ): ClaimResult = claimAllWithinWindow(
+        file = file,
+        keys = listOf(key),
+        windowMs = windowMs,
+        maxEntries = maxEntries,
+    )
+
     fun claimAllWithinWindow(
         context: Context,
         fileName: String,
+        keys: Collection<String>,
+        windowMs: Long,
+        maxEntries: Int = DEFAULT_MAX_ENTRIES,
+    ): ClaimResult {
+        return claimAllWithinWindow(
+            file = File(StorageUtils.getExternalFilesDir(context), fileName),
+            keys = keys,
+            windowMs = windowMs,
+            maxEntries = maxEntries,
+        )
+    }
+
+    fun claimAllWithinWindow(
+        file: File,
         keys: Collection<String>,
         windowMs: Long,
         maxEntries: Int = DEFAULT_MAX_ENTRIES,
@@ -50,7 +76,7 @@ object SharedRuntimeGate {
             return ClaimResult(claimed = true)
         }
         val now = System.currentTimeMillis()
-        val result = withFileLock(context, fileName) { raf ->
+        val result = withFileLock(file) { raf ->
             val history = BoundedTimestampMap(windowMs, maxEntries, readEntries(raf))
             val claim = history.claimAll(normalizedKeys, now)
             if (!claim.claimed) {
@@ -86,23 +112,37 @@ object SharedRuntimeGate {
         context: Context,
         fileName: String,
         block: (RandomAccessFile) -> T,
+    ): T? = withFileLock(File(StorageUtils.getExternalFilesDir(context), fileName), block)
+
+    fun <T> withFileLock(
+        file: File,
+        block: (RandomAccessFile) -> T,
     ): T? {
-        return runCatching {
-            val file = File(StorageUtils.getExternalFilesDir(context), fileName)
-            file.parentFile?.mkdirs()
-            RandomAccessFile(file, "rw").use { raf ->
-                raf.channel.use { channel ->
-                    channel.lock().use {
-                        block(raf)
+        return synchronized(processLock) {
+            runCatching {
+                file.parentFile?.mkdirs()
+                RandomAccessFile(file, "rw").use { raf ->
+                    raf.channel.use { channel ->
+                        channel.lock().use {
+                            block(raf)
+                        }
                     }
                 }
-            }
-        }.onFailure {
-            Log.w(
-                LOG_TAG,
-                "SharedRuntimeGate failed: file=$fileName err=${it.message ?: it.javaClass.simpleName}",
-            )
-        }.getOrNull()
+            }.onFailure {
+                Log.w(
+                    LOG_TAG,
+                    "SharedRuntimeGate failed: file=${file.name} err=${it.message ?: it.javaClass.simpleName}",
+                )
+            }.getOrNull()
+        }
+    }
+
+    @JvmStatic
+    fun internalGateFile(context: Context, fileName: String): File {
+        require(fileName.isNotBlank() && SAFE_FILE_NAME.matches(fileName)) {
+            "Invalid runtime gate file name"
+        }
+        return File(File(context.noBackupFilesDir, INTERNAL_GATE_DIR_NAME), fileName)
     }
 
     private fun readEntries(raf: RandomAccessFile): LinkedHashMap<String, Long> {
@@ -139,4 +179,7 @@ object SharedRuntimeGate {
     }
 
     private const val DEFAULT_MAX_ENTRIES = 256
+    private const val INTERNAL_GATE_DIR_NAME = "runtime_gates"
+    private val SAFE_FILE_NAME = Regex("[A-Za-z0-9_.-]{1,96}")
+    private val processLock = Any()
 }

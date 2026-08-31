@@ -1,5 +1,8 @@
 package io.github.magisk317.smscode.runtime.common.packageenv
 
+import io.github.magisk317.smscode.runtime.contract.packageenv.PackageState
+import io.github.magisk317.smscode.runtime.contract.packageenv.PackageVersionInfo
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 

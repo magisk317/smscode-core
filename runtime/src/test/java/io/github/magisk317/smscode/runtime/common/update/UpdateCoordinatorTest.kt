@@ -1,5 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.update
 
+import io.github.magisk317.smscode.runtime.contract.update.GithubReleaseInfo
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -63,7 +65,7 @@ class UpdateCoordinatorTest {
 
     @Test
     fun decideGithubManualAction_returnsExpectedActions() {
-        val latest = GithubReleaseInfo("3.1.2", "https://github.com/magisk317/xinyi-relay/releases/tag/v3.1.2")
+        val latest = GithubReleaseInfo("3.1.2", "https://github.com/magisk3171/xinyi-relay/releases/tag/v3.1.2")
 
         assertEquals(
             UpdateCoordinator.GithubManualAction.SHOW_CHECK_FAILED,

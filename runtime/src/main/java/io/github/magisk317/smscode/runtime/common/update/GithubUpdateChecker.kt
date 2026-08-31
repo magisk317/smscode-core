@@ -1,5 +1,12 @@
 package io.github.magisk317.smscode.runtime.common.update
 
+import io.github.magisk317.smscode.runtime.contract.update.GithubReleaseInfo
+import io.github.magisk317.smscode.runtime.contract.update.GithubUpdateConfig
+import io.github.magisk317.smscode.runtime.contract.update.UpgradeApkAsset
+import io.github.magisk317.smscode.runtime.contract.update.UpgradeCheckResult
+import io.github.magisk317.smscode.runtime.contract.update.UpgradeInfo
+import io.github.magisk317.smscode.runtime.contract.update.VersionLog
+
 import io.github.magisk317.xposed.logging.MagiskOtel
 import android.os.Build
 import kotlinx.coroutines.Dispatchers

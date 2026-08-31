@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
+import io.github.magisk317.xposed.diagnostics.DiagnosticExportMode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -10,6 +11,18 @@ import java.io.File
 class LogBundleExporterTest {
     @TempDir
     lateinit var tempDir: File
+
+    @Test
+    fun logcatCommand_boundsStandardAndKeepsFullBuffers() {
+        assertEquals(
+            listOf("logcat", "-d", "-v", "threadtime", "-t", "24h", "-b", "main,system,crash"),
+            LogBundleExporter.logcatCommand(DiagnosticExportMode.STANDARD),
+        )
+        assertEquals(
+            listOf("logcat", "-d", "-v", "threadtime", "-b", "all"),
+            LogBundleExporter.logcatCommand(DiagnosticExportMode.FULL),
+        )
+    }
 
     @Test
     fun redundantAppRouteRuntimeLog_isDetectedByDailyRouteNameOnly() {

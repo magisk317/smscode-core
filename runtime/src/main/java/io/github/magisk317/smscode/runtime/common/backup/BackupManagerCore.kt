@@ -1,5 +1,15 @@
 package io.github.magisk317.smscode.runtime.common.backup
 
+import io.github.magisk317.smscode.runtime.contract.backup.BackupConst
+
+import io.github.magisk317.smscode.runtime.contract.backup.BackupImportResult
+import io.github.magisk317.smscode.runtime.contract.backup.BackupPayload
+import io.github.magisk317.smscode.runtime.contract.backup.BackupRule
+import io.github.magisk317.smscode.runtime.contract.backup.BackupSmsRecord
+import io.github.magisk317.smscode.runtime.contract.backup.ExportResult
+import io.github.magisk317.smscode.runtime.contract.backup.ImportResult
+import io.github.magisk317.smscode.runtime.contract.backup.ImportWarning
+
 import android.content.Context
 import android.content.Intent
 import android.net.Uri

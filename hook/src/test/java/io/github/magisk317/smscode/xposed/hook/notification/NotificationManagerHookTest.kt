@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.notification
 
-import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
-import io.github.magisk317.smscode.domain.model.SmsCodeParseSourceKind
+import io.github.magisk317.smscode.rule.model.SmsCodeParseSource
+import io.github.magisk317.smscode.rule.model.SmsCodeParseSourceKind
 import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.prefs.CorePrefsAccess
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime

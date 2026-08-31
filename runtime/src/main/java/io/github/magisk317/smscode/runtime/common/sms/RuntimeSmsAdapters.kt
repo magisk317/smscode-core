@@ -1,13 +1,13 @@
 package io.github.magisk317.smscode.runtime.common.sms
 
 import android.content.Context
-import io.github.magisk317.smscode.domain.model.SmsBlacklistConfig
-import io.github.magisk317.smscode.domain.model.SmsBlacklistMatchResult
-import io.github.magisk317.smscode.domain.model.SmsCodeParseResult
-import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
-import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
-import io.github.magisk317.smscode.domain.utils.SmsBlacklistUtils
-import io.github.magisk317.smscode.domain.utils.SmsCodeUtils
+import io.github.magisk317.smscode.rule.model.SmsBlacklistConfig
+import io.github.magisk317.smscode.rule.model.SmsBlacklistMatchResult
+import io.github.magisk317.smscode.rule.model.SmsCodeParseResult
+import io.github.magisk317.smscode.rule.model.SmsCodeParseSource
+import io.github.magisk317.smscode.rule.model.SmsCodeRuleSpec
+import io.github.magisk317.smscode.rule.utils.SmsBlacklistUtils
+import io.github.magisk317.smscode.rule.utils.SmsCodeUtils
 import io.github.magisk317.xposed.logging.MagiskOtel
 
 fun interface SmsKeywordProvider {

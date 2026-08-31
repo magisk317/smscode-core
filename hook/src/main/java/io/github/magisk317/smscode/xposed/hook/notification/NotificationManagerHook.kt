@@ -13,10 +13,10 @@ import android.os.Binder
 import android.os.Build
 import android.os.Process
 import android.os.UserHandle
-import io.github.magisk317.smscode.domain.model.SmsCodeParseSource
-import io.github.magisk317.smscode.domain.model.SmsCodeParseSourceKind
-import io.github.magisk317.smscode.domain.model.SmsCodeRuleSpec
-import io.github.magisk317.smscode.domain.utils.SmsCodeUtils
+import io.github.magisk317.smscode.rule.model.SmsCodeParseSource
+import io.github.magisk317.smscode.rule.model.SmsCodeParseSourceKind
+import io.github.magisk317.smscode.rule.model.SmsCodeRuleSpec
+import io.github.magisk317.smscode.rule.utils.SmsCodeUtils
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.HookEnv
@@ -178,11 +178,7 @@ class NotificationManagerHook : BaseHook() {
         val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
         val tickerText = notification.tickerText?.toString() ?: ""
         val expandedText = resolveExpandedText(notification)
-        val notifyChannelId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            notification.channelId.orEmpty()
-        } else {
-            ""
-        }
+        val notifyChannelId = notification.channelId.orEmpty()
 
         val body = resolvePreferredBody(text, expandedText, tickerText)
         if (title.isBlank() && body.isBlank()) {
@@ -969,11 +965,6 @@ class NotificationManagerHook : BaseHook() {
         endpoint: ModuleEndpoint,
     ) {
         withClearedCallingIdentity("sendBroadcast:$sourcePackage#$eventId") {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
-                systemContext.sendBroadcast(intent)
-                return@withClearedCallingIdentity
-            }
-
             val recoveryEnabled = isForceStopRecoveryEnabled(sourcePackage)
             val targetUsers = resolveTargetUsers(Binder.getCallingUid())
             if (recoveryEnabled) {
@@ -1390,6 +1381,7 @@ class NotificationManagerHook : BaseHook() {
         }.getOrDefault(userHandle.toString())
     }
 
+    @SuppressLint("QueryPermissionsNeeded")
     private fun queryBroadcastReceiversCompat(
         packageManager: PackageManager,
         intent: Intent,

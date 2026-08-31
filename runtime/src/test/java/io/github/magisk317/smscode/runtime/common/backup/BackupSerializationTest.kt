@@ -1,5 +1,10 @@
 package io.github.magisk317.smscode.runtime.common.backup
 
+import io.github.magisk317.smscode.runtime.contract.backup.BackupConst
+
+import io.github.magisk317.smscode.runtime.contract.backup.BackupPayload
+import io.github.magisk317.smscode.runtime.contract.backup.BackupRule
+
 import io.github.magisk317.smscode.runtime.common.utils.JsonUtils
 import kotlinx.serialization.encodeToString
 import org.junit.jupiter.api.Assertions.assertEquals
