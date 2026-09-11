@@ -49,6 +49,7 @@ class MethodHookWrapperTest {
                     force: Boolean,
                     route: String?,
                     sensitive: Boolean,
+                    throwableText: String?,
                 ) {
                     capturedRoute = route
                 }

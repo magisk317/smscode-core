@@ -62,6 +62,7 @@ class XLogTest {
                     force: Boolean,
                     route: String?,
                     sensitive: Boolean,
+                    throwableText: String?,
                 ) {
                     captured = CapturedLog(priority, tag, message, force, route, sensitive)
                 }
@@ -91,6 +92,7 @@ class XLogTest {
                     force: Boolean,
                     route: String?,
                     sensitive: Boolean,
+                    throwableText: String?,
                 ) {
                     captured = CapturedLog(priority, tag, message, force, route, sensitive)
                 }
@@ -119,6 +121,7 @@ class XLogTest {
                     force: Boolean,
                     route: String?,
                     sensitive: Boolean,
+                    throwableText: String?,
                 ) {
                     captured = CapturedLog(priority, tag, message, force, route, sensitive)
                 }
@@ -147,6 +150,7 @@ class XLogTest {
                     force: Boolean,
                     route: String?,
                     sensitive: Boolean,
+                    throwableText: String?,
                 ) {
                     captured += CapturedLog(priority, tag, message, force, route, sensitive)
                 }

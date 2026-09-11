@@ -8,6 +8,7 @@ interface CoreLogSink {
         force: Boolean = false,
         route: String? = null,
         sensitive: Boolean = true,
+        throwableText: String? = null,
     )
 }
 
@@ -26,7 +27,8 @@ object CoreLogSinkHolder {
         force: Boolean = false,
         route: String? = null,
         sensitive: Boolean = true,
+        throwableText: String? = null,
     ) {
-        sink?.append(priority, tag, message, force, route, sensitive)
+        sink?.append(priority, tag, message, force, route, sensitive, throwableText)
     }
 }

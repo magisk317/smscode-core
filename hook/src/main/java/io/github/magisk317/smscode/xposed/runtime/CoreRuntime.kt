@@ -30,6 +30,7 @@ object CoreRuntime {
                     force = event.force,
                     route = event.route,
                     sensitive = event.sensitive,
+                    throwableText = event.throwableText ?: event.throwable?.stackTraceToString(),
                 )
             },
         )

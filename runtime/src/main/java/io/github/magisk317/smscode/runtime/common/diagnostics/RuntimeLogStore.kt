@@ -39,6 +39,7 @@ data class RuntimeLogEntry(
     val uid: Int = 0,
     val threadName: String = "",
     val threadId: Long = 0L,
+    val throwable: String = "",
 )
 
 data class RuntimeLogFileInfo(
@@ -152,6 +153,7 @@ object RuntimeLogStore {
         message: String,
         force: Boolean = false,
         route: String? = null,
+        throwable: String? = null,
     ) {
         if (!enabled && !force) return
         runCatching {
@@ -168,6 +170,7 @@ object RuntimeLogStore {
                 uid = android.os.Process.myUid(),
                 threadName = thread.name.orEmpty(),
                 threadId = currentThreadId(thread),
+                throwable = throwable.orEmpty(),
             )
             synchronized(lock) {
                 buffer.addLast(entry)
@@ -203,6 +206,7 @@ object RuntimeLogStore {
             message = safeMessage,
             force = event.force,
             route = event.route,
+            throwable = event.throwableText ?: event.throwable?.stackTraceToString(),
         )
     }
 
@@ -638,6 +642,7 @@ object RuntimeLogStore {
             put("uid", entry.uid)
             put("thread", entry.threadName)
             put("threadId", entry.threadId)
+            put("throwable", entry.throwable)
         }.toString()
     }
 
@@ -667,6 +672,7 @@ object RuntimeLogStore {
                 uid = jsonObject["uid"]?.jsonPrimitive?.intOrNull ?: 0,
                 threadName = jsonObject["thread"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 threadId = jsonObject["threadId"]?.jsonPrimitive?.longOrNull ?: 0L,
+                throwable = jsonObject["throwable"]?.jsonPrimitive?.contentOrNull.orEmpty(),
             )
         }.getOrNull()
     }

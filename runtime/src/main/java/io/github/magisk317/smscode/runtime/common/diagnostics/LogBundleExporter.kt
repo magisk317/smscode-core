@@ -5,10 +5,10 @@ import io.github.magisk317.xposed.logging.MagiskOtel
 import android.content.Intent
 import android.util.Log
 import io.github.magisk317.xposed.diagnostics.DiagnosticExportMode
+import io.github.magisk317.xposed.diagnostics.DiagnosticShell
+import io.github.magisk317.smscode.runtime.common.packageenv.PackageEnvCore
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import io.github.magisk317.xposed.diagnostics.DiagnosticArchive
-import io.github.magisk317.xposed.diagnostics.DiagnosticTextSanitizer
-import io.github.magisk317.xposed.logging.DefaultLogSanitizer
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
@@ -18,7 +18,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 data class LogBundleExportResult(
     val file: File?,
@@ -31,29 +30,30 @@ data class LogBundleClearResult(
 )
 
 object LogBundleExporter {
-    internal fun logcatCommand(mode: DiagnosticExportMode): List<String> =
-        if (mode.usesBoundedLogcat) {
-            listOf("logcat", "-d", "-v", "threadtime", "-t", "24h", "-b", "main,system,crash")
-        } else {
-            listOf("logcat", "-d", "-v", "threadtime", "-b", "all")
-        }
 
-    private const val LSPOSED_ROTATING_LOGS_PER_KIND = 2
     private val LSPOSED_LOG_DIRS = listOf(
         "/data/adb/lspd/log",
         "/data/adb/lspd/log.old",
     )
     private val redundantAppRouteRuntimeLogPattern = Regex("""^runtime\.app\.\d{4}-\d{2}-\d{2}\.jsonl$""")
-    private val lsposedRotatingLogPattern = Regex("""^(verbose|modules)_.+\.log$""")
     private val legacyTextLogPattern = Regex("""^(logs_\d{4}-\d{2}-\d{2}|runtime(?:\.[A-Za-z0-9_.-]+)?)\.(txt|log)$""")
     private val legacyModuleTextLogPattern = Regex("""^[A-Za-z0-9_.-]+_\d{4}-\d{2}-\d{2}\.txt$""")
     private val opLock = Any()
+
+    fun checkPreExport(verboseLogEnabled: Boolean): String? {
+        if (!PackageEnvCore.hasRootAccess()) {
+            return "uikit_log_export_need_root"
+        }
+        if (!verboseLogEnabled) {
+            return "uikit_log_export_need_verbose_log"
+        }
+        return VerboseLogEnableTracker.shouldBlockExport()
+    }
 
     @Suppress("TooGenericExceptionCaught")
     fun buildLogBundle(
         context: Context,
         mode: DiagnosticExportMode,
-        sanitizeLogs: Boolean = true,
     ): LogBundleExportResult {
         synchronized(opLock) {
             val config = RuntimeDiagnosticsEnvironment.current()
@@ -65,7 +65,12 @@ object LogBundleExporter {
                 exportDir = exportDir,
                 exportFilePrefix = config.exportFilePrefix,
                 stagingDirPrefix = config.stagingDirPrefix,
-                deletePath = { path -> deleteRecursivelyWithSuFallback(config.logTag, path) },
+                deletePath = { path ->
+                    DiagnosticShell.deleteRecursivelyWithSuFallback(
+                        target = path,
+                        onWarning = { message -> logWarn(config.logTag, message) },
+                    )
+                },
                 collect = { stagingDir, details ->
                     details += "export mode=" + mode.name
                     val appLogSrc = StorageUtils.getLogDir(context)
@@ -75,18 +80,15 @@ object LogBundleExporter {
                             details += "legacy runtime text logs cleared: $deletedLegacyLogs"
                         }
                         val stagedAppLogDir = File(stagingDir, "app/log")
-                        copyDirectory(
-                            logTag = config.logTag,
+                        DiagnosticArchive.copyDirectory(
                             source = appLogSrc,
                             target = stagedAppLogDir,
-                            sanitizeFiles = sanitizeLogs,
-                        ) { file -> !isRedundantAppRouteRuntimeLog(file) }
+                            includeFile = { file -> !isRedundantAppRouteRuntimeLog(file) },
+                            onWarning = { message -> logWarn(config.logTag, message) },
+                        )
                         writeRuntimeLogSummaryFile(stagedAppLogDir)
                         details += "app log: ${appLogSrc.absolutePath}"
                         details += summarizeRuntimeLogFiles(stagedAppLogDir)
-                        if (!sanitizeLogs) {
-                            details += "log sanitization disabled by sensitive debug mode"
-                        }
                     } else {
                         details += "app log missing"
                         details += "runtime log files: 0"
@@ -94,32 +96,27 @@ object LogBundleExporter {
 
                     val crashLogSrc = StorageUtils.getCrashLogDir(context)
                     if (crashLogSrc != null && crashLogSrc.exists()) {
-                        copyDirectory(
-                            logTag = config.logTag,
+                        DiagnosticArchive.copyDirectory(
                             source = crashLogSrc,
                             target = File(stagingDir, "app/crash"),
-                            sanitizeFiles = sanitizeLogs,
+                            onWarning = { message -> logWarn(config.logTag, message) },
                         )
                         details += "crash log: ${crashLogSrc.absolutePath}"
                     } else {
                         details += "crash log missing"
                     }
 
-                    val lsposedCopied = copyLsposedLogs(
-                        logTag = config.logTag,
+                    DiagnosticShell.copyLsposedLogs(
+                        dirs = LSPOSED_LOG_DIRS,
                         stagingDir = stagingDir,
                         details = details,
-                        allowSuFallback = mode.capturesRootHeavyDiagnostics,
+                        onWarning = { message -> logWarn(config.logTag, message) },
                     )
-                    if (!lsposedCopied) {
-                        details += if (mode.capturesRootHeavyDiagnostics) {
-                            "lsposed log missing or unreadable"
-                        } else {
-                            "lsposed log unavailable without direct access in standard mode"
-                        }
-                    }
-
-                    captureLogcat(config.logTag, stagingDir, details, sanitizeLogs, mode)
+                    DiagnosticShell.captureLogcat(
+                        stagingDir = stagingDir,
+                        details = details,
+                        mode = mode,
+                    )
                 },
                 onInfo = { message -> logInfo(config.logTag, message) },
                 onWarning = { message -> logWarn(config.logTag, message) },
@@ -208,120 +205,6 @@ object LogBundleExporter {
         }
     }
 
-    private fun copyLsposedLogs(
-        logTag: String,
-        stagingDir: File,
-        details: MutableList<String>,
-        allowSuFallback: Boolean,
-    ): Boolean {
-        val lsposedTargetRoot = File(stagingDir, "lsposed")
-        var copied = false
-
-        LSPOSED_LOG_DIRS.forEach { path ->
-            val src = File(path)
-            if (src.exists() && src.canRead()) {
-                val target = File(lsposedTargetRoot, src.name)
-                copyDirectory(logTag, src, target)
-                val trimmed = trimLsposedRotatingLogs(logTag, target)
-                if (trimmed > 0) {
-                    details += "lsposed rotating logs trimmed: $trimmed"
-                }
-                details += "lsposed direct: $path"
-                copied = true
-            }
-        }
-        if (copied) return true
-
-        if (!allowSuFallback) {
-            details += "lsposed su fallback skipped in standard mode"
-            return false
-        }
-
-        val targetPath = lsposedTargetRoot.absolutePath
-        val targetUid = runCatching { android.os.Process.myUid() }.getOrDefault(-1)
-        val shellCmd = buildString {
-            append("mkdir -p ${shQuote(targetPath)}; ")
-            LSPOSED_LOG_DIRS.forEach { path ->
-                val name = File(path).name
-                append("if [ -d ${shQuote(path)} ]; then ")
-                append("cp -R ${shQuote(path)} ${shQuote("$targetPath/")} && ")
-                append("chmod -R a+rX ${shQuote("$targetPath/$name")} ; ")
-                if (targetUid > 0) {
-                    append("chown -R $targetUid:$targetUid ${shQuote("$targetPath/$name")} ; ")
-                }
-                append("fi; ")
-            }
-        }
-        val suResult = runSuCommand(shellCmd)
-        if (suResult.exitCode == 0) {
-            val hasAny = lsposedTargetRoot.exists() &&
-                (lsposedTargetRoot.listFiles()?.isNotEmpty() == true)
-            if (hasAny) {
-                sanitizeDirectory(logTag, lsposedTargetRoot)
-                val trimmed = trimLsposedRotatingLogs(logTag, lsposedTargetRoot)
-                if (trimmed > 0) {
-                    details += "lsposed rotating logs trimmed: $trimmed"
-                }
-                details += "lsposed copied via su"
-                return true
-            }
-        }
-        details += "lsposed su failed: ${suResult.stderr.ifBlank { suResult.stdout }.ifBlank { "unknown" }}"
-        return false
-    }
-
-    private fun captureLogcat(
-        logTag: String,
-        stagingDir: File,
-        details: MutableList<String>,
-        sanitizeLogs: Boolean,
-        mode: DiagnosticExportMode,
-    ) {
-        val logcatDir = File(stagingDir, "logcat")
-        if (!ensureDirectory(logcatDir, recreateWhenFile = true)) return
-        val output = File(logcatDir, "logcat_all.txt")
-        val command = logcatCommand(mode)
-        val ok = dumpCommandOutput(command, output, logTag, sanitizeLogs)
-        if (ok) {
-            details += if (mode.usesBoundedLogcat) {
-                "logcat: direct bounded main,system,crash 24h"
-            } else {
-                "logcat: direct"
-            }
-            return
-        }
-        if (mode.capturesRootHeavyDiagnostics) {
-            val okSu = dumpCommandOutput(listOf("su", "-c", "logcat -d -v threadtime -b all"), output, logTag, sanitizeLogs)
-            if (okSu) {
-                details += "logcat: su"
-            }
-        }
-    }
-
-    private fun dumpCommandOutput(
-        command: List<String>,
-        output: File,
-        logTag: String,
-        sanitizeLogs: Boolean,
-    ): Boolean {
-        return runCatching {
-            val process = ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
-            output.outputStream().use { out ->
-                process.inputStream.copyTo(out)
-            }
-            process.waitFor(6, TimeUnit.SECONDS)
-            if (process.isAlive) {
-                process.destroy()
-            }
-            if (sanitizeLogs) {
-                sanitizeTextLogFile(output, logTag)
-            }
-            output.exists() && output.length() > 0
-        }.getOrDefault(false)
-    }
-
     private fun summarizeRuntimeLogFiles(stagedAppLogDir: File): String {
         val runtimeFiles = stagedAppLogDir.listFiles().orEmpty()
             .filter { file ->
@@ -376,104 +259,10 @@ object LogBundleExporter {
         }
     }
 
-    private data class ShellResult(
-        val exitCode: Int,
-        val stdout: String,
-        val stderr: String,
-    )
-
-    private fun runSuCommand(command: String): ShellResult = try {
-        val process = ProcessBuilder("su", "-c", command).start()
-        val stdout = process.inputStream.bufferedReader().use { it.readText() }
-        val stderr = process.errorStream.bufferedReader().use { it.readText() }
-        val exitCode = process.waitFor()
-        ShellResult(exitCode, stdout, stderr)
-    } catch (e: java.io.IOException) {
-        ShellResult(-1, "", e.message ?: e.javaClass.simpleName)
-    } catch (e: SecurityException) {
-        ShellResult(-1, "", e.message ?: e.javaClass.simpleName)
-    } catch (e: InterruptedException) {
-        Thread.currentThread().interrupt()
-        ShellResult(-1, "", e.message ?: e.javaClass.simpleName)
-    }
-
-    private fun copyDirectory(
-        logTag: String,
-        source: File,
-        target: File,
-        sanitizeFiles: Boolean = true,
-        includeFile: (File) -> Boolean = { true },
-    ) {
-        source.walkTopDown().forEach { file ->
-            val relative = file.relativeTo(source).path
-            val dest = if (relative.isEmpty()) target else File(target, relative)
-            if (file.isDirectory) {
-                ensureDirectory(dest, recreateWhenFile = true)
-            } else {
-                if (!file.exists()) return@forEach
-                if (!includeFile(file)) return@forEach
-                val parent = dest.parentFile
-                if (parent == null || !ensureDirectory(parent, recreateWhenFile = true)) {
-                    logWarn(logTag, "Skip copy due to invalid parent dir: ${dest.absolutePath}")
-                    return@forEach
-                }
-                runCatching {
-                    file.copyTo(dest, overwrite = true)
-                    if (sanitizeFiles) {
-                        sanitizeTextLogFile(dest, logTag)
-                    }
-                }.onFailure {
-                    logWarn(logTag, "Skip copy file failed: src=${file.absolutePath} dst=${dest.absolutePath}")
-                }
-            }
-        }
-    }
-
-    private fun sanitizeDirectory(logTag: String, dir: File) {
-        DiagnosticTextSanitizer.sanitizeDirectory(
-            root = dir,
-            sanitizeText = DefaultLogSanitizer::sanitizeUnbounded,
-            onWarning = { warning -> logWarn(logTag, warning) },
-        )
-    }
-
-    private fun sanitizeTextLogFile(file: File, logTag: String) {
-        DiagnosticTextSanitizer.sanitizeTextLogFile(
-            file = file,
-            sanitizeText = DefaultLogSanitizer::sanitizeUnbounded,
-            onWarning = { warning -> logWarn(logTag, warning) },
-        )
-    }
-
     internal fun isRedundantAppRouteRuntimeLog(file: File): Boolean {
         return file.isFile && redundantAppRouteRuntimeLogPattern.matches(file.name)
     }
 
-    internal fun trimLsposedRotatingLogs(logTag: String, root: File): Int {
-        if (!root.exists() || !root.isDirectory) return 0
-        var deleted = 0
-        root.walkTopDown()
-            .filter { it.isFile }
-            .mapNotNull { file ->
-                val kind = lsposedRotatingLogPattern.matchEntire(file.name)
-                    ?.groupValues
-                    ?.getOrNull(1)
-                    ?: return@mapNotNull null
-                "${file.parentFile?.absolutePath.orEmpty()}:$kind" to file
-            }
-            .groupBy({ it.first }, { it.second })
-            .values
-            .forEach { files ->
-                files.sortedWith(compareByDescending<File> { it.name }.thenByDescending { it.lastModified() })
-                    .drop(LSPOSED_ROTATING_LOGS_PER_KIND)
-                    .forEach { file ->
-                        if (deleteRecursivelyWithSuFallback(logTag, file)) {
-                            deleted += 1
-                        }
-                    }
-            }
-        return deleted
-    }
 
     internal fun deleteLegacyTextLogFiles(logDir: File): Int {
         if (!logDir.exists() || !logDir.isDirectory) return 0
@@ -500,7 +289,11 @@ object LogBundleExporter {
             }
             var deletedAll = true
             dir.listFiles().orEmpty().forEach { child ->
-                if (!deleteRecursivelyWithSuFallback(logTag, child)) {
+                if (!DiagnosticShell.deleteRecursivelyWithSuFallback(
+                        target = child,
+                        onWarning = { message -> logWarn(logTag, message) },
+                    )
+                ) {
                     deletedAll = false
                     logWarn(logTag, "Failed to delete log child: ${child.absolutePath}")
                 }
@@ -516,19 +309,6 @@ object LogBundleExporter {
     private fun getPrivateExportDir(context: Context): File {
         return StorageUtils.getPrivateLogExportDir(context)
     }
-
-    private fun deleteRecursivelyWithSuFallback(logTag: String, target: File): Boolean {
-        if (!target.exists()) return true
-        if (target.deleteRecursively()) return true
-        val suResult = runSuCommand("rm -rf ${shQuote(target.absolutePath)}")
-        val deleted = !target.exists()
-        if (!deleted) {
-            logWarn(logTag, "su rm fallback failed: path=${target.absolutePath} exit=${suResult.exitCode}")
-        }
-        return deleted
-    }
-
-    private fun shQuote(value: String): String = "'" + value.replace("'", "'\"'\"'") + "'"
 
     private fun logInfo(tag: String, message: String) {
         Log.i(tag, message)

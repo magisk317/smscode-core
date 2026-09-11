@@ -1,6 +1,5 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
-import io.github.magisk317.xposed.diagnostics.DiagnosticExportMode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -11,18 +10,6 @@ import java.io.File
 class LogBundleExporterTest {
     @TempDir
     lateinit var tempDir: File
-
-    @Test
-    fun logcatCommand_boundsStandardAndKeepsFullBuffers() {
-        assertEquals(
-            listOf("logcat", "-d", "-v", "threadtime", "-t", "24h", "-b", "main,system,crash"),
-            LogBundleExporter.logcatCommand(DiagnosticExportMode.STANDARD),
-        )
-        assertEquals(
-            listOf("logcat", "-d", "-v", "threadtime", "-b", "all"),
-            LogBundleExporter.logcatCommand(DiagnosticExportMode.FULL),
-        )
-    }
 
     @Test
     fun redundantAppRouteRuntimeLog_isDetectedByDailyRouteNameOnly() {
@@ -41,29 +28,6 @@ class LogBundleExporterTest {
                 File(tempDir, "runtime.sms_hook.2026-06-06.jsonl").apply { writeText("{}") },
             ),
         )
-    }
-
-    @Test
-    fun trimLsposedRotatingLogs_keepsLatestTwoPerKindAndDirectory() {
-        val logDir = File(tempDir, "log").apply { mkdirs() }
-        val oldModules = File(logDir, "modules_2026-06-06T10:00:00.000000.log").apply { writeText("m1") }
-        val midModules = File(logDir, "modules_2026-06-06T11:00:00.000000.log").apply { writeText("m2") }
-        val newModules = File(logDir, "modules_2026-06-06T12:00:00.000000.log").apply { writeText("m3") }
-        val oldVerbose = File(logDir, "verbose_2026-06-06T10:00:00.000000.log").apply { writeText("v1") }
-        val midVerbose = File(logDir, "verbose_2026-06-06T11:00:00.000000.log").apply { writeText("v2") }
-        val newVerbose = File(logDir, "verbose_2026-06-06T12:00:00.000000.log").apply { writeText("v3") }
-        val props = File(logDir, "props.txt").apply { writeText("props") }
-
-        val deleted = LogBundleExporter.trimLsposedRotatingLogs("Test", tempDir)
-
-        assertEquals(2, deleted)
-        assertFalse(oldModules.exists())
-        assertTrue(midModules.exists())
-        assertTrue(newModules.exists())
-        assertFalse(oldVerbose.exists())
-        assertTrue(midVerbose.exists())
-        assertTrue(newVerbose.exists())
-        assertTrue(props.exists())
     }
 
     @Test

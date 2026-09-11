@@ -5,7 +5,7 @@ import io.github.magisk317.smscode.rule.catalog.SmsCodeRuleCatalogIndex
 import java.net.URI
 import kotlinx.serialization.Serializable
 
-const val DEFAULT_SMS_CODE_RULES_REPOSITORY = "magisk317/smscode-rules"
+const val DEFAULT_SMS_CODE_RULES_REPOSITORY = "magisk3171/smscode-rules"
 const val DEFAULT_SMS_CODE_RULES_BRANCH = "main"
 const val DEFAULT_SMS_CODE_RULES_GITLAB_RAW_BASE_URL =
     "https://gitlab.com/magisk3171/magisk-smscode-rules/-/raw/main"
