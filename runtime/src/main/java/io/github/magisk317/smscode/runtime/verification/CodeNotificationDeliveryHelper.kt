@@ -80,7 +80,10 @@ object CodeNotificationDeliveryHelper {
             autoCancelEnabled,
             retentionTimeMs,
             token,
-        )
+        ).apply {
+            addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+            addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+        }
         val result = sendOrderedNotificationRequest(context, intent, ackTimeoutMs)
         XLog.i(
             "Requested app-owned code notification id=%d autoCancel=%s retentionMs=%d tokenPresent=%s ack=%s reason=%s",
@@ -113,12 +116,20 @@ object CodeNotificationDeliveryHelper {
             .setSmallIcon(visualConfig.smallIconResId)
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, visualConfig.largeIconResId))
             .setWhen(System.currentTimeMillis())
+            .setShowWhen(true)
             .setContentTitle(title)
             .setContentText(contentTextProvider(smsCode))
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setColor(ContextCompat.getColor(context, visualConfig.accentColorResId))
-            .setGroup(visualConfig.groupKey)
+        // No setGroup(): the module never posts a group summary, and a grouped child without a
+        // summary can be collapsed by the system into an empty group header, which the user
+        // reads as "no notification". visualConfig.groupKey is kept for callers but is
+        // deliberately not applied to the notification.
         if (autoCancelEnabled && retentionTimeMs > 0L) {
             builder.setTimeoutAfter(retentionTimeMs)
         }

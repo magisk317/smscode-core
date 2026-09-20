@@ -44,7 +44,9 @@ object SmsCodeConst {
             "|登入碼|認證碼|識別碼" +
             "|(?i)\\b(otp|verification|verify|pin|passcode|password|code|secure\\s*code)\\b" +
             "|Код|код|КОД|Пароль|пароль|ПАРОЛЬ|Kod|kod|KOD" +
-            "|(?i:\\b(ma|mã|otp)\\b)"
+            "|(?i:\\b(ma|mã|otp)\\b)" +
+            "|رمز\\s*یکبار\\s*مصرف|کد\\s*تایید|کد\\s*تأیید|کد\\s*فعالسازی|رمز\\s*پویا|رمز|کد|پویا" +
+            "|رمز\\s*التحقق|رمز\\s*التأكيد|رمز\\s*التفعيل|كود"
 
     @JvmField
     val VERIFICATION_KEY_WORDS_EN = arrayOf(
@@ -58,6 +60,11 @@ object SmsCodeConst {
         "passcode",
         "password",
         "secure code",
+        "رمز",
+        "کد",
+        "پویا",
+        "رمز پویا",
+        "کد تایید",
     )
 
     const val PHONE_NUMBER_KEYWORDS =

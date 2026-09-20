@@ -12,9 +12,19 @@ data class NotificationDeliveryDiagnostics(
     val postNotificationsGranted: Boolean,
     val channelImportance: Int?,
 ) {
+    /**
+     * Whether a notification posted into the inspected channel can actually reach the user.
+     *
+     * A `null` [channelImportance] means the channel does not exist in the posting package's
+     * namespace. Android 8+ drops `notify()` calls for unknown channels without throwing, so a
+     * missing channel has to be reported as "cannot post" instead of being read as "no
+     * restriction" - the previous `!= IMPORTANCE_NONE` comparison evaluated to `true` for `null`
+     * and hid exactly that failure.
+     */
     val canPost: Boolean
         get() = notificationsEnabled &&
             postNotificationsGranted &&
+            channelImportance != null &&
             channelImportance != NotificationManager.IMPORTANCE_NONE
 
     fun summary(): String {

@@ -16,7 +16,21 @@ class NotifyActionHelper<M : SmsMessage, R>(
     private val tokenProvider: (Context) -> String? = { null },
     private val channelId: String = "",
     private val channelInitializer: (Context) -> Unit = {},
-    private val diagnostics: (Context) -> DeliveryDiagnostics = { DeliveryDiagnostics(canPost = true) },
+    /**
+     * Explicit deliverability decision. When supplied it always wins, because the caller is the
+     * only layer that knows which package the notification is posted as.
+     */
+    private val diagnostics: ((Context) -> DeliveryDiagnostics)? = null,
+    /**
+     * Context the bridge-based inspection resolves against.
+     *
+     * Both the permission lookup and the channel lookup resolve against the package of the posting
+     * process, so a bridge inspection for a notification posted by another package must be given
+     * that package's context. Defaulting to [pluginContext] is only correct for the app-owned path;
+     * the phone-owned path has to pass the phone context, otherwise the inspection reports the
+     * module app's channel state for a notification that package never posts.
+     */
+    private val diagnosticsContext: Context? = null,
     private val notificationBridge: NotificationPlatformBridge? = null,
     private val notifier: (AppOwnedNotificationRequest<M>) -> R?,
 ) {
@@ -65,15 +79,24 @@ class NotifyActionHelper<M : SmsMessage, R>(
             channelInitializer(pluginContext)
         }
 
-        // Use bridge for diagnostics if available, otherwise fall back to lambda
-        val diag = if (notificationBridge != null && channelId.isNotEmpty()) {
-            val bridgeDiag = notificationBridge.inspectDelivery(pluginContext, channelId)
-            DeliveryDiagnostics(
-                canPost = bridgeDiag.canPost,
-                summary = bridgeDiag.summary(),
-            )
-        } else {
-            diagnostics(pluginContext)
+        // Precedence matters here. An explicit diagnostics lambda is authoritative because the
+        // caller resolves it against the package it actually posts as. The bridge path is a
+        // convenience that has to be told which package to inspect; without that it would silently
+        // inspect the module app while the phone-owned path posts as the phone app.
+        val explicitDiagnostics = diagnostics
+        val diag = when {
+            explicitDiagnostics != null -> explicitDiagnostics(pluginContext)
+            notificationBridge != null && channelId.isNotEmpty() -> {
+                val bridgeDiag = notificationBridge.inspectDelivery(
+                    diagnosticsContext ?: pluginContext,
+                    channelId,
+                )
+                DeliveryDiagnostics(
+                    canPost = bridgeDiag.canPost,
+                    summary = bridgeDiag.summary(),
+                )
+            }
+            else -> DeliveryDiagnostics(canPost = true)
         }
 
         if (!diag.canPost) {

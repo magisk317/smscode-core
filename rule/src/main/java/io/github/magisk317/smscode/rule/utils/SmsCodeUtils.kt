@@ -59,13 +59,29 @@ object SmsCodeUtils {
         rules: List<SmsCodeRuleSpec> = emptyList(),
         source: SmsCodeParseSource? = null,
     ): SmsCodeParseResult {
-        val customResult = parseByCustomRules(content, rules, source)
-        val defaultResult = parseByDefaultRule(content, keywordsRegex)
+        val normalizedContent = normalizeDigits(content)
+        val customResult = parseByCustomRules(normalizedContent, rules, source)
+        val defaultResult = parseByDefaultRule(normalizedContent, keywordsRegex)
         val bestResult = pickBetterCandidate(customResult, defaultResult)
         return SmsCodeParseResult(
             code = bestResult.code,
             matchedRule = bestResult.matchedRule,
         )
+    }
+
+    private fun normalizeDigits(text: String): String {
+        if (text.isEmpty()) return text
+        val sb = StringBuilder(text.length)
+        for (ch in text) {
+            when (ch) {
+                // Eastern Arabic-Indic digits (Persian/Urdu: ۰ ۱ ۲ ۳ ۴ ۵ ۶ ۷ ۸ ۹)
+                in '\u06F0'..'\u06F9' -> sb.append((ch - '\u06F0' + '0'.code).toChar())
+                // Arabic-Indic digits (Arabic: ٠ ١ ٢ ٣ ٤ ٥ ٦ ٧ ٨ ٩)
+                in '\u0660'..'\u0669' -> sb.append((ch - '\u0660' + '0'.code).toChar())
+                else -> sb.append(ch)
+            }
+        }
+        return sb.toString()
     }
 
     @JvmStatic

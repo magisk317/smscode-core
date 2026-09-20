@@ -272,4 +272,41 @@ class SmsCodeUtilsTest {
             assertEquals("", result.code, "content=$content")
         }
     }
+
+    @Test
+    fun `parse extracts Persian OTP code with default regex and Persian digits (Issue 267)`() = runBlocking {
+        val persianSms = """
+            انتقال به
+            56765*1234
+            مبلغ 100,000
+            رمز 55412884
+            تاریخ 1405/06/13 11:33:06
+        """.trimIndent()
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = persianSms,
+            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+        )
+
+        assertEquals("55412884", result.code)
+    }
+
+    @Test
+    fun `parse extracts Persian OTP code when digits are Eastern Arabic numerals (Issue 267)`() = runBlocking {
+        // ۵۵۴۱۲۸۸۴ in Persian digits corresponds to 55412884
+        val persianDigitsSms = """
+            انتقال به
+            ۵۶۷۶۵*۱۲۳۴
+            مبلغ ۱۰۰,۰۰۰
+            رمز ۵۵۴۱۲۸۸۴
+            تاریخ ۱۴۰۵/۰۶/۱۳ ۱۱:۳۳:۰۶
+        """.trimIndent()
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = persianDigitsSms,
+            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+        )
+
+        assertEquals("55412884", result.code)
+    }
 }
