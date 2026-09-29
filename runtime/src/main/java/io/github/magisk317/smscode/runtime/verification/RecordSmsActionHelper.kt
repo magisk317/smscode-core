@@ -26,7 +26,12 @@ class RecordSmsActionHelper<M : SmsMessage>(
 
     fun run(): Bundle? {
         val startedAt = System.nanoTime()
-        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
+        fun emit(
+            result: String,
+            statusOk: Boolean = true,
+            reason: String? = null,
+            extra: Map<String, String> = emptyMap(),
+        ) {
             val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
             val attrs = mutableMapOf(
                 "result" to result,
@@ -35,6 +40,11 @@ class RecordSmsActionHelper<M : SmsMessage>(
             )
             if (reason != null) {
                 attrs["reason"] = reason
+            }
+            extra.forEach { (key, value) ->
+                if (key.isNotBlank() && value.isNotBlank()) {
+                    attrs[key] = value.take(MAX_ATTRIBUTE_VALUE_LENGTH)
+                }
             }
             MagiskOtel.event(
                 name = "sms.record",
@@ -47,13 +57,16 @@ class RecordSmsActionHelper<M : SmsMessage>(
             emit(result = "skip", reason = "disabled")
             return null
         }
-        recordSmsMsg(smsMsg, emit = { result, statusOk, reason -> emit(result, statusOk, reason) })
+        recordSmsMsg(
+            smsMsg,
+            emit = { result, statusOk, reason, extra -> emit(result, statusOk, reason, extra) },
+        )
         return null
     }
 
     private fun recordSmsMsg(
         smsMsg: M,
-        emit: (result: String, statusOk: Boolean, reason: String?) -> Unit,
+        emit: (result: String, statusOk: Boolean, reason: String?, extra: Map<String, String>) -> Unit,
     ) {
         val eventLabel = eventId.ifBlank { "<none>" }
         XLog.i(
@@ -75,12 +88,12 @@ class RecordSmsActionHelper<M : SmsMessage>(
             }
             if (locked != null) {
                 if (!locked) {
-                    emit("skip", true, "duplicate")
+                    emit("skip", true, "duplicate", emptyMap())
                 }
                 return
             }
             if (shouldSkipByDedup(smsMsg, eventLabel)) {
-                emit("skip", true, "duplicate")
+                emit("skip", true, "duplicate", emptyMap())
                 return
             }
         }
@@ -90,7 +103,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
     private fun persistSmsMsg(
         smsMsg: M,
         eventLabel: String,
-        emit: (result: String, statusOk: Boolean, reason: String?) -> Unit,
+        emit: (result: String, statusOk: Boolean, reason: String?, extra: Map<String, String>) -> Unit,
     ) {
         val insertResult = primaryInserter(smsMsg)
         if (insertResult.success) {
@@ -100,7 +113,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
                     eventLabel,
                     insertResult.detail ?: "",
                 )
-                emit("skip", true, "duplicate")
+                emit("skip", true, "duplicate", emptyMap())
                 return
             }
             XLog.i(
@@ -108,7 +121,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
                 eventLabel,
                 insertResult.detail ?: "",
             )
-            emit("ok", true, "provider")
+            emit("ok", true, "provider", emptyMap())
             return
         }
         XLog.w(
@@ -118,10 +131,17 @@ class RecordSmsActionHelper<M : SmsMessage>(
         )
         if (fallbackExporter?.invoke(smsMsg) == true) {
             XLog.i("Diag record file fallback success: event_id=%s", eventLabel)
-            emit("ok", true, "fallback")
+            emit("ok", true, "fallback", emptyMap())
         } else {
             XLog.w("Diag record file fallback failed: event_id=%s", eventLabel)
-            emit("error", false, "insert_failed")
+            emit(
+                "error",
+                false,
+                "insert_failed",
+                mapOf(
+                    "error" to (insertResult.error ?: insertResult.detail ?: "unknown"),
+                ),
+            )
         }
     }
 
@@ -133,5 +153,6 @@ class RecordSmsActionHelper<M : SmsMessage>(
 
     private companion object {
         private const val SHARED_RECORD_DEDUP_FILE_NAME = "record_insert_gate"
+        private const val MAX_ATTRIBUTE_VALUE_LENGTH = 160
     }
 }

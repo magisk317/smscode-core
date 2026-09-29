@@ -16,6 +16,11 @@ object SmsCodeUtils {
         val matchedRule: SmsCodeMatchedRule? = null,
     )
 
+    private data class CodeCandidate(
+        val code: String,
+        val start: Int,
+    )
+
     private const val LEVEL_DIGITAL_6 = 4
     private const val LEVEL_DIGITAL_4 = 3
     private const val LEVEL_DIGITAL_OTHERS = 2
@@ -116,23 +121,6 @@ object SmsCodeUtils {
         return matcher.find()
     }
 
-    private fun isNearToKeyword(keyword: String, match: MatchResult, content: String): Boolean {
-        if (keyword.isEmpty()) return true
-
-        var minDistance = Int.MAX_VALUE
-        var keywordIndex = content.indexOf(keyword)
-        while (keywordIndex != -1) {
-            val distance = Math.abs(match.range.first - keywordIndex)
-            if (distance < minDistance) {
-                minDistance = distance
-            }
-            keywordIndex = content.indexOf(keyword, keywordIndex + 1)
-        }
-
-        if (minDistance == Int.MAX_VALUE) return false
-        return minDistance < KEYWORD_DISTANCE_THRESHOLD
-    }
-
     private fun parseKeyword(keywordsRegex: String, content: String): String {
         if (keywordsRegex.isBlank()) return ""
         val pattern = Pattern.compile(keywordsRegex)
@@ -143,8 +131,9 @@ object SmsCodeUtils {
     private fun parseByDefaultRule(content: String, keywordsRegex: String): ParseCandidate {
         val keyword = parseKeyword(keywordsRegex, content)
         if (keyword.isEmpty()) return ParseCandidate(code = "")
-        val cnCode = if (containsChinese(content)) getSmsCodeCN(keyword, content) else ""
-        val enCode = getSmsCodeEN(keyword, content)
+        val keywordPattern = Pattern.compile(keywordsRegex)
+        val cnCode = if (containsChinese(content)) getSmsCodeCN(keywordPattern, content) else ""
+        val enCode = getSmsCodeEN(keywordPattern, content)
         return pickBetterCandidate(
             first = ParseCandidate(
                 code = cnCode,
@@ -167,65 +156,95 @@ object SmsCodeUtils {
         )
     }
 
-    private fun getSmsCodeCN(keyword: String, content: String): String {
+    private fun getSmsCodeCN(keywordPattern: Pattern, content: String): String {
         val codeRegex = BuiltinSmsCodeRules.DEFAULT_ALPHANUMERIC_CODE_REGEX
         val handledContent = removeAllWhiteSpaces(content)
-        var smsCode = getSmsCode(codeRegex, keyword, handledContent)
+        var smsCode = getSmsCode(codeRegex, keywordPattern, handledContent)
         if (smsCode.isEmpty()) {
-            smsCode = getSmsCode(codeRegex, keyword, content)
+            smsCode = getSmsCode(codeRegex, keywordPattern, content)
         }
         return smsCode
     }
 
-    private fun getSmsCodeEN(keyword: String, content: String): String {
+    private fun getSmsCodeEN(keywordPattern: Pattern, content: String): String {
         val codeRegex = "(?<![a-zA-Z0-9])[0-9]{4,8}(?![a-zA-Z0-9])"
-        var smsCode = getSmsCode(codeRegex, keyword, content)
+        var smsCode = getSmsCode(codeRegex, keywordPattern, content)
         if (smsCode.isEmpty()) {
             val handledContent = removeAllWhiteSpaces(content)
-            smsCode = getSmsCode(codeRegex, keyword, handledContent)
+            smsCode = getSmsCode(codeRegex, keywordPattern, handledContent)
         }
         return smsCode
     }
 
     private fun removeAllWhiteSpaces(content: String): String = content.replace("\\s*".toRegex(), "")
 
-    private fun getSmsCode(codeRegex: String, keyword: String, content: String): String {
+    private fun getSmsCode(codeRegex: String, keywordPattern: Pattern, content: String): String {
         val matcher = Pattern.compile(codeRegex).matcher(content)
-        val possibleCodes = mutableListOf<String>()
+        val possibleCodes = mutableListOf<CodeCandidate>()
         while (matcher.find()) {
             val candidate = matcher.group()
             if (isLikelyRejectedCodeToken(candidate, content, matcher.start())) continue
-            possibleCodes.add(candidate)
+            possibleCodes.add(CodeCandidate(code = candidate, start = matcher.start()))
         }
         if (possibleCodes.isEmpty()) return ""
 
-        var filteredCodes = possibleCodes.filter { isNearToKeyword(keyword, it, content) }
-        if (filteredCodes.isEmpty()) {
-            if (keyword.isEmpty()) {
-                filteredCodes = possibleCodes
-            } else {
-                return ""
-            }
-        }
+        // Nearness is measured against every keyword match (every alternative of the
+        // keyword regex, and every occurrence), not just the first match: locking onto
+        // one long keyword occurrence can push the real code beyond the distance
+        // threshold even though a shorter keyword sits right next to it (issue #267).
+        val keywordRanges = findKeywordRanges(keywordPattern, content)
+        val filteredCodes = possibleCodes.filter { isNearToKeyword(keywordRanges, it) }
+        if (filteredCodes.isEmpty()) return ""
 
-        var maxMatchLevel = LEVEL_NONE
-        var minDistance = content.length
+        // Proximity to a keyword wins over digit-length level: the code is the number
+        // sitting next to the keyword, while a longer/shorter digit run elsewhere in
+        // the message (card number, order id, date) is noise. Digit level only breaks
+        // ties between candidates at the same distance.
+        var bestDistance = Int.MAX_VALUE
+        var bestLevel = LEVEL_NONE
         var smsCode = ""
-        for (filteredCode in filteredCodes) {
-            val curLevel = getMatchLevel(filteredCode)
-            if (curLevel > maxMatchLevel) {
-                maxMatchLevel = curLevel
-                minDistance = distanceToKeyword(keyword, filteredCode, content)
-                smsCode = filteredCode
-            } else if (curLevel == maxMatchLevel) {
-                val curDistance = distanceToKeyword(keyword, filteredCode, content)
-                if (curDistance < minDistance) {
-                    minDistance = curDistance
-                    smsCode = filteredCode
-                }
+        for (candidate in filteredCodes) {
+            val curDistance = distanceToKeywordRanges(keywordRanges, candidate)
+            val curLevel = getMatchLevel(candidate.code)
+            val isBetter = curDistance < bestDistance ||
+                (curDistance == bestDistance && curLevel > bestLevel)
+            if (isBetter) {
+                bestDistance = curDistance
+                bestLevel = curLevel
+                smsCode = candidate.code
             }
         }
         return smsCode
+    }
+
+    private fun findKeywordRanges(keywordPattern: Pattern, content: String): List<IntRange> {
+        val ranges = mutableListOf<IntRange>()
+        val matcher = keywordPattern.matcher(content)
+        while (matcher.find()) {
+            ranges.add(matcher.start() until matcher.end())
+        }
+        return ranges
+    }
+
+    private fun isNearToKeyword(keywordRanges: List<IntRange>, candidate: CodeCandidate): Boolean =
+        distanceToKeywordRanges(keywordRanges, candidate) <= KEYWORD_DISTANCE_THRESHOLD
+
+    private fun distanceToKeywordRanges(keywordRanges: List<IntRange>, candidate: CodeCandidate): Int {
+        if (keywordRanges.isEmpty()) return Int.MAX_VALUE
+        val codeStart = candidate.start
+        val codeEnd = candidate.start + candidate.code.length - 1
+        var minDistance = Int.MAX_VALUE
+        for (range in keywordRanges) {
+            val distance = when {
+                codeStart in range -> 0
+                codeEnd < range.first -> range.first - codeEnd - 1
+                else -> codeStart - range.last - 1
+            }
+            if (distance < minDistance) {
+                minDistance = distance
+            }
+        }
+        return minDistance
     }
 
     private fun isLikelyDateTimeToken(
@@ -283,27 +302,6 @@ object SmsCodeUtils {
         val firstLevel = getMatchLevel(first.code)
         val secondLevel = getMatchLevel(second.code)
         return if (secondLevel > firstLevel) second else first
-    }
-
-    private fun isNearToKeyword(keyword: String, possibleCode: String, content: String): Boolean =
-        distanceToKeyword(keyword, possibleCode, content) <= KEYWORD_DISTANCE_THRESHOLD
-
-    private fun distanceToKeyword(keyword: String, possibleCode: String, content: String): Int {
-        val possibleCodeIdx = content.indexOf(possibleCode)
-        if (possibleCodeIdx < 0) return content.length
-
-        var minDistance = content.length
-        var searchStart = 0
-        while (searchStart < content.length) {
-            val keywordIdx = content.indexOf(keyword, startIndex = searchStart)
-            if (keywordIdx < 0) break
-            val distance = kotlin.math.abs(keywordIdx - possibleCodeIdx)
-            if (distance < minDistance) {
-                minDistance = distance
-            }
-            searchStart = keywordIdx + keyword.length
-        }
-        return minDistance
     }
 
     private fun parseByCustomRules(

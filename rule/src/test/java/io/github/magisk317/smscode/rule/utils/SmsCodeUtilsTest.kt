@@ -309,4 +309,80 @@ class SmsCodeUtilsTest {
 
         assertEquals("55412884", result.code)
     }
+
+    @Test
+    fun `parse extracts Persian OTP code next to short keyword after a long keyword phrase (Issue 267)`() = runBlocking {
+        // 2026-09-26 feedback original: the long phrase "رمز پویا" sits on line 2 while the code
+        // follows the bare "رمز" on the last line. Nearness must consider every keyword match,
+        // not only the first one, otherwise the real code falls outside the distance threshold.
+        val persianSms = """
+            بلو
+            بفرمایید رمز پویا
+            خرید
+            اسنپ پي
+            مبلغ: 2,730,000 ریال
+            رمز: 942144
+        """.trimIndent()
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = persianSms,
+            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+        )
+
+        assertEquals("942144", result.code)
+    }
+
+    @Test
+    fun `parse extracts Eastern Arabic Persian OTP next to short keyword (Issue 267)`() = runBlocking {
+        // ۹۴۲۱۴۴ in Persian digits corresponds to 942144
+        val persianDigitsSms = """
+            بلو
+            بفرمایید رمز پویا
+            خرید
+            اسنپ پي
+            مبلغ: 2,730,000 ریال
+            رمز: ۹۴۲۱۴۴
+        """.trimIndent()
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = persianDigitsSms,
+            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+        )
+
+        assertEquals("942144", result.code)
+    }
+
+    @Test
+    fun `parse keeps nearest code when a date line follows Persian OTP (Issue 267)`() = runBlocking {
+        // The trailing date yields a 4-digit run closer to the line-2 keyword than the code is,
+        // but the code sits immediately after the adjacent "رمز" and must still win.
+        val persianSms = """
+            بلو
+            بفرمایید رمز پویا
+            خرید
+            اسنپ پي
+            مبلغ: 2,730,000 ریال
+            رمز 942144
+            تاریخ 1405/06/13
+        """.trimIndent()
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = persianSms,
+            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+        )
+
+        assertEquals("942144", result.code)
+    }
+
+    @Test
+    fun `parse prefers code adjacent to keyword over higher level digit run elsewhere (Issue 267)`() = runBlocking {
+        // 654321 is a 6-digit run (higher match level) but it belongs to the order id;
+        // 1234 sits right next to the keyword and is the actual code.
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Acme】验证码1234，订单号654321已发货，请勿泄露。",
+            keywordsRegex = "验证码",
+        )
+
+        assertEquals("1234", result.code)
+    }
 }
