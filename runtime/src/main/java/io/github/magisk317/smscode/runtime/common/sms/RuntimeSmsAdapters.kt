@@ -2,7 +2,7 @@ package io.github.magisk317.smscode.runtime.common.sms
 
 import android.content.Context
 import io.github.magisk317.smscode.rule.model.SmsBlacklistConfig
-import io.github.magisk317.smscode.rule.model.SmsBlacklistMatchResult
+import io.github.magisk317.smscode.verification.BlacklistMatchResult
 import io.github.magisk317.smscode.rule.model.SmsCodeParseResult
 import io.github.magisk317.smscode.rule.model.SmsCodeParseSource
 import io.github.magisk317.smscode.rule.model.SmsCodeRuleSpec
@@ -70,7 +70,7 @@ class RuntimeSmsCodeAdapter(
 class RuntimeSmsBlacklistAdapter(
     private val configProvider: SmsBlacklistConfigProvider,
 ) {
-    fun match(context: Context, sender: String?, body: String?): SmsBlacklistMatchResult {
+    fun match(context: Context, sender: String?, body: String?): BlacklistMatchResult {
         val startedAt = System.nanoTime()
         val result = SmsBlacklistUtils.match(
             config = configProvider.getConfig(context),
@@ -91,6 +91,13 @@ class RuntimeSmsBlacklistAdapter(
             ),
             statusOk = true,
         )
-        return result
+        // Hand back the shared verification type so hosts do not each redefine it.
+        return BlacklistMatchResult(
+            matched = result.matched,
+            matchType = result.matchType,
+            pattern = result.pattern,
+            actionDelete = result.actionDelete,
+            actionBlock = result.actionBlock,
+        )
     }
 }

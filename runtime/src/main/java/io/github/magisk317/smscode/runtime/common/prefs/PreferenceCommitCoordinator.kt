@@ -7,6 +7,7 @@ import io.github.magisk317.smscode.runtime.contract.prefs.PreferenceCommitResult
 import io.github.magisk317.smscode.runtime.contract.prefs.PreferenceEditScope
 import io.github.magisk317.smscode.runtime.contract.prefs.PreferencePostCommitFailure
 import io.github.magisk317.smscode.runtime.contract.prefs.PreferencePostCommitHook
+import io.github.magisk317.smscode.runtime.contract.prefs.PreferencePostCommitHooks
 import io.github.magisk317.smscode.runtime.contract.prefs.preferenceChangeSet
 import kotlinx.coroutines.CancellationException
 import io.github.magisk317.xposed.logging.MagiskOtel
@@ -78,3 +79,23 @@ class PreferenceCommitCoordinator(
         return PreferenceCommitResult.Persisted(changes, failures)
     }
 }
+
+/**
+ * Shared factory for the hosts' preference-commit pipelines: durable write,
+ * then optional in-process cache invalidation, then cross-process publication.
+ *
+ * Unified from XposedSmsCode / xinyi-relay; [invalidate] carries the relay
+ * semantics (drop reader caches before publishing) and is optional because
+ * not every host keeps an in-process reader cache.
+ */
+fun createPreferenceCommitCoordinator(
+    persistence: AtomicPreferencePersistence,
+    invalidate: (suspend () -> Unit)? = null,
+    publish: suspend () -> Unit,
+): PreferenceCommitCoordinator = PreferenceCommitCoordinator(
+    persistence = persistence,
+    hooks = buildList {
+        invalidate?.let { add(PreferencePostCommitHooks.invalidate { _ -> it() }) }
+        add(PreferencePostCommitHooks.publish { _ -> publish() })
+    },
+)

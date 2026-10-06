@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import io.github.magisk317.xposed.logging.MagiskOtel
 
 class PhoneProcessRestartCoordinator(
-    targetProcesses: Collection<String>,
+    targetProcesses: Collection<String> = DEFAULT_TARGET_PROCESSES,
     private val logger: Logger = Logger.NONE,
     private val commandRunner: CommandRunner = ProcessCommandRunner,
 ) {
@@ -207,6 +207,19 @@ class PhoneProcessRestartCoordinator(
     }
 
     companion object {
+        /**
+         * Processes whose restart makes a telephony change take effect: the dialer, its
+         * carrier variants, the telephony provider and the MMS stack. Hosts fronting extra
+         * messaging apps extend this at the call site rather than restating the list.
+         */
+        val DEFAULT_TARGET_PROCESSES: List<String> = listOf(
+            "com.android.phone",
+            "com.xiaomi.phone",
+            "com.android.providers.telephony",
+            "com.android.mms",
+            "com.android.mms:mms_service",
+        )
+
         private const val INSTALL_GUARD_PREFS = "install_guard_prefs"
         private const val KEY_LAST_HANDLED_INSTALL_TOKEN = "last_handled_install_token"
         private const val KEY_LAST_RESTART_ATTEMPT_AT = "last_restart_attempt_at"

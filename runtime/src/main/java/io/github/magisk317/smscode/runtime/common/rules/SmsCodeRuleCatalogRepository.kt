@@ -163,6 +163,7 @@ class SmsCodeRuleCatalogRepository(
                     senderRegex = rule.senderRegex,
                     packageNameHint = rule.packageNameHint,
                     priority = rule.priority,
+                    rejectedSuffixes = rule.rejectedSuffixes,
                     notes = rule.notes,
                 )
             }

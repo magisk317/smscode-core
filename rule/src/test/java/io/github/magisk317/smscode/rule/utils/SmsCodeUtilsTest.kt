@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 
 class SmsCodeUtilsTest {
+    private val persianKeywordsRegex = "رمز\\s*یکبار\\s*مصرف|کد\\s*تایید|کد\\s*تأیید|کد\\s*فعالسازی|رمز\\s*پویا|رمز|کد|پویا"
 
     @Test
     fun `parse prefers custom rule when available`() = runBlocking {
@@ -49,6 +50,39 @@ class SmsCodeUtilsTest {
         )
 
         assertEquals("", result.code)
+    }
+
+    @Test
+    fun `parse extracts verification code with 验证密码 keyword and rejects data unit tokens`() = runBlocking {
+        val sms = "【中国移动客户端】验证密码：037481。尊敬的客户，您好！您正在中国移动线上渠道为     号码兑换流量红包100MB（24小时），资费0元，包含流量100MB，办理成功后立即生效，24小时后失效，验证码有效期2分钟，若非本人操作请勿泄露，任何索取行为均可能涉嫌诈骗。"
+
+        // Rule for Gmail (targeted to package, should not fallback to 100MB)
+        val gmailRule = SmsCodeRuleSpec(
+            company = "Gmail",
+            codeKeyword = "验证码",
+            codeRegex = "(?i)(?<![A-Z0-9])(?=[A-Z0-9]{4,10}(?![A-Z0-9]))(?=[A-Z0-9]*\\d)[A-Z0-9]{4,10}",
+            packageNameHint = "com.google.android.gm",
+            priority = 120,
+            source = SmsCodeMatchedRuleSource.OFFICIAL,
+        )
+
+        // China Mobile official rule
+        val chinaMobileRule = SmsCodeRuleSpec(
+            company = "中国移动",
+            codeKeyword = "验证密码",
+            codeRegex = "(?<=验证密码[:：])\\d{4,8}",
+            priority = 120,
+            source = SmsCodeMatchedRuleSource.OFFICIAL,
+        )
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = sms,
+            keywordsRegex = "验证码|验证密码",
+            rules = listOf(gmailRule, chinaMobileRule),
+        )
+
+        assertEquals("037481", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.OFFICIAL, result.matchedRule?.source)
     }
 
     @Test
@@ -186,8 +220,13 @@ class SmsCodeUtilsTest {
             packageNameHint = "com.google.android.gm",
         )
 
-        val noSourceResult = SmsCodeUtils.parseSmsCodeResultIfExists(
+        val noSourceNoCompanyResult = SmsCodeUtils.parseSmsCodeResultIfExists(
             content = "Your verification code is 731284",
+            keywordsRegex = "验证码",
+            rules = listOf(rule),
+        )
+        val noSourceCompanyMatchedResult = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "【Gmail】Your verification code is 731284",
             keywordsRegex = "验证码",
             rules = listOf(rule),
         )
@@ -210,7 +249,8 @@ class SmsCodeUtilsTest {
             ),
         )
 
-        assertEquals("731284", noSourceResult.code)
+        assertEquals("", noSourceNoCompanyResult.code)
+        assertEquals("731284", noSourceCompanyMatchedResult.code)
         assertEquals("731284", matchedPackageResult.code)
         assertEquals("", mismatchedPackageResult.code)
     }
@@ -285,7 +325,7 @@ class SmsCodeUtilsTest {
 
         val result = SmsCodeUtils.parseSmsCodeResultIfExists(
             content = persianSms,
-            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+            keywordsRegex = persianKeywordsRegex,
         )
 
         assertEquals("55412884", result.code)
@@ -304,7 +344,7 @@ class SmsCodeUtilsTest {
 
         val result = SmsCodeUtils.parseSmsCodeResultIfExists(
             content = persianDigitsSms,
-            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+            keywordsRegex = persianKeywordsRegex,
         )
 
         assertEquals("55412884", result.code)
@@ -326,7 +366,7 @@ class SmsCodeUtilsTest {
 
         val result = SmsCodeUtils.parseSmsCodeResultIfExists(
             content = persianSms,
-            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+            keywordsRegex = persianKeywordsRegex,
         )
 
         assertEquals("942144", result.code)
@@ -346,7 +386,7 @@ class SmsCodeUtilsTest {
 
         val result = SmsCodeUtils.parseSmsCodeResultIfExists(
             content = persianDigitsSms,
-            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+            keywordsRegex = persianKeywordsRegex,
         )
 
         assertEquals("942144", result.code)
@@ -368,7 +408,7 @@ class SmsCodeUtilsTest {
 
         val result = SmsCodeUtils.parseSmsCodeResultIfExists(
             content = persianSms,
-            keywordsRegex = io.github.magisk317.smscode.rule.constant.SmsCodeConst.VERIFICATION_KEYWORDS_REGEX,
+            keywordsRegex = persianKeywordsRegex,
         )
 
         assertEquals("942144", result.code)
@@ -384,5 +424,136 @@ class SmsCodeUtilsTest {
         )
 
         assertEquals("1234", result.code)
+    }
+
+    @Test
+    fun `parse respects dynamic rejectedSuffixes from rule catalog`() = runBlocking {
+        val rule = SmsCodeRuleSpec(
+            company = "GameService",
+            codeKeyword = "code",
+            codeRegex = "(?<![a-zA-Z0-9])[0-9]{4,8}(?![a-zA-Z0-9])",
+            rejectedSuffixes = listOf("pts", "points", "min"),
+            source = SmsCodeMatchedRuleSource.OFFICIAL,
+        )
+
+        val sms = "GameService code: your bonus is 5000pts! Your code is 123456, valid for 10min."
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = sms,
+            keywordsRegex = "code",
+            rules = listOf(rule),
+        )
+
+        assertEquals("123456", result.code)
+    }
+
+    @Test
+    fun `parse extracts code from catalog rules alone when keywords regex is blank`() = runBlocking {
+        // Host preference defaults are empty; the bundled rule catalog must fully
+        // take over keyword anchoring and extraction (Plan-B end state).
+        val sms = "【中国移动客户端】验证密码：037481。尊敬的客户，您好！您正在中国移动线上渠道为     号码兑换流量红包100MB（24小时），资费0元，包含流量100MB，办理成功后立即生效，24小时后失效，验证码有效期2分钟，若非本人操作请勿泄露，任何索取行为均可能涉嫌诈骗。"
+        val gmailRule = SmsCodeRuleSpec(
+            company = "Gmail",
+            codeKeyword = "验证码",
+            codeRegex = "(?i)(?<![A-Z0-9])(?=[A-Z0-9]{4,10}(?![A-Z0-9]))(?=[A-Z0-9]*\\d)[A-Z0-9]{4,10}",
+            packageNameHint = "com.google.android.gm",
+            priority = 120,
+            source = SmsCodeMatchedRuleSource.OFFICIAL,
+        )
+        val chinaMobileRule = SmsCodeRuleSpec(
+            company = "中国移动",
+            codeKeyword = "验证密码",
+            codeRegex = "(?<=验证密码[:：])\\d{4,8}",
+            priority = 120,
+            source = SmsCodeMatchedRuleSource.OFFICIAL,
+        )
+        val genericNumericRule = SmsCodeRuleSpec(
+            company = null,
+            codeKeyword = "验证码",
+            codeRegex = "(?<![a-zA-Z0-9])[0-9]{4,8}(?![a-zA-Z0-9])",
+            priority = 10,
+            source = SmsCodeMatchedRuleSource.OFFICIAL,
+        )
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = sms,
+            keywordsRegex = "",
+            rules = listOf(gmailRule, chinaMobileRule, genericNumericRule),
+        )
+
+        assertEquals("037481", result.code)
+        assertEquals(SmsCodeMatchedRuleSource.OFFICIAL, result.matchedRule?.source)
+    }
+
+    @Test
+    fun `parse finds nothing with blank keywords regex when generic rules cannot anchor`() = runBlocking {
+        // Without the targeted china-mobile rule the generic keyword cannot anchor
+        // the leading code (beyond the distance threshold), so nothing may be
+        // extracted and the quantity-unit tokens must stay rejected.
+        val sms = "【中国移动客户端】尊敬的客户，您正在中国移动线上渠道兑换流量红包100MB（24小时），资费0元，包含流量100MB，办理成功后立即生效，24小时后失效，验证码有效期2分钟。"
+        val genericNumericRule = SmsCodeRuleSpec(
+            company = null,
+            codeKeyword = "验证码",
+            codeRegex = "(?<![a-zA-Z0-9])[0-9]{4,8}(?![a-zA-Z0-9])",
+            priority = 10,
+            source = SmsCodeMatchedRuleSource.OFFICIAL,
+        )
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = sms,
+            keywordsRegex = "",
+            rules = listOf(genericNumericRule),
+        )
+
+        assertEquals("", result.code)
+    }
+
+    @Test
+    fun `parse suppresses generic fallback when targeted brand mismatches source`() = runBlocking {
+        // A notification claiming another app's brand (sender matches the targeted
+        // rule, package does not) must not yield a code via the generic fallback.
+        val voiceRule = SmsCodeRuleSpec(
+            company = "Google Voice",
+            codeKeyword = "code",
+            codeRegex = "(?i)(?<![A-Z0-9])(?=[A-Z0-9]{4,10}(?![A-Z0-9]))(?=[A-Z0-9]*\\d)[A-Z0-9]{4,10}",
+            packageNameHint = "com.google.android.apps.googlevoice",
+            senderRegex = "Google Voice|Voice",
+            priority = 120,
+            source = SmsCodeMatchedRuleSource.OFFICIAL,
+        )
+
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "Google Voice\nYour Google Voice verification code is GV42",
+            keywordsRegex = "(?i)(?<![a-z])(?:verification|verify|otp|passcode|pin|code)(?![a-z])",
+            rules = listOf(voiceRule),
+            source = SmsCodeParseSource(
+                packageName = "com.example.chat",
+                sender = "Google Voice",
+                title = "Google Voice",
+                sourceKind = SmsCodeParseSourceKind.APP_NOTIFICATION,
+            ),
+        )
+
+        assertEquals("", result.code)
+    }
+
+    @Test
+    fun `official rule keyword matches across unicode case`() = runBlocking {
+        // Catalog keywords are literal for OFFICIAL rules; the quoted pattern must
+        // fold case for non-ASCII scripts (Cyrillic) or the rule is skipped.
+        val result = SmsCodeUtils.parseSmsCodeResultIfExists(
+            content = "Код: 482910",
+            keywordsRegex = "",
+            rules = listOf(
+                SmsCodeRuleSpec(
+                    company = null,
+                    codeKeyword = "код",
+                    codeRegex = "(?<![a-zA-Z0-9])[0-9]{4,8}(?![a-zA-Z0-9])",
+                    priority = 10,
+                    source = SmsCodeMatchedRuleSource.OFFICIAL,
+                ),
+            ),
+        )
+
+        assertEquals("482910", result.code)
     }
 }

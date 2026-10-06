@@ -22,6 +22,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
         val duplicate: Boolean = false,
         val detail: String? = null,
         val error: String? = null,
+        val errorClass: String? = null,
     )
 
     fun run(): Bundle? {
@@ -38,6 +39,9 @@ class RecordSmsActionHelper<M : SmsMessage>(
                 "duration_ms" to durationMs.toString(),
                 "process" to "hook",
             )
+            if (eventId.isNotBlank()) {
+                attrs["event_id"] = eventId.take(MAX_ATTRIBUTE_VALUE_LENGTH)
+            }
             if (reason != null) {
                 attrs["reason"] = reason
             }
@@ -140,6 +144,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
                 "insert_failed",
                 mapOf(
                     "error" to (insertResult.error ?: insertResult.detail ?: "unknown"),
+                    "error_class" to (insertResult.errorClass ?: "unknown"),
                 ),
             )
         }

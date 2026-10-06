@@ -9,6 +9,7 @@ import android.os.Build
 import android.util.Log
 import io.github.magisk317.smscode.runtime.contract.ipc.RuntimeStateProviderContract
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.xposed.logging.DailyJsonlLogStore
 import io.github.magisk317.xposed.logging.LogEvent
 import io.github.magisk317.xposed.logging.LogLevel
 import io.github.magisk317.xposed.logging.LogSanitizer
@@ -24,7 +25,6 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -85,13 +85,21 @@ object RuntimeLogStore {
     const val ROUTE_ROOT_DB = "root_db"
     const val ROUTE_APP = "app"
     private const val FILE_TIMESTAMP_PATTERN = "yyyy-MM-dd HH:mm:ss.SSS"
-    private const val FILE_DATE_PATTERN = "yyyy-MM-dd"
 
     private val lock = Any()
+
+    // Daily-rotating jsonl mechanics live in the kit; this host keeps the line
+    // schema, the runtime naming policy, the retention source, and the
+    // cross-UID permission-bit hook.
+    private val fileStore = DailyJsonlLogStore(
+        onFileWritten = { file ->
+            StorageUtils.setFileWorldReadable(file, 2)
+            StorageUtils.setFileWorldWritable(file, 1)
+        },
+    )
     private val buffer = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
     private val pendingFileEntries = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
     private val dailyRuntimeLogRegex = Regex("""^runtime\.\d{4}-\d{2}-\d{2}\.jsonl$""")
-    private val dailyLogDateRegex = Regex("""^runtime(?:\.[^.]+)?\.(\d{4}-\d{2}-\d{2})\.jsonl$""")
     private val jsonLineParser = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -102,11 +110,6 @@ object RuntimeLogStore {
     }
     private val fileTimestampFormatter = object : ThreadLocal<SimpleDateFormat>() {
         override fun initialValue(): SimpleDateFormat = SimpleDateFormat(FILE_TIMESTAMP_PATTERN, Locale.getDefault())
-    }
-    private val fileDateFormatter = object : ThreadLocal<SimpleDateFormat>() {
-        override fun initialValue(): SimpleDateFormat = SimpleDateFormat(FILE_DATE_PATTERN, Locale.US).apply {
-            isLenient = false
-        }
     }
 
     @Volatile
@@ -478,27 +481,6 @@ object RuntimeLogStore {
         }
     }
 
-    private fun appendToFilesLocked(entry: RuntimeLogEntry): Boolean {
-        return runCatching {
-            val context = appContext ?: resolveContextFromActivityThreadLocked() ?: return false
-            if (!isModuleContext(context)) return false
-            if (appContext == null) {
-                appContext = context
-            }
-            maybeRefreshRetentionLocked(context)
-            val logDir = StorageUtils.getLogDir(context) ?: return false
-            val line = encode(entry) + "\n"
-            writeLineToFile(logDir, LOG_FILE_NAME, entry.timestamp, line)
-            writeLineToFile(logDir, routeFileName(entry.route), entry.timestamp, line)
-            true
-        }.onFailure {
-            Log.w(
-                INTERNAL_TAG,
-                "appendToFilesLocked skipped due to storage exception: ${it.message ?: it.javaClass.simpleName}",
-            )
-        }.getOrDefault(false)
-    }
-
     private fun flushPendingIfPossible() {
         synchronized(lock) {
             flushPendingLocked()
@@ -518,9 +500,12 @@ object RuntimeLogStore {
             maybePruneExpiredLogsLocked(logDir, System.currentTimeMillis())
             while (pendingFileEntries.isNotEmpty()) {
                 val entry = pendingFileEntries.removeFirst()
-                val line = encode(entry) + "\n"
-                writeLineToFile(logDir, LOG_FILE_NAME, entry.timestamp, line)
-                writeLineToFile(logDir, routeFileName(entry.route), entry.timestamp, line)
+                fileStore.appendLine(
+                    logDir = logDir,
+                    baseFileNames = listOf(LOG_FILE_NAME, routeFileName(entry.route)),
+                    timestampMs = entry.timestamp,
+                    line = encode(entry),
+                )
             }
         }.onFailure {
             Log.w(
@@ -528,21 +513,6 @@ object RuntimeLogStore {
                 "flushPendingLocked skipped due to storage exception: ${it.message ?: it.javaClass.simpleName}",
             )
         }
-    }
-
-    private fun writeLineToFile(logDir: File, baseFileName: String, timestamp: Long, line: String) {
-        runCatching {
-            val file = File(logDir, dailyLogFileName(baseFileName, timestamp))
-            ensureParentDir(file)
-            file.appendText(line)
-            StorageUtils.setFileWorldReadable(file, 2)
-            StorageUtils.setFileWorldWritable(file, 1)
-        }
-    }
-
-    private fun ensureParentDir(file: File) {
-        val parent = file.parentFile ?: return
-        if (!parent.exists()) parent.mkdirs()
     }
 
     private fun maybeRefreshRetentionLocked(context: Context) {
@@ -579,35 +549,12 @@ object RuntimeLogStore {
     private fun maybePruneExpiredLogsLocked(logDir: File, now: Long) {
         if (now - lastRetentionPruneAtMs < RETENTION_PRUNE_INTERVAL_MS) return
         lastRetentionPruneAtMs = now
-        val cutoff = retentionCutoffStartMs(now)
-        logDir.listFiles()
-            .orEmpty()
-            .filter { it.isFile && isRuntimeLogFileName(it.name) }
-            .forEach { file ->
-                val fileTime = dailyLogDateStartMs(file.name) ?: file.lastModified()
-                if (fileTime > 0L && fileTime < cutoff) {
-                    runCatching { file.delete() }
-                }
-            }
-    }
-
-    private fun retentionCutoffStartMs(now: Long): Long {
-        return Calendar.getInstance().apply {
-            timeInMillis = now
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-            add(Calendar.DAY_OF_YEAR, -(retentionDays.coerceAtLeast(MIN_RETENTION_DAYS) - 1))
-        }.timeInMillis
-    }
-
-    private fun dailyLogFileName(baseFileName: String, timestamp: Long): String {
-        val date = fileDateFormatter.get()?.format(Date(timestamp)) ?: timestamp.toString()
-        val stem = baseFileName
-            .removeSuffix(".jsonl")
-            .removeSuffix(".log")
-        return "$stem.$date.jsonl"
+        fileStore.pruneExpired(
+            logDir = logDir,
+            nowMs = now,
+            retentionDays = retentionDays,
+            isManagedFile = ::isRuntimeLogFileName,
+        )
     }
 
     private fun isRuntimeLogFileName(name: String): Boolean {
@@ -620,12 +567,7 @@ object RuntimeLogStore {
     }
 
     private fun runtimeLogSortTime(file: File): Long {
-        return dailyLogDateStartMs(file.name) ?: file.lastModified()
-    }
-
-    private fun dailyLogDateStartMs(fileName: String): Long? {
-        val value = dailyLogDateRegex.matchEntire(fileName)?.groupValues?.getOrNull(1) ?: return null
-        return runCatching { fileDateFormatter.get()?.parse(value)?.time }.getOrNull()
+        return fileStore.fileDateStartMs(file.name) ?: file.lastModified()
     }
 
     private fun encode(entry: RuntimeLogEntry): String {

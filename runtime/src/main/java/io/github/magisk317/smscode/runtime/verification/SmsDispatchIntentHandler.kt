@@ -154,7 +154,7 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
     }
 }
 
-private fun defaultGateDecision(
+fun defaultGateDecision(
     moduleEnabled: Boolean,
     suppressedByRelay: Boolean,
 ): DispatchGateDecision {

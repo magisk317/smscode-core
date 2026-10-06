@@ -14,12 +14,15 @@ object RecordSmsInsertResultHelper {
         return RecordSmsActionHelper.InsertResult(success = true, duplicate = true, detail = detail)
     }
 
-    fun failure(error: String): RecordSmsActionHelper.InsertResult {
-        return RecordSmsActionHelper.InsertResult(success = false, error = error)
+    fun failure(error: String, errorClass: String? = null): RecordSmsActionHelper.InsertResult {
+        return RecordSmsActionHelper.InsertResult(success = false, error = error, errorClass = errorClass)
     }
 
     fun fromThrowable(throwable: Throwable): RecordSmsActionHelper.InsertResult {
-        return failure(throwable.message ?: throwable.javaClass.simpleName)
+        return failure(
+            error = throwable.message ?: throwable.javaClass.simpleName,
+            errorClass = throwable.javaClass.simpleName,
+        )
     }
 
     inline fun capture(

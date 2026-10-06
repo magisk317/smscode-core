@@ -44,6 +44,7 @@ data class SmsCodeRuleDocument(
     val senderRegex: String? = null,
     val packageNameHint: String? = null,
     val priority: Int = 0,
+    val rejectedSuffixes: List<String> = emptyList(),
     val notes: String? = null,
     val examples: List<SmsCodeRuleExample> = emptyList(),
 ) {
@@ -55,6 +56,7 @@ data class SmsCodeRuleDocument(
         packageNameHint = packageNameHint?.takeIf { it.isNotBlank() },
         priority = priority,
         source = SmsCodeMatchedRuleSource.OFFICIAL,
+        rejectedSuffixes = rejectedSuffixes,
     )
 }
 
@@ -78,6 +80,7 @@ data class OfficialSmsCodeRule(
     val senderRegex: String? = null,
     val packageNameHint: String? = null,
     val priority: Int = 0,
+    val rejectedSuffixes: List<String> = emptyList(),
     val notes: String? = null,
 ) {
     fun toRuleSpec(): SmsCodeRuleSpec = SmsCodeRuleSpec(
@@ -88,5 +91,6 @@ data class OfficialSmsCodeRule(
         packageNameHint = packageNameHint?.takeIf { it.isNotBlank() },
         priority = priority,
         source = SmsCodeMatchedRuleSource.OFFICIAL,
+        rejectedSuffixes = rejectedSuffixes,
     )
 }
