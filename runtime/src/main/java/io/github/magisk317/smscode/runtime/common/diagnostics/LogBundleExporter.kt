@@ -1,4 +1,5 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
+import io.github.magisk317.xposed.logging.VerboseLogEnableTracker
 
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
