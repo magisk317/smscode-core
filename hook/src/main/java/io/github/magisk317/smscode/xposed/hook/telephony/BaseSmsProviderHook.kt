@@ -1,29 +1,35 @@
 package io.github.magisk317.smscode.xposed.hook.telephony
 
 import android.content.Context
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.smscode.xposed.hook.HookHostCapabilities
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.LoadParam
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 
 /**
  * Host-specific wiring for [BaseSmsProviderHook].
  *
- * The two hosts route hook heartbeats and verbose-mode lookups through different
- * runtime bridges (`HookRuntimeBridge` in XSC, `XpHookDiagnostics`/`XpPrefs` in
- * xinyi-relay). Core owns the hook installation and the write diagnostics; hosts
- * only supply these callbacks.
+ * Hosts implement the domain pieces and supply one [HookHostCapabilities] adapter;
+ * the capability members below have default implementations delegating to it, so
+ * XSC (`HookRuntimeBridge`) and xinyi-relay (`xpbridge` facades) converge on the
+ * same contract instead of drifting per file.
  */
 interface SmsProviderHookHost {
     /** Application id of the host module, used to build the plugin `Context`. */
     val applicationId: String
+
+    /** Unified host capabilities (prefs, escaping, parsing, heartbeat, process init). */
+    val capabilities: HookHostCapabilities
 
     /**
      * Called once per hooked process after the plugin context becomes available,
      * before any SMS write is observed. Hosts use it to install per-process
      * runtime state (e.g. binding the log context).
      */
-    fun onPluginContextReady(pluginContext: Context, phoneContext: Context) {}
+    fun onPluginContextReady(pluginContext: Context, phoneContext: Context) {
+        capabilities.onProcessInit(pluginContext)
+    }
 
     /** Records the per-write hook heartbeat. */
     fun recordHeartbeat(
@@ -31,10 +37,19 @@ interface SmsProviderHookHost {
         phoneContext: Context,
         processName: String,
         source: String,
-    )
+    ) {
+        capabilities.recordHookHeartbeat(
+            context = pluginContext,
+            packageName = SmsProviderHookInstaller.TARGET_PACKAGE,
+            processName = processName,
+            source = source,
+            verboseLogging = capabilities.isVerboseLogMode(pluginContext),
+        )
+    }
 
     /** Returns true when verbose logging is enabled for this process. */
-    fun isVerboseLogMode(pluginContext: Context): Boolean
+    fun isVerboseLogMode(pluginContext: Context): Boolean =
+        capabilities.isVerboseLogMode(pluginContext)
 
     /** Optional verbose diagnostics emitted right after the target process is matched. */
     fun onTargetProcessHit(param: LoadParam) {}
@@ -56,7 +71,7 @@ abstract class BaseSmsProviderHook(
     override fun hookOnLoadPackage(): Boolean = true
 
     final override fun onLoadPackage(param: LoadParam) {
-        XLog.withRoute(LogRoute.SMS_HOOK) {
+        XLog.withRoute(LogRoute.SMS_HOOK.id) {
             onLoadPackageRouted(param)
         }
     }
@@ -65,10 +80,10 @@ abstract class BaseSmsProviderHook(
         if (!isTargetPackage(param.packageName)) return
         host.onTargetProcessHit(param)
         val installation = SmsProviderHookInstaller.install(param.classLoader) { call ->
-            XLog.withRoute(LogRoute.SMS_HOOK) { handleWrite(call) }
+            XLog.withRoute(LogRoute.SMS_HOOK.id) { handleWrite(call) }
         }
         if (!installation.classFound) {
-            XLog.w("SmsProviderHook: class not found: %s", SmsProviderHookInstaller.TARGET_CLASS)
+            XLog.w(message = "SmsProviderHook: class not found: %s", SmsProviderHookInstaller.TARGET_CLASS)
             host.onTargetClassMissing(param)
             SmsProviderHookInstaller.recordLoad(result = "skip", reason = "class_missing")
             return

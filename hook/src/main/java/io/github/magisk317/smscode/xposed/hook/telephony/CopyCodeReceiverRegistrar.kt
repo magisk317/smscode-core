@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 
 /**
  * Registers the copy-code receiver that runs when the user taps the notification.
@@ -43,7 +43,7 @@ class CopyCodeReceiverRegistrar(
             registered = true
             true
         }.getOrElse {
-            XLog.w("Copy code receiver register failed: %s", it.message ?: it.javaClass.simpleName)
+            XLog.w(message = "Copy code receiver register failed: %s", it.message ?: it.javaClass.simpleName)
             false
         }
     }
@@ -54,7 +54,7 @@ class CopyCodeReceiverRegistrar(
         registered = false
         runCatching { context.unregisterReceiver(receiver) }
             .onFailure {
-                XLog.w("Copy code receiver unregister failed: %s", it.message ?: it.javaClass.simpleName)
+                XLog.w(message = "Copy code receiver unregister failed: %s", it.message ?: it.javaClass.simpleName)
             }
     }
 }

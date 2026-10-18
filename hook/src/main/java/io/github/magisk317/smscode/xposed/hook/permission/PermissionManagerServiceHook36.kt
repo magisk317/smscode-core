@@ -2,7 +2,7 @@ package io.github.magisk317.smscode.xposed.hook.permission
 
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
 import io.github.magisk317.xposed.BaseSubHook
 import io.github.magisk317.xposed.MethodHook

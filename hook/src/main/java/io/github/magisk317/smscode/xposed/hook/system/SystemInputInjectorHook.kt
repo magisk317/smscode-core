@@ -23,7 +23,7 @@ import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputAccessibi
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.smscode.xposed.runtime.CoreHookPolicyHolder
 import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.xposed.BaseHook
@@ -84,7 +84,7 @@ class SystemInputInjectorHook : BaseHook() {
     override fun hookInitZygote(): Boolean = true
 
     override fun initZygote() {
-        XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+        XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
             initZygoteRouted()
         }
     }
@@ -102,7 +102,7 @@ class SystemInputInjectorHook : BaseHook() {
                         override val stableId: String = "system_input.activity_thread_system_main"
 
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                            XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
                                 XLog.i("XSmsCode: ActivityThread.systemMain hook triggered")
                                 val activityThreadClass = HookHelpers.findClass("android.app.ActivityThread", null)
                                 val activityThread = HookHelpers.callStaticMethod(
@@ -123,7 +123,7 @@ class SystemInputInjectorHook : BaseHook() {
             XLog.w("SystemInputInjectorHook: hooked ActivityThread.systemMain in zygote")
             XLog.i("XSmsCode: hooked ActivityThread.systemMain in zygote")
         }.onFailure { t ->
-            XLog.e("SystemInputInjectorHook: failed to hook ActivityThread.systemMain in zygote", t)
+            XLog.e(message = "SystemInputInjectorHook: failed to hook ActivityThread.systemMain in zygote", t)
             XLog.i("XSmsCode: failed to hook ActivityThread.systemMain in zygote: ${t.message}")
         }
     }
@@ -135,7 +135,7 @@ class SystemInputInjectorHook : BaseHook() {
             return
         }
 
-        XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+        XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
             onLoadPackageRouted(param)
         }
     }
@@ -188,7 +188,7 @@ class SystemInputInjectorHook : BaseHook() {
                         override val stableId: String = "system_input.ams_system_ready"
 
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                            XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
                                 if (receiverRegistered) return@withRoute
                                 XLog.i("XSmsCode: ActivityManagerService.systemReady hook triggered")
                                 val context = resolveSystemContext(param.thisObject)
@@ -208,7 +208,7 @@ class SystemInputInjectorHook : BaseHook() {
             amsSystemReadyHooked = true
             XLog.w("SystemInputInjectorHook: hooked ActivityManagerService.systemReady overloads as fallback")
         }.onFailure { t ->
-            XLog.e("SystemInputInjectorHook: failed to hook AMS.systemReady overloads", t)
+            XLog.e(message = "SystemInputInjectorHook: failed to hook AMS.systemReady overloads", t)
         }
     }
 
@@ -221,7 +221,7 @@ class SystemInputInjectorHook : BaseHook() {
     private fun scheduleRegister(context: Context) {
         if (receiverRegistered) return
         getMainHandler().postDelayed(
-            { XLog.withRoute(LogRoute.SYSTEM_INPUT) { registerReceiver(context) } },
+            { XLog.withRoute(LogRoute.SYSTEM_INPUT.id) { registerReceiver(context) } },
             DELAY_REGISTER,
         )
     }
@@ -250,7 +250,7 @@ class SystemInputInjectorHook : BaseHook() {
                         override val stableId: String = "system_input.broadcast_enqueue_caller_uid"
 
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                            XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
                                 val record = param.args.firstOrNull() ?: return@withRoute
                                 val intent = extractBroadcastIntent(record) ?: return@withRoute
                                 val action = intent.action ?: return@withRoute
@@ -263,7 +263,7 @@ class SystemInputInjectorHook : BaseHook() {
                                     lastAutoInputCallerUidAt = SystemClock.elapsedRealtime()
                                 }
                                 XLog.w(
-                                    "Diag broadcast enqueue: action=%s callerUid=%d callerPkg=%s record=%s",
+                                    message = "Diag broadcast enqueue: action=%s callerUid=%d callerPkg=%s record=%s",
                                     action,
                                     uid,
                                     pkg ?: "unknown",
@@ -277,7 +277,7 @@ class SystemInputInjectorHook : BaseHook() {
             broadcastHooked = true
             XLog.w("SystemInputInjectorHook: hooked BroadcastQueue enqueue for caller uid")
         }.onFailure { t ->
-            XLog.w("SystemInputInjectorHook: failed to hook BroadcastQueue: %s", t.message ?: t.javaClass.simpleName)
+            XLog.w(message = "SystemInputInjectorHook: failed to hook BroadcastQueue: %s", t.message ?: t.javaClass.simpleName)
         }
     }
 
@@ -320,7 +320,7 @@ class SystemInputInjectorHook : BaseHook() {
             }
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
-                    XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+                    XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
                     val sendingUid = resolveSendingUid(this)
                     val appUid = context.applicationInfo.uid
                     val senderPackages = resolvePackagesForUid(context, sendingUid)
@@ -332,7 +332,7 @@ class SystemInputInjectorHook : BaseHook() {
                         )
                     ) {
                         XLog.w(
-                            "SystemServer input request rejected from uid=%d packages=%s",
+                            message = "SystemServer input request rejected from uid=%d packages=%s",
                             sendingUid,
                             senderPackages.joinToString(limit = 6).ifBlank { "<none>" },
                         )
@@ -342,7 +342,7 @@ class SystemInputInjectorHook : BaseHook() {
                         val text = intent.getStringExtra("text")
                         val duration = intent.getIntExtra("duration", Toast.LENGTH_LONG)
                         XLog.w(
-                            "Diag system toast request: uid=%d text_len=%d duration=%d",
+                            message = "Diag system toast request: uid=%d text_len=%d duration=%d",
                             sendingUid,
                             text?.length ?: 0,
                             duration,
@@ -364,7 +364,7 @@ class SystemInputInjectorHook : BaseHook() {
                         is AutoInputBroadcastContract.ReceiverRequest.BlankCode -> {
                             val request = receiverRequest.request
                             XLog.w(
-                                "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
+                                message = "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
                                 sendingUid,
                                 request.code.length,
                                 request.autoEnter,
@@ -384,7 +384,7 @@ class SystemInputInjectorHook : BaseHook() {
                     val inputIntervalMs = request.inputIntervalMs
                     val safeInputIntervalMs = inputIntervalMs.coerceAtMost(MAX_SYNC_INPUT_INTERVAL_MS)
                     XLog.w(
-                        "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
+                        message = "Diag system receiver onReceive: uid=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
                         sendingUid,
                         request.code.length,
                         request.autoEnter,
@@ -392,7 +392,7 @@ class SystemInputInjectorHook : BaseHook() {
                     )
                     if (safeInputIntervalMs != inputIntervalMs) {
                         XLog.w(
-                            "SystemServer input interval clamped: requested=%d applied=%d",
+                            message = "SystemServer input interval clamped: requested=%d applied=%d",
                             inputIntervalMs,
                             safeInputIntervalMs,
                         )
@@ -400,19 +400,19 @@ class SystemInputInjectorHook : BaseHook() {
                     val result = runNonFatalCatching {
                         performInjectText(request.code, request.autoEnter, safeInputIntervalMs)
                     }.getOrElse { error ->
-                        XLog.e("SystemServer performInjectText failed", error)
+                        XLog.e(message = "SystemServer performInjectText failed", error)
                         InjectResult(success = false, failReason = "inject_exception")
                     }
                     sendAutoInputResult(context, request.attemptId, result.success, result.failReason)
                     if (result.success) {
                         XLog.i(
-                            "SystemServer injection success, aborting broadcast to prevent accessibility fallback: attemptId=%d",
+                            message = "SystemServer injection success, aborting broadcast to prevent accessibility fallback: attemptId=%d",
                             request.attemptId ?: -1L,
                         )
                         abortBroadcast()
                     } else {
                         XLog.w(
-                            "SystemServer injection failed, allowing broadcast to continue for accessibility fallback: attemptId=%d reason=%s",
+                            message = "SystemServer injection failed, allowing broadcast to continue for accessibility fallback: attemptId=%d reason=%s",
                             request.attemptId ?: -1L,
                             result.failReason ?: "unknown",
                         )
@@ -435,7 +435,7 @@ class SystemInputInjectorHook : BaseHook() {
             XLog.i("XSmsCode: SystemInputInjectorReceiver registered")
         }.onFailure { t ->
             registerAttempts += 1
-            XLog.e("Failed to register receiver", t)
+            XLog.e(message = "Failed to register receiver", t)
             XLog.i("XSmsCode: Failed to register receiver: ${t.message}")
             if (registerAttempts < MAX_REGISTER_ATTEMPTS) {
                 scheduleRegister(context)
@@ -447,26 +447,26 @@ class SystemInputInjectorHook : BaseHook() {
 
     private fun showToast(context: Context, text: String, duration: Int) {
         getMainHandler().post {
-            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+            XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
                 runNonFatalCatching {
                     val toast = Toast.makeText(context, text, duration)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         toast.addCallback(
                             object : Toast.Callback() {
                                 override fun onToastShown() {
-                                    XLog.w("Diag system toast shown: text_len=%d", text.length)
+                                    XLog.w(message = "Diag system toast shown: text_len=%d", text.length)
                                 }
 
                                 override fun onToastHidden() {
-                                    XLog.w("Diag system toast hidden: text_len=%d", text.length)
+                                    XLog.w(message = "Diag system toast hidden: text_len=%d", text.length)
                                 }
                             },
                         )
                     }
                     toast.show()
-                    XLog.w("SystemServer toast show invoked: text_len=%d duration=%d", text.length, duration)
+                    XLog.w(message = "SystemServer toast show invoked: text_len=%d duration=%d", text.length, duration)
                 }.onFailure { t ->
-                    XLog.e("Failed to show toast from System Server", t)
+                    XLog.e(message = "Failed to show toast from System Server", t)
                 }
             }
         }
@@ -543,7 +543,7 @@ class SystemInputInjectorHook : BaseHook() {
         if (suppressionLogged) return
         synchronized(this) {
             if (suppressionLogged) return
-            XLog.w("SystemInputInjectorHook suppressed: stage=%s", stage)
+            XLog.w(message = "SystemInputInjectorHook suppressed: stage=%s", stage)
             suppressionLogged = true
         }
     }
@@ -607,7 +607,7 @@ class SystemInputInjectorHook : BaseHook() {
             .distinct()
             .sorted()
             .joinToString(limit = 80, truncated = "...")
-        XLog.w("Diag pendingResult fields: %s", fields)
+        XLog.w(message = "Diag pendingResult fields: %s", fields)
     }
 
     private fun getInputHandler(): Handler {
@@ -677,7 +677,7 @@ class SystemInputInjectorHook : BaseHook() {
                             injectMethod = inject
                             injectMethodParamCount = inject.parameterTypes.size
                             XLog.i(
-                                "Resolved input injector: class=%s, method=%s",
+                                message = "Resolved input injector: class=%s, method=%s",
                                 className,
                                 inject.toGenericString(),
                             )
@@ -694,7 +694,7 @@ class SystemInputInjectorHook : BaseHook() {
 	                        "No compatible injectInputEvent found. Details: ${errors.joinToString(" | ")}",
 	                    )
 	                }.getOrElse { t ->
-	                    XLog.e("Failed to resolve InputManagerGlobal", t)
+	                    XLog.e(message = "Failed to resolve InputManagerGlobal", t)
 	                    null
                 }
             }
@@ -787,7 +787,7 @@ class SystemInputInjectorHook : BaseHook() {
         text.forEachIndexed { index, char ->
             val events = keyCharacterMap.getEvents(charArrayOf(char))
             if (events == null) {
-                XLog.w("Failed to create key events for char: %s", char.toString())
+                XLog.w(message = "Failed to create key events for char: %s", char.toString())
                 return@forEachIndexed
             }
             for (event in events) {
@@ -798,7 +798,7 @@ class SystemInputInjectorHook : BaseHook() {
                 Thread.sleep(inputIntervalMs)
             }
         }
-        XLog.w("Injected key characters from System Server, count=%d", injectedCount)
+        XLog.w(message = "Injected key characters from System Server, count=%d", injectedCount)
 
         var success = injectedCount > 0
         var failReason: String? = null
@@ -827,13 +827,13 @@ class SystemInputInjectorHook : BaseHook() {
     }
 
     override fun onHotReloading() {
-        XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+        XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
             registeredReceiver?.let { receiver ->
                 runNonFatalCatching {
                     registeredReceiverContext?.unregisterReceiver(receiver)
                     XLog.w("SystemInputInjectorReceiver unregistered for hot reload")
                 }.onFailure { t ->
-                    XLog.w("SystemInputInjectorReceiver unregister failed: %s", t.message ?: t.javaClass.simpleName)
+                    XLog.w(message = "SystemInputInjectorReceiver unregister failed: %s", t.message ?: t.javaClass.simpleName)
                 }
             }
             mainHandler?.removeCallbacksAndMessages(null)
@@ -859,7 +859,7 @@ class SystemInputInjectorHook : BaseHook() {
         attemptId: Long? = null,
     ) {
         getInputHandler().post {
-            XLog.withRoute(LogRoute.SYSTEM_INPUT) {
+            XLog.withRoute(LogRoute.SYSTEM_INPUT.id) {
                 val result = performInjectText(text, autoEnter, inputIntervalMs)
                 sendAutoInputResult(context, attemptId, result.success, result.failReason)
             }
@@ -898,7 +898,7 @@ class SystemInputInjectorHook : BaseHook() {
             )
         }.onFailure { error ->
             XLog.w(
-                "Send auto input result failed: %s",
+                message = "Send auto input result failed: %s",
                 error.message ?: error.javaClass.simpleName,
             )
         }

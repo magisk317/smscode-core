@@ -3,6 +3,7 @@ package io.github.magisk317.smscode.runtime.verification
 import io.github.magisk317.smscode.verification.SmsMessage
 
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -123,7 +124,7 @@ object SmsParseActionRunner {
                 val current = inFlightWorkers.get()
                 if (current >= MAX_IN_FLIGHT_WORKERS) {
                     XLog.w(
-                        "%s rejected: %d in-flight parse workers already at cap %d",
+                        message = "%s rejected: %d in-flight parse workers already at cap %d",
                         actionName,
                         current,
                         MAX_IN_FLIGHT_WORKERS,
@@ -159,7 +160,7 @@ object SmsParseActionRunner {
             } catch (interrupted: InterruptedException) {
                 Thread.currentThread().interrupt()
                 worker.interrupt()
-                XLog.w("%s interrupted while awaiting result", actionName)
+                XLog.w(message = "%s interrupted while awaiting result", actionName)
                 emitParseFailure(actionName = actionName, reason = "interrupted")
                 return null
             }
@@ -169,7 +170,7 @@ object SmsParseActionRunner {
                 // shared executor is never touched, so the next SMS is not queued behind this hang.
                 // inFlightWorkers stays elevated until the worker's finally block runs.
                 worker.interrupt()
-                XLog.w("%s timed out after %d ms; abandoning worker thread", actionName, timeoutMs)
+                XLog.w(message = "%s timed out after %d ms; abandoning worker thread", actionName, timeoutMs)
                 emitParseFailure(
                     actionName = actionName,
                     reason = "timeout",
@@ -182,7 +183,7 @@ object SmsParseActionRunner {
             if (error != null) {
                 // Mirror the previous Future.get() behaviour: any failure inside the action is
                 // swallowed and reported as no-result rather than propagated into the phone process.
-                XLog.w("%s failed: %s", actionName, error.message ?: error.javaClass.simpleName)
+                XLog.w(message = "%s failed: %s", actionName, error.message ?: error.javaClass.simpleName)
                 emitParseFailure(
                     actionName = actionName,
                     reason = error.javaClass.simpleName.ifBlank { "action_failed" },

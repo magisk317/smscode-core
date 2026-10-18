@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import io.github.magisk317.xposed.logging.XLog
 import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutionException
@@ -89,7 +90,7 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
             val moduleEnabled = moduleEnabledReader(pluginContext)
             val verboseLog = verboseLogReader(pluginContext)
             XLog.i(
-                "Diag settings: event_id=%s enabled=%s, verbose=%s, showNotif=%s, autoCancel=%s, " +
+                message = "Diag settings: event_id=%s enabled=%s, verbose=%s, showNotif=%s, autoCancel=%s, "+
                     "retentionSec=%d, autoInput=%s, copy=%s, toast=%s, record=%s, " +
                     "block=%s, markRead=%s, delete=%s, dedup=%s",
                 eventId.ifBlank { "<none>" },
@@ -120,7 +121,7 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
                 logLevelSetter(defaultLogLevel)
             }
             XLog.i(
-                "Diag log mode: verboseSetting=%s, activeLevel=%d, defaultLevel=%d",
+                message = "Diag log mode: verboseSetting=%s, activeLevel=%d, defaultLevel=%d",
                 verboseLog,
                 currentLogLevelReader(),
                 defaultLogLevel,
@@ -133,23 +134,23 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
                 smsIntent,
                 settings.deduplicateSmsEnabled,
             ) ?: run {
-                XLog.w("Diag parseRunner returned null: event_id=%s", eventId)
+                XLog.w(message = "Diag parseRunner returned null: event_id=%s", eventId)
                 emit(result = "skip", reason = "parse_null")
                 return null
             }
             if (parseOutcome.duplicated) {
-                XLog.w("Diag parseOutcome duplicated: event_id=%s", eventId)
+                XLog.w(message = "Diag parseOutcome duplicated: event_id=%s", eventId)
                 emit(result = "skip", reason = "duplicate")
                 return parseResultFactory(plan.blockSms)
             }
 
             val smsMsg = parseOutcome.smsMsg ?: run {
-                XLog.w("Diag parseOutcome.smsMsg is null: event_id=%s", eventId)
+                XLog.w(message = "Diag parseOutcome.smsMsg is null: event_id=%s", eventId)
                 emit(result = "skip", reason = "sms_null")
                 return null
             }
 
-            XLog.i("Diag dispatching actions: event_id=%s smsCode=%s notifPlan=%s autoInput=%s",
+            XLog.i(message = "Diag dispatching actions: event_id=%s smsCode=%s notifPlan=%s autoInput=%s",
                 eventId, smsMsg.smsCode, plan.notificationPlan != null, plan.autoInputDelayMs)
 
             try {
@@ -199,7 +200,7 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
             emit(result = "error", statusOk = false, reason = "InterruptedException")
             null
         } catch (error: ExecutionException) {
-            XLog.e("Error occurs when running SmsParseAction", error.cause ?: error)
+            XLog.e(message = "Error occurs when running SmsParseAction", error.cause ?: error)
             emit(result = "error", statusOk = false, reason = "ExecutionException")
             null
         } catch (error: CancellationException) {

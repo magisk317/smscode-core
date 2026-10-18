@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 class ModuleConflictArbiterCore(
     private val targetPackage: String,
@@ -42,7 +43,7 @@ class ModuleConflictArbiterCore(
         synchronized(this) {
             if (decisionLogged) return
             XLog.w(
-                "Conflict arbiter bypassed: reason=%s source=%s package=%s",
+                message = "Conflict arbiter bypassed: reason=%s source=%s package=%s",
                 BYPASS_REASON_BUILD_FLAG,
                 source,
                 targetPackage,
@@ -70,14 +71,14 @@ class ModuleConflictArbiterCore(
             if (decisionLogged) return
             if (suppressedByRelay) {
                 XLog.w(
-                    "Conflict arbiter active: reason=%s source=%s package=%s",
+                    message = "Conflict arbiter active: reason=%s source=%s package=%s",
                     SUPPRESSION_REASON,
                     source,
                     targetPackage,
                 )
             } else {
                 XLog.i(
-                    "Conflict arbiter bypassed: source=%s package=%s",
+                    message = "Conflict arbiter bypassed: source=%s package=%s",
                     source,
                     targetPackage,
                 )

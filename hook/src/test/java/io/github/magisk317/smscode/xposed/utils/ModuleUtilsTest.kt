@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.xposed.utils
 
+import io.github.magisk317.xposed.logging.XLog
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertFalse

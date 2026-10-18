@@ -5,7 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.os.Binder
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.HookEnv
 import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.xposed.MethodHook
@@ -45,6 +45,8 @@ object SmsProviderHookInstaller {
                     HookEnv.api.hookMethod(
                         method,
                         object : MethodHook() {
+                            override val stableId: String = "telephony_provider.$methodName"
+
                             override fun beforeHookedMethod(param: MethodHookParam) {
                                 val uri = param.args.getOrNull(0) as? Uri ?: return
                                 if (!isSmsUri(uri)) return
@@ -80,7 +82,7 @@ object SmsProviderHookInstaller {
             call.context?.packageManager?.getPackagesForUid(callingUid)?.toList()
         }.getOrNull().orEmpty()
         XLog.w(
-            "Diag sms provider %s: class=%s process=%s uri=%s uid=%d pid=%d pkgs=%s values=%s",
+            message = "Diag sms provider %s: class=%s process=%s uri=%s uid=%d pid=%d pkgs=%s values=%s",
             call.methodName,
             call.provider?.javaClass?.name ?: TARGET_CLASS,
             call.context?.applicationInfo?.processName ?: TARGET_PACKAGE,

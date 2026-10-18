@@ -5,7 +5,7 @@ import android.os.UserHandle
 import androidx.annotation.RequiresApi
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
 import io.github.magisk317.xposed.BaseSubHook
 import io.github.magisk317.xposed.MethodHook
@@ -196,7 +196,7 @@ class PermissionManagerServiceHook34(classLoader: ClassLoader) : BaseSubHook(cla
 
         for (packageName in PACKAGE_PERMISSIONS.keys) {
             if (packageName == packageNameInPkg) {
-                XLog.d("PackageName: %s", packageName)
+                XLog.d(message = "PackageName: %s", packageName)
 
                 // PermissionManagerServiceImpl 对象
                 val pmsImpl = param.thisObject

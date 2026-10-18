@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.verification
 
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 class SmsHookConstructorInitializer<R : VerificationRuntimeContext>(
     private val runtimeInitializer: (Context) -> R?,
@@ -40,7 +41,7 @@ class SmsHookConstructorInitializer<R : VerificationRuntimeContext>(
         }
 
         val runtime = runCatching { runtimeInitializer(phoneContext) }
-            .onFailure { XLog.e("Create plugin context failed: %s", it) }
+            .onFailure { XLog.e(message = "Create plugin context failed: %s", it) }
             .getOrNull()
         if (runtime == null) {
             XLog.e("Plugin context is null after creation attempt")

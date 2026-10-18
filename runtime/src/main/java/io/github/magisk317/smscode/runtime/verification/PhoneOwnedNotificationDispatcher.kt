@@ -10,6 +10,7 @@ import android.os.Build
 import io.github.magisk317.smscode.runtime.contract.notification.NotificationDeliveryDiagnostics
 import io.github.magisk317.smscode.runtime.contract.notification.NotificationPlatformBridge
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 /**
  * Posts the verification-code notification with the **phone** application identity.
@@ -82,7 +83,7 @@ class PhoneOwnedNotificationDispatcher(
         val manager = notificationManager() ?: return ChannelResolution(primaryChannelId, rotated = false)
         return runCatching { ensureDeliverableChannel(manager) }
             .getOrElse { error ->
-                XLog.w("Phone-owned channel preparation failed: %s", error.message)
+                XLog.w(message = "Phone-owned channel preparation failed: %s", error.message)
                 ChannelResolution(primaryChannelId, rotated = false)
             }
     }
@@ -120,14 +121,14 @@ class PhoneOwnedNotificationDispatcher(
         val startedAt = System.nanoTime()
         val manager = notificationManager()
         if (manager == null) {
-            XLog.w("Phone-owned notification skipped: no NotificationManager on %s", packageLabel(phoneContext))
+            XLog.w(message = "Phone-owned notification skipped: no NotificationManager on %s", packageLabel(phoneContext))
             return emit(Outcome.NO_MANAGER, notificationId, channelId, startedAt)
         }
 
         val deliverability = inspect(channelId)
         if (deliverability != null && !deliverability.canPost) {
             XLog.w(
-                "Phone-owned notification not deliverable: pkg=%s channel=%s %s",
+                message = "Phone-owned notification not deliverable: pkg=%s channel=%s %s",
                 packageLabel(phoneContext),
                 channelId,
                 deliverability.summary(),
@@ -205,13 +206,13 @@ class PhoneOwnedNotificationDispatcher(
         return when (decideChannelAction(exists = primary != null, importance = primary?.importance)) {
             ChannelAction.CREATE_PRIMARY -> {
                 manager.createNotificationChannel(createHighPriorityChannel(primaryChannelId))
-                XLog.i("Phone-owned channel created: id=%s importance=high", primaryChannelId)
+                XLog.i(message = "Phone-owned channel created: id=%s importance=high", primaryChannelId)
                 ChannelResolution(primaryChannelId, rotated = false)
             }
 
             ChannelAction.USE_PRIMARY -> {
                 XLog.i(
-                    "Phone-owned channel ready: id=%s importance=%d",
+                    message = "Phone-owned channel ready: id=%s importance=%d",
                     primaryChannelId,
                     primary?.importance ?: NotificationManager.IMPORTANCE_NONE,
                 )
@@ -220,7 +221,7 @@ class PhoneOwnedNotificationDispatcher(
 
             ChannelAction.ROTATE_TO_FALLBACK -> {
                 XLog.w(
-                    "Phone-owned channel %s importance (%d) is below HIGH, rotating to %s",
+                    message = "Phone-owned channel %s importance (%d) is below HIGH, rotating to %s",
                     primaryChannelId,
                     primary?.importance ?: NotificationManager.IMPORTANCE_NONE,
                     fallbackChannelId,
@@ -230,7 +231,7 @@ class PhoneOwnedNotificationDispatcher(
                     manager.createNotificationChannel(createHighPriorityChannel(fallbackChannelId))
                 } else if (rotatedExisting.importance < NotificationManager.IMPORTANCE_HIGH) {
                     XLog.w(
-                        "Phone-owned fallback channel %s importance (%d) is below HIGH as well; delivery cannot be " +
+                        message = "Phone-owned fallback channel %s importance (%d) is below HIGH as well; delivery cannot be "+
                             "guaranteed on %s",
                         fallbackChannelId,
                         rotatedExisting.importance,

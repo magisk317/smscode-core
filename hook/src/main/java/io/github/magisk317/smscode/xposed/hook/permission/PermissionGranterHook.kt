@@ -4,7 +4,7 @@ import android.os.Build
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.LoadParam
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.logging.MagiskOtel
 
 /**
@@ -13,7 +13,7 @@ import io.github.magisk317.xposed.logging.MagiskOtel
 class PermissionGranterHook : BaseHook() {
 
     override fun onLoadPackage(param: LoadParam) {
-        XLog.withRoute(LogRoute.PERMISSION_HOOK) {
+        XLog.withRoute(LogRoute.PERMISSION_HOOK.id) {
             onLoadPackageRouted(param)
         }
     }

@@ -18,3 +18,7 @@
 - Moved pure rule-catalog document models and merge policy from `runtime.common.rules` to the canonical `rule.catalog` package; Android-backed catalog loading remains in `runtime`.
 - Switched shared notification hook config reads to `CorePrefs`; parent repositories must install `CorePrefsAccess` instead of relying on `*.pref.provider` fallback.
 - Runtime logs now rotate into daily JSONL files, drop legacy text-log compatibility, delete old `runtime*.log` files, and prune by retention days instead of trimming by single-file size.
+
+### Removed
+- Removed the structured upgrade-JSON update path (`UpgradeInfo`, `UpgradeApkAsset`, `VersionLog`, `UpgradeCheckResult.Structured`, `parseStructuredUpgradeJson`, `selectBestApkForDevice`) and the in-app download/verify/install stack (`UpdateInstallCore`: `UpgradeDownloader`, `ApkSecurityVerifier`, `UpgradeInstaller`, `UpdateArtifactConfig`) from `runtime.common.update` / `contract.update`. Update checks now only parse GitHub latest-release payloads (`ReleaseLink`); parent repositories drop their structured UI branches in lockstep.
+- Removed the legacy GitHub update-check stack (`GithubUpdateChecker`, `UpdateCoordinator`, the `UpdatePolicy` startup/ignored-version guards, and the `contract.update` models `GithubReleaseInfo` / `GithubUpdateConfig` / `UpgradeCheckResult`) now that every parent repository ships updates through the ui-kit `AppUpdateController` sources; `UpdatePolicy.resolveAvailableTarget` remains for Play-store fallback routing.

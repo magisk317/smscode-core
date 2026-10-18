@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Parcelable
+import io.github.magisk317.xposed.logging.XLog
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import io.github.magisk317.xposed.logging.MagiskOtel
@@ -62,7 +63,7 @@ class SmsParseAction<M>(
         }
         val smsMsg = incomingSmsParser(intent)
         XLog.i(
-            "Diag SMS parsed from intent: senderPresent=%s, bodyLength=%d, timestamp=%d simSlot=%d subId=%d",
+            message = "Diag SMS parsed from intent: senderPresent=%s, bodyLength=%d, timestamp=%d simSlot=%d subId=%d",
             !smsMsg.sender.isNullOrBlank(),
             smsMsg.body?.length ?: 0,
             smsMsg.date,
@@ -74,8 +75,8 @@ class SmsParseAction<M>(
         val msgBody = smsMsg.body
         val sensitiveDebugLog = sensitiveDebugLogReader(pluginContext)
 
-        XLog.d("Sender: %s", summarizeSender(sensitiveDebugLog, sender))
-        XLog.d("Body: %s", summarizeBody(sensitiveDebugLog, msgBody))
+        XLog.d(message = "Sender: %s", summarizeSender(sensitiveDebugLog, sender))
+        XLog.d(message = "Body: %s", summarizeBody(sensitiveDebugLog, msgBody))
 
         if (sender.isNullOrBlank() || msgBody.isNullOrBlank()) {
             XLog.w("Diag SMS parse aborted: sender/body is empty")
@@ -84,7 +85,7 @@ class SmsParseAction<M>(
         }
 
         val timestamp = if (smsMsg.date > 0) smsMsg.date else System.currentTimeMillis()
-        XLog.d("Diag SMS body: %s", summarizeBody(sensitiveDebugLog, msgBody))
+        XLog.d(message = "Diag SMS body: %s", summarizeBody(sensitiveDebugLog, msgBody))
 
         if (deduplicateEnabled) {
             val duplicated = runCancellable("duplicateChecker", default = false) {
@@ -107,7 +108,7 @@ class SmsParseAction<M>(
             )
         } ?: run {
             XLog.d(
-                "Diag SMS parsed but no code matched, body=%s",
+                message = "Diag SMS parsed but no code matched, body=%s",
                 summarizeBody(sensitiveDebugLog, msgBody),
             )
             emit(result = "skip", extra = mapOf("reason" to "no_code_match"))
@@ -116,7 +117,7 @@ class SmsParseAction<M>(
 
         val smsCode = resolvedSmsMsg.smsCode.orEmpty()
         XLog.i(
-            "Diag SMS code matched: companyPresent=%s, codeLength=%d, code=%s, body=%s simSlot=%d subId=%d",
+            message = "Diag SMS code matched: companyPresent=%s, codeLength=%d, code=%s, body=%s simSlot=%d subId=%d",
             !resolvedSmsMsg.company.isNullOrBlank(),
             smsCode.length,
             summarizeCode(sensitiveDebugLog, smsCode),
@@ -161,7 +162,7 @@ class SmsParseAction<M>(
                 withTimeout(stepTimeoutMs) { block() }
             } catch (error: TimeoutCancellationException) {
                 XLog.w(
-                    "Diag SMS parse step '%s' timed out after %dms: %s",
+                    message = "Diag SMS parse step '%s' timed out after %dms: %s",
                     step,
                     stepTimeoutMs,
                     error.message ?: error.javaClass.simpleName,

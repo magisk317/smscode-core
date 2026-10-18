@@ -4,6 +4,7 @@ import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
+import io.github.magisk317.xposed.logging.XLog
 
 object AutoInputAccessibilityNodeHelper {
     data class Result(
@@ -21,7 +22,7 @@ object AutoInputAccessibilityNodeHelper {
         val activeRoot = root ?: return Result(false, "none", "no_active_window")
         val windowPackage = activeRoot.packageName?.toString().orEmpty()
         XLog.w(
-            "Accessibility active window: pkg=%s class=%s",
+            message = "Accessibility active window: pkg=%s class=%s",
             windowPackage.ifBlank { "<unknown>" },
             activeRoot.className?.toString().orEmpty().ifBlank { "<unknown>" },
         )
@@ -32,7 +33,7 @@ object AutoInputAccessibilityNodeHelper {
             if (focusedResult.success) {
                 return focusedResult.copy(strategy = "focused_node", windowPackage = windowPackage)
             }
-            XLog.w("Accessibility focused-node input failed: reason=%s", focusedResult.reason)
+            XLog.w(message = "Accessibility focused-node input failed: reason=%s", focusedResult.reason)
         }
 
         val editableNodes = collectEditableNodes(activeRoot)
@@ -107,7 +108,7 @@ object AutoInputAccessibilityNodeHelper {
                 autoEnter = autoEnter && index == code.lastIndex,
             )
             if (!result.success) {
-                XLog.w("Accessibility grouped input failed at index=%d reason=%s", index, result.reason)
+                XLog.w(message = "Accessibility grouped input failed at index=%d reason=%s", index, result.reason)
                 return Result(false, "group_nodes", "group_set_text_failed")
             }
         }
@@ -138,7 +139,7 @@ object AutoInputAccessibilityNodeHelper {
             }
             Result(true, "set_text", "ok")
         }.getOrElse { throwable ->
-            XLog.w("Accessibility set text failed: %s", throwable.message ?: throwable.javaClass.simpleName)
+            XLog.w(message = "Accessibility set text failed: %s", throwable.message ?: throwable.javaClass.simpleName)
             Result(false, "set_text", "set_text_exception")
         }
     }
@@ -156,7 +157,7 @@ object AutoInputAccessibilityNodeHelper {
             return
         }
         val result = node.performAction(imeEnterActionId)
-        XLog.w("Accessibility auto enter invoked: success=%s", result)
+        XLog.w(message = "Accessibility auto enter invoked: success=%s", result)
     }
 
     private fun canSetText(node: AccessibilityNodeInfo): Boolean {

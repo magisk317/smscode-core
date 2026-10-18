@@ -1,6 +1,6 @@
 package io.github.magisk317.smscode.xposed.hook.permission
 
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 
 /**
  * Runtime probe helpers for permission hooks.

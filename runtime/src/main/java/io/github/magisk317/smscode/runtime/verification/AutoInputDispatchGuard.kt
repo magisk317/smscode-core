@@ -5,6 +5,7 @@ import io.github.magisk317.smscode.verification.SmsMessageDedupKeys
 
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 object AutoInputDispatchGuard {
     data class ClaimResult(
@@ -60,7 +61,7 @@ object AutoInputDispatchGuard {
             return true
         }
         XLog.w(
-            "Auto input dispatch skipped: key=%s ageMs=%d delayMs=%d windowMs=%d",
+            message = "Auto input dispatch skipped: key=%s ageMs=%d delayMs=%d windowMs=%d",
             claim.key ?: keys.first(),
             claim.ageMs ?: -1L,
             delayMs,

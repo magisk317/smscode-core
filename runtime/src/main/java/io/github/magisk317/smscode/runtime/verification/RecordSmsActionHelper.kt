@@ -5,6 +5,7 @@ import io.github.magisk317.smscode.verification.SmsMessage
 import android.content.Context
 import android.os.Bundle
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 class RecordSmsActionHelper<M : SmsMessage>(
     private val pluginContext: Context,
@@ -74,7 +75,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
     ) {
         val eventLabel = eventId.ifBlank { "<none>" }
         XLog.i(
-            "Diag record start: event_id=%s sender_hash=%s body_len=%d code_present=%s simSlot=%d subId=%d",
+            message = "Diag record start: event_id=%s sender_hash=%s body_len=%d code_present=%s simSlot=%d subId=%d",
             eventLabel,
             senderHash(smsMsg.sender),
             smsMsg.body?.length ?: 0,
@@ -113,7 +114,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
         if (insertResult.success) {
             if (insertResult.duplicate) {
                 XLog.i(
-                    "Diag record provider duplicate: event_id=%s %s",
+                    message = "Diag record provider duplicate: event_id=%s %s",
                     eventLabel,
                     insertResult.detail ?: "",
                 )
@@ -121,7 +122,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
                 return
             }
             XLog.i(
-                "Diag record provider insert success: event_id=%s %s",
+                message = "Diag record provider insert success: event_id=%s %s",
                 eventLabel,
                 insertResult.detail ?: "",
             )
@@ -129,15 +130,15 @@ class RecordSmsActionHelper<M : SmsMessage>(
             return
         }
         XLog.w(
-            "Diag record provider insert failed: event_id=%s err=%s",
+            message = "Diag record provider insert failed: event_id=%s err=%s",
             eventLabel,
             insertResult.error ?: insertResult.detail ?: "unknown",
         )
         if (fallbackExporter?.invoke(smsMsg) == true) {
-            XLog.i("Diag record file fallback success: event_id=%s", eventLabel)
+            XLog.i(message = "Diag record file fallback success: event_id=%s", eventLabel)
             emit("ok", true, "fallback", emptyMap())
         } else {
-            XLog.w("Diag record file fallback failed: event_id=%s", eventLabel)
+            XLog.w(message = "Diag record file fallback failed: event_id=%s", eventLabel)
             emit(
                 "error",
                 false,

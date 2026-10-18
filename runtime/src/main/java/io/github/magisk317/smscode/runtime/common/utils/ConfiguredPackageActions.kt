@@ -42,6 +42,4 @@ open class ConfiguredPackageActions(
 
     fun openPlayStoreOrGithub(context: Context): String? =
         PackageActions.openPlayStoreOrGithub(context, config)
-
-    fun isOnWifi(context: Context): Boolean = PackageActions.isOnWifi(context)
 }

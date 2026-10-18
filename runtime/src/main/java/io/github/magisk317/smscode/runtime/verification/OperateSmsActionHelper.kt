@@ -18,6 +18,7 @@ import android.os.RemoteException
 import android.os.SystemClock
 import android.provider.Telephony
 import androidx.core.content.ContextCompat
+import io.github.magisk317.xposed.logging.XLog
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -117,7 +118,7 @@ class OperateSmsActionHelper<M : SmsMessage>(
                 )
             }
             XLog.d(
-                "SMS op retry pending: op=%s attempt=%d/%d scanned=%d matched=%d uri=%s targetId=%s rows=%d cursorNull=%s permissionDenied=%s err=%s",
+                message = "SMS op retry pending: op=%s attempt=%d/%d scanned=%d matched=%d uri=%s targetId=%s rows=%d cursorNull=%s permissionDenied=%s err=%s",
                 smsOpName(smsOp),
                 attempt + 1,
                 SMS_OP_RETRY_TIMES,
@@ -179,7 +180,7 @@ class OperateSmsActionHelper<M : SmsMessage>(
                 updateMax(maxMatched, report.matchedRows)
                 if (report.success) {
                     XLog.d(
-                        "SMS op observer success: op=%s changeCount=%d uri=%s targetId=%s rows=%d",
+                        message = "SMS op observer success: op=%s changeCount=%d uri=%s targetId=%s rows=%d",
                         smsOpName(smsOp),
                         changes.get(),
                         uri?.toString() ?: "-",
@@ -189,7 +190,7 @@ class OperateSmsActionHelper<M : SmsMessage>(
                     latch.countDown()
                 } else {
                     XLog.d(
-                        "SMS op observer pending: op=%s changeCount=%d scanned=%d matched=%d uri=%s targetId=%s rows=%d err=%s",
+                        message = "SMS op observer pending: op=%s changeCount=%d scanned=%d matched=%d uri=%s targetId=%s rows=%d err=%s",
                         smsOpName(smsOp),
                         changes.get(),
                         report.scannedRows,
@@ -208,7 +209,7 @@ class OperateSmsActionHelper<M : SmsMessage>(
             val completed = latch.await(SMS_DELETE_OBSERVER_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             if (!completed) {
                 XLog.d(
-                    "SMS op observer timeout: op=%s changes=%d scanned=%d matched=%d",
+                    message = "SMS op observer timeout: op=%s changes=%d scanned=%d matched=%d",
                     smsOpName(smsOp),
                     changes.get(),
                     scanned.get(),
@@ -231,7 +232,7 @@ class OperateSmsActionHelper<M : SmsMessage>(
             runCatching {
                 phoneContext.contentResolver.unregisterContentObserver(observer)
             }.onFailure {
-                XLog.w("Failed to unregister SMS observer", it)
+                XLog.w(message = "Failed to unregister SMS observer", it)
             }
         }
     }
@@ -523,7 +524,8 @@ class OperateSmsActionHelper<M : SmsMessage>(
     private fun logSmsOpFailureDetails(opName: String, report: SmsOpRetryReport) {
         val last = report.lastAttempt
         XLog.w(
-            "SMS op failed detail: op=%s attempts=%d scanned=%d maxMatched=%d uri=%s targetId=%s rows=%d cursorNull=%s permissionDenied=%s sample=%s err=%s",
+            message = "SMS op failed detail: op=%s attempts=%d scanned=%d maxMatched=%d " +
+                "uri=%s targetId=%s rows=%d cursorNull=%s permissionDenied=%s sample=%s err=%s",
             opName,
             report.attempts,
             report.scannedRows,
@@ -537,7 +539,7 @@ class OperateSmsActionHelper<M : SmsMessage>(
             last.error?.message ?: "-",
         )
         last.error?.let {
-            XLog.w("SMS op failed stacktrace", it)
+            XLog.w(message = "SMS op failed stacktrace", it)
         }
     }
 

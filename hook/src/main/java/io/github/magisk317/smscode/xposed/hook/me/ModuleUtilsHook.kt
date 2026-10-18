@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.me
 
 import io.github.magisk317.smscode.xposed.utils.ModuleUtils
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.HookEnv
 import io.github.magisk317.xposed.HookHelpers

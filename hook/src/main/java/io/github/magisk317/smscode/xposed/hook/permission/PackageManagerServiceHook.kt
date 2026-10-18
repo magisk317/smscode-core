@@ -2,7 +2,7 @@ package io.github.magisk317.smscode.xposed.hook.permission
 
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
 import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.xposed.BaseSubHook
@@ -181,7 +181,7 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
 
             for (packageName in PACKAGE_PERMISSIONS.keys) {
                 if (packageName == packageNameInPkg) {
-                    XLog.d("PackageName: %s", packageName)
+                    XLog.d(message = "PackageName: %s", packageName)
                     val extras = HookHelpers.getObjectField(pkg, "mExtras")
                     val permissionsState = HookHelpers.callMethod(extras, "getPermissionsState")
                     val requestedPermissions = HookHelpers.getObjectField(pkg, "requestedPermissions") as? List<*>
@@ -221,7 +221,7 @@ class PackageManagerServiceHook(classLoader: ClassLoader) : BaseSubHook(classLoa
 
             for (packageName in PACKAGE_PERMISSIONS.keys) {
                 if (packageName == packageNameInPkg) {
-                    XLog.d("PackageName: %s", packageName)
+                    XLog.d(message = "PackageName: %s", packageName)
                     val extra = HookHelpers.getObjectField(pkg, "mExtras")
                     val grantedPermissions = HookHelpers.getObjectField(
                         extra,

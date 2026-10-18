@@ -4,7 +4,8 @@ import android.content.Context
 import android.content.Intent
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.runtime.verification.SmsIntentHookSupport
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.smscode.xposed.hook.HookHostCapabilities
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.LoadParam
 import io.github.magisk317.xposed.MethodHookParam
@@ -39,24 +40,33 @@ data class BlockEvaluation(
  * Core owns the MMS entry-point interception flow (install, duplicate/conflict
  * filtering, block evaluation, telemetry). Hosts supply the pieces that differ:
  * their own conflict arbiter, blacklist recorder, block-evaluator/parse-worker
- * factories, verbose-mode lookup and heartbeat routing.
+ * factories - plus one [HookHostCapabilities] adapter whose defaults back the
+ * verbose-mode and process-init members, so both hosts converge on one contract.
  */
 interface MmsEntryPointHookHost {
     /** Application id of the host module, used to build the plugin `Context`. */
     val applicationId: String
 
+    /** Unified host capabilities (prefs, escaping, parsing, heartbeat, process init). */
+    val capabilities: HookHostCapabilities
+
     /** Returns true when another module already owns this SMS and we must stay silent. */
     fun shouldSuppressByRelay(context: Context, tag: String): Boolean
 
     /** Verbose-mode lookup for the module process. */
-    fun isVerboseLogMode(pluginContext: Context): Boolean
+    fun isVerboseLogMode(pluginContext: Context): Boolean =
+        capabilities.isVerboseLogMode(pluginContext)
 
-    /** Called once per intercepted SMS before evaluation (bind log context, heartbeat). */
+    /**
+     * Called once per intercepted SMS before evaluation (bind log context, heartbeat).
+     * Default binds the host's per-process runtime state via [HookHostCapabilities].
+     */
     fun onPluginContextReady(
         pluginContext: Context,
         phoneContext: Context,
         source: String,
     ) {
+        capabilities.onProcessInit(pluginContext)
     }
 
     /**
@@ -122,7 +132,7 @@ class MmsEntryPointHook(
     private val smsOperationExecutor = Executors.newSingleThreadExecutor()
 
     override fun onLoadPackage(param: LoadParam) {
-        XLog.withRoute(LogRoute.SMS_HOOK) {
+        XLog.withRoute(LogRoute.SMS_HOOK.id) {
             onLoadPackageRouted(param)
         }
     }
@@ -136,16 +146,16 @@ class MmsEntryPointHook(
         val classLoader = lpparam.classLoader
         XLog.i("MmsMessagesHook initializing")
         val installation = MmsEntryPointHookInstaller.install(classLoader) { context, intent, source, hookParam ->
-            XLog.withRoute(LogRoute.SMS_HOOK) {
+            XLog.withRoute(LogRoute.SMS_HOOK.id) {
                 maybeBlock(context, intent, source, hookParam)
             }
         }
         installation.missingClassNames.forEach { className ->
-            XLog.w("MmsMessagesHook entrypoint class missing: %s", className)
+            XLog.w(message = "MmsMessagesHook entrypoint class missing: %s", className)
         }
         val totalHooks = installation.hookedMethodCount
         if (totalHooks == 0) {
-            XLog.w("MmsMessagesHook found no usable receiver/service entrypoints in %s", TARGET_PACKAGE)
+            XLog.w(message = "MmsMessagesHook found no usable receiver/service entrypoints in %s", TARGET_PACKAGE)
             MagiskOtel.event(
                 name = "hook.load",
                 attributes = mapOf(
@@ -159,7 +169,7 @@ class MmsEntryPointHook(
                 statusOk = true,
             )
         } else {
-            XLog.i("MmsMessagesHook installed methods=%d", totalHooks)
+            XLog.i(message = "MmsMessagesHook installed methods=%d", totalHooks)
             MagiskOtel.event(
                 name = "hook.load",
                 attributes = mapOf(
@@ -191,7 +201,7 @@ class MmsEntryPointHook(
         val verboseDiag = pluginContext != null && host.isVerboseLogMode(pluginContext)
         if (verboseDiag) {
             XLog.w(
-                "Diag MMS SMS entry: source=%s action=%s event_id=%s owner=%s",
+                message = "Diag MMS SMS entry: source=%s action=%s event_id=%s owner=%s",
                 source,
                 action,
                 eventId,
@@ -199,7 +209,7 @@ class MmsEntryPointHook(
             )
         }
         if (SmsIntentHookSupport.markDispatchHandled(intent, action)) {
-            XLog.w("MmsMessagesHook duplicate skip: source=%s event_id=%s action=%s", source, eventId, action)
+            XLog.w(message = "MmsMessagesHook duplicate skip: source=%s event_id=%s action=%s", source, eventId, action)
             emitDispatch(
                 result = "skip",
                 reason = "duplicate",
@@ -210,7 +220,7 @@ class MmsEntryPointHook(
         }
         if (host.shouldSuppressByRelay(context, "MmsMessagesHook#$source")) {
             XLog.w(
-                "MmsMessagesHook suppressed: source=%s reason=%s event_id=%s",
+                message = "MmsMessagesHook suppressed: source=%s reason=%s event_id=%s",
                 source,
                 SUPPRESSION_REASON,
                 eventId,
@@ -236,13 +246,13 @@ class MmsEntryPointHook(
         val blacklistedSms = evaluation.smsMsg
         if (evaluation.blacklistDeleteOnly && blacklistedSms != null) {
             smsOperationExecutor.execute {
-                XLog.withRoute(LogRoute.SMS_HOOK) {
+                XLog.withRoute(LogRoute.SMS_HOOK.id) {
                     runCatching {
                         host.deleteSmsFromInbox(resolvedPluginContext, context, blacklistedSms)
                     }
                         .onFailure {
                             XLog.w(
-                                "MmsMessagesHook blacklist delete failed: %s",
+                                message = "MmsMessagesHook blacklist delete failed: %s",
                                 it.message ?: "unknown",
                             )
                         }
@@ -258,7 +268,7 @@ class MmsEntryPointHook(
             )
             return
         }
-        XLog.w("MmsMessagesHook block start: source=%s reason=%s event_id=%s", source, reason, eventId)
+        XLog.w(message = "MmsMessagesHook block start: source=%s reason=%s event_id=%s", source, reason, eventId)
         MagiskOtel.event(
             name = "sms.block",
             attributes = mapOf(

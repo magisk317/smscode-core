@@ -27,7 +27,7 @@ import io.github.magisk317.xposed.MethodHookParam
 import io.github.magisk317.smscode.xposed.prefs.CorePrefs
 import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
 import io.github.magisk317.smscode.xposed.utils.NotificationLogSanitizer
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
 import io.github.magisk317.xposed.runNonFatalCatching
 import io.github.magisk317.xposed.runNonFatalOrNull
@@ -77,7 +77,7 @@ class NotificationManagerHook : BaseHook() {
             param.processName == "system_server"
         if (!isSystemPackage || !isSystemProcess) return
 
-        XLog.withRoute(LogRoute.NMS_HOOK) {
+        XLog.withRoute(LogRoute.NMS_HOOK.id) {
             onLoadPackageRouted(param)
         }
     }
@@ -97,11 +97,11 @@ class NotificationManagerHook : BaseHook() {
                     method,
                     object : MethodHook() {
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            XLog.withRoute(LogRoute.NMS_HOOK) {
+                            XLog.withRoute(LogRoute.NMS_HOOK.id) {
                                 runNonFatalCatching {
                                     handleEnqueueNotificationInternal(param)
                                 }.onFailure { t ->
-                                    XLog.e("NotificationManagerHook error", t)
+                                    XLog.e(message = "NotificationManagerHook error", t)
                                 }
                             }
                         }
@@ -110,7 +110,7 @@ class NotificationManagerHook : BaseHook() {
             }
             XLog.w("NotificationManagerHook: successfully hooked enqueueNotificationInternal")
         }.onFailure { t ->
-            XLog.e("NotificationManagerHook: failed to hook NotificationManagerService", t)
+            XLog.e(message = "NotificationManagerHook: failed to hook NotificationManagerService", t)
         }
     }
 
@@ -143,7 +143,7 @@ class NotificationManagerHook : BaseHook() {
 
         if (pkg.isNullOrEmpty() || notification == null) {
             XLog.d(
-                "NotificationManagerHook: skip invalid args. pkg=%s hasNotification=%s",
+                message = "NotificationManagerHook: skip invalid args. pkg=%s hasNotification=%s",
                 pkg ?: "<null>",
                 notification != null,
             )
@@ -184,7 +184,7 @@ class NotificationManagerHook : BaseHook() {
         if (title.isBlank() && body.isBlank()) {
             if (isWechatPackage(pkg)) {
                 XLog.w(
-                    "NotificationManagerHook: wechat blank content dropped. flags=0x%s category=%s",
+                    message = "NotificationManagerHook: wechat blank content dropped. flags=0x%s category=%s",
                     Integer.toHexString(notification.flags),
                     notification.category ?: "<null>",
                 )
@@ -212,7 +212,7 @@ class NotificationManagerHook : BaseHook() {
         )
         if (skipReason != null) {
             XLog.d(
-                "NotificationManagerHook: skip by policy. pkg=%s reason=%s channel=%s flags=0x%s category=%s",
+                message = "NotificationManagerHook: skip by policy. pkg=%s reason=%s channel=%s flags=0x%s category=%s",
                 pkg,
                 skipReason,
                 notifyChannelId.ifBlank { "<empty>" },
@@ -224,7 +224,7 @@ class NotificationManagerHook : BaseHook() {
         }
         val eventId = buildEventId(pkg)
         XLog.w(
-            "Diag nms_hook entry: event_id=%s pkg=%s route=%s",
+            message = "Diag nms_hook entry: event_id=%s pkg=%s route=%s",
             eventId,
             pkg,
             notifyRoute.msgType,
@@ -280,7 +280,7 @@ class NotificationManagerHook : BaseHook() {
         val sensitiveDebugLog = isSensitiveDebugLogEnabled(callerPackageHint = pkg)
 
         XLog.i(
-            "NotificationManagerHook intercepted: pkg=%s event=%s type=%s callType=%d title=%s body=%s",
+            message = "NotificationManagerHook intercepted: pkg=%s event=%s type=%s callType=%d title=%s body=%s",
             pkg,
             eventId,
             notifyRoute.msgType,
@@ -654,7 +654,7 @@ class NotificationManagerHook : BaseHook() {
         if (isGroupSummary) {
             if (ENABLE_WECHAT_GROUP_SUMMARY_BYPASS && isWechatPackage(packageName)) {
                 XLog.w(
-                    "NotificationManagerHook: bypass group_summary policy for wechat. flags=0x%s category=%s",
+                    message = "NotificationManagerHook: bypass group_summary policy for wechat. flags=0x%s category=%s",
                     Integer.toHexString(flags),
                     notification.category ?: "<null>",
                 )
@@ -818,7 +818,7 @@ class NotificationManagerHook : BaseHook() {
             resolveModuleEndpoint(systemContext)
         } ?: return null
         cachedEndpoint = resolved
-        XLog.d("NotificationManagerHook: cache endpoint package=%s", resolved.packageName)
+        XLog.d(message = "NotificationManagerHook: cache endpoint package=%s", resolved.packageName)
         return resolved
     }
 
@@ -836,13 +836,13 @@ class NotificationManagerHook : BaseHook() {
                     )
                 }
                 XLog.w(
-                    "NotificationManagerHook: candidate %s rejected. installed=%s",
+                    message = "NotificationManagerHook: candidate %s rejected. installed=%s",
                     packageName,
                     false,
                 )
             }.onFailure { t ->
                 XLog.w(
-                    "NotificationManagerHook: candidate %s resolve failed: %s",
+                    message = "NotificationManagerHook: candidate %s resolve failed: %s",
                     packageName,
                     t.message ?: t.javaClass.simpleName,
                 )
@@ -862,7 +862,7 @@ class NotificationManagerHook : BaseHook() {
             packages.toList()
         }.getOrElse { t ->
             XLog.w(
-                "NotificationManagerHook: queryBroadcastReceivers failed: %s",
+                message = "NotificationManagerHook: queryBroadcastReceivers failed: %s",
                 t.message ?: t.javaClass.simpleName,
             )
             emptyList()
@@ -904,7 +904,7 @@ class NotificationManagerHook : BaseHook() {
             CorePrefs.getBoolean(key, defaultValue)
         }.getOrElse { t ->
             XLog.w(
-                "NotificationManagerHook: CorePrefs boolean failed. key=%s err=%s caller=%s",
+                message = "NotificationManagerHook: CorePrefs boolean failed. key=%s err=%s caller=%s",
                 key,
                 t.message ?: t.javaClass.simpleName,
                 callerPackageHint ?: "<none>",
@@ -922,7 +922,7 @@ class NotificationManagerHook : BaseHook() {
             CorePrefs.getString(key, defaultValue)
         }.getOrElse { t ->
             XLog.w(
-                "NotificationManagerHook: CorePrefs string failed. key=%s err=%s caller=%s",
+                message = "NotificationManagerHook: CorePrefs string failed. key=%s err=%s caller=%s",
                 key,
                 t.message ?: t.javaClass.simpleName,
                 callerPackageHint ?: "<none>",
@@ -943,7 +943,7 @@ class NotificationManagerHook : BaseHook() {
         val callerPid = Binder.getCallingPid()
         if (callerUid != Process.SYSTEM_UID) {
             XLog.d(
-                "NotificationManagerHook: clearCallingIdentity reason=%s callerUid=%d callerPid=%d",
+                message = "NotificationManagerHook: clearCallingIdentity reason=%s callerUid=%d callerPid=%d",
                 reason,
                 callerUid,
                 callerPid,
@@ -992,7 +992,7 @@ class NotificationManagerHook : BaseHook() {
                     return@withClearedCallingIdentity
                 }.onFailure { t ->
                     XLog.w(
-                        "NotificationManagerHook: sendBroadcastAsUser failed. pkg=%s event=%s user=%s err=%s",
+                        message = "NotificationManagerHook: sendBroadcastAsUser failed. pkg=%s event=%s user=%s err=%s",
                         sourcePackage,
                         eventId,
                         describeUserHandle(userHandle),
@@ -1002,7 +1002,7 @@ class NotificationManagerHook : BaseHook() {
             }
 
             XLog.w(
-                "NotificationManagerHook: fallback sendBroadcast without user. pkg=%s event=%s",
+                message = "NotificationManagerHook: fallback sendBroadcast without user. pkg=%s event=%s",
                 sourcePackage,
                 eventId,
             )
@@ -1026,7 +1026,7 @@ class NotificationManagerHook : BaseHook() {
                 override fun onReceive(context: Context?, callbackIntent: Intent?) {
                     val ackData = resultData ?: "<null>"
                     XLog.i(
-                        "NotificationManagerHook: ordered ack pkg=%s event=%s user=%s resultCode=%d resultData=%s extras=%s",
+                        message = "NotificationManagerHook: ordered ack pkg=%s event=%s user=%s resultCode=%d resultData=%s extras=%s",
                         sourcePackage,
                         eventId,
                         describeUserHandle(userHandle),
@@ -1068,14 +1068,14 @@ class NotificationManagerHook : BaseHook() {
                         // Best effort retry after process wake-up; avoid ordered callback recursion.
                         systemContext.sendBroadcastAsUser(Intent(sendIntent), userHandle)
                         XLog.w(
-                            "NotificationManagerHook: retry broadcast after recovery. pkg=%s event=%s user=%s",
+                            message = "NotificationManagerHook: retry broadcast after recovery. pkg=%s event=%s user=%s",
                             sourcePackage,
                             eventId,
                             describeUserHandle(userHandle),
                         )
                     }.onFailure { error ->
                         XLog.w(
-                            "NotificationManagerHook: retry after recovery failed. pkg=%s event=%s user=%s err=%s",
+                            message = "NotificationManagerHook: retry after recovery failed. pkg=%s event=%s user=%s err=%s",
                             sourcePackage,
                             eventId,
                             describeUserHandle(userHandle),
@@ -1098,7 +1098,7 @@ class NotificationManagerHook : BaseHook() {
             systemContext.sendBroadcastAsUser(sendIntent, userHandle)
         }
         XLog.d(
-            "NotificationManagerHook: broadcast sent. pkg=%s event=%s user=%s ordered=%s",
+            message = "NotificationManagerHook: broadcast sent. pkg=%s event=%s user=%s ordered=%s",
             sourcePackage,
             eventId,
             describeUserHandle(userHandle),
@@ -1173,7 +1173,7 @@ class NotificationManagerHook : BaseHook() {
             )
             recovered = recovered || unstopped || warmedUp
             XLog.w(
-                "NotificationManagerHook: recovery attempted. module=%s source=%s event=%s user=%s stopped=%s unstopped=%s warmed=%s reason=%s",
+                message = "NotificationManagerHook: recovery attempted. module=%s source=%s event=%s user=%s stopped=%s unstopped=%s warmed=%s reason=%s",
                 modulePackage,
                 sourcePackage,
                 eventId,
@@ -1227,7 +1227,7 @@ class NotificationManagerHook : BaseHook() {
 
         if (launched) {
             XLog.w(
-                "NotificationManagerHook: foreground relaunch triggered. module=%s source=%s event=%s user=%s",
+                message = "NotificationManagerHook: foreground relaunch triggered. module=%s source=%s event=%s user=%s",
                 modulePackage,
                 sourcePackage,
                 eventId,
@@ -1235,7 +1235,7 @@ class NotificationManagerHook : BaseHook() {
             )
         } else {
             XLog.w(
-                "NotificationManagerHook: foreground relaunch failed. module=%s source=%s event=%s user=%s",
+                message = "NotificationManagerHook: foreground relaunch failed. module=%s source=%s event=%s user=%s",
                 modulePackage,
                 sourcePackage,
                 eventId,
@@ -1269,7 +1269,7 @@ class NotificationManagerHook : BaseHook() {
             (appInfo.flags and ApplicationInfo.FLAG_STOPPED) != 0
         }.getOrElse { t ->
             XLog.w(
-                "NotificationManagerHook: isPackageStopped failed. pkg=%s user=%d err=%s",
+                message = "NotificationManagerHook: isPackageStopped failed. pkg=%s user=%d err=%s",
                 packageName,
                 userId,
                 t.message ?: t.javaClass.simpleName,
@@ -1310,12 +1310,12 @@ class NotificationManagerHook : BaseHook() {
             val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
             val exitCode = process.waitFor()
             if (exitCode != 0) {
-                XLog.w("NotificationManagerHook: shell command failed(%d): %s", exitCode, command)
+                XLog.w(message = "NotificationManagerHook: shell command failed(%d): %s", exitCode, command)
             }
             exitCode == 0
         }.getOrElse {
             XLog.w(
-                "NotificationManagerHook: shell command exception: %s err=%s",
+                message = "NotificationManagerHook: shell command exception: %s err=%s",
                 command,
                 it.message ?: it.javaClass.simpleName,
             )
@@ -1357,7 +1357,7 @@ class NotificationManagerHook : BaseHook() {
                 result.add(UserHandle.getUserHandleForUid(callerUid))
             }
         }.onFailure {
-            XLog.w("NotificationManagerHook: resolve caller user failed. callerUid=%d", callerUid)
+            XLog.w(message = "NotificationManagerHook: resolve caller user failed. callerUid=%d", callerUid)
         }
         runCatching {
             val allUserHandle = UserHandle::class.java.getField("ALL").get(null) as? UserHandle

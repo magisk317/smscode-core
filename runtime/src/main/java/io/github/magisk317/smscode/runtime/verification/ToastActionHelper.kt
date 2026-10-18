@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 import java.util.LinkedHashMap
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -58,7 +59,7 @@ object ToastActionHelper {
         }
         val toast = Toast.makeText(phoneContext, text, duration)
         XLog.i(
-            "Diag toast request: key=%s pkg=%s uid=%d code_len=%d text_len=%d",
+            message = "Diag toast request: key=%s pkg=%s uid=%d code_len=%d text_len=%d",
             toastKey.ifBlank { "<none>" },
             phoneContext.packageName,
             android.os.Process.myUid(),
@@ -74,7 +75,7 @@ object ToastActionHelper {
                         shown.set(true)
                         touchToastOwner(toastKey, ownerToken)
                         XLog.d(
-                            "Diag toast shown: key=%s pkg=%s code_len=%d",
+                            message = "Diag toast shown: key=%s pkg=%s code_len=%d",
                             toastKey.ifBlank { "<none>" },
                             phoneContext.packageName,
                             smsCode.length,
@@ -83,7 +84,7 @@ object ToastActionHelper {
 
                     override fun onToastHidden() {
                         XLog.d(
-                            "Diag toast hidden: key=%s pkg=%s code_len=%d",
+                            message = "Diag toast hidden: key=%s pkg=%s code_len=%d",
                             toastKey.ifBlank { "<none>" },
                             phoneContext.packageName,
                             smsCode.length,
@@ -96,7 +97,7 @@ object ToastActionHelper {
                     if (!shown.get() && ownsToastOwner(toastKey, ownerToken)) {
                         touchToastOwner(toastKey, ownerToken)
                         XLog.i(
-                            "Diag toast fallback via system receiver: key=%s pkg=%s code_len=%d",
+                            message = "Diag toast fallback via system receiver: key=%s pkg=%s code_len=%d",
                             toastKey.ifBlank { "<none>" },
                             phoneContext.packageName,
                             smsCode.length,
@@ -122,7 +123,7 @@ object ToastActionHelper {
             val last = recentToasts[key]
             if (last != null && now - last.timestamp <= TOAST_DEDUP_WINDOW_MS) {
                 XLog.d(
-                    "Diag toast dedup skip: key=%s ageMs=%d",
+                    message = "Diag toast dedup skip: key=%s ageMs=%d",
                     key,
                     now - last.timestamp,
                 )

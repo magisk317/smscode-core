@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.runtime.verification
 
 import io.github.magisk317.smscode.verification.SmsMessage
+import io.github.magisk317.xposed.logging.XLog
 
 
 object RecordSmsDedupHelper {
@@ -36,25 +37,25 @@ object RecordSmsDedupHelper {
         val code = smsMsg.smsCode
         if (!code.isNullOrBlank()) {
             if (hasCodeDuplicateInWindow(code, from, to)) {
-                XLog.d("Diag record dedup skip: reason=code_window event_id=%s", eventLabel)
+                XLog.d(message = "Diag record dedup skip: reason=code_window event_id=%s", eventLabel)
                 return true
             }
 
             val pkg = smsMsg.packageName
             if (!pkg.isNullOrBlank() && hasCodeDuplicateByPackage(code, pkg, from, to)) {
-                XLog.d("Diag record dedup skip: reason=code_package event_id=%s", eventLabel)
+                XLog.d(message = "Diag record dedup skip: reason=code_package event_id=%s", eventLabel)
                 return true
             }
 
             val company = smsMsg.company
             if (!company.isNullOrBlank() && hasCodeDuplicateByCompany(code, company, from, to)) {
-                XLog.d("Diag record dedup skip: reason=code_company event_id=%s", eventLabel)
+                XLog.d(message = "Diag record dedup skip: reason=code_company event_id=%s", eventLabel)
                 return true
             }
         }
 
         if (!sender.isNullOrBlank() && !body.isNullOrBlank() && hasFingerprintDuplicate(sender, body, from, to)) {
-            XLog.d("Diag record dedup skip: reason=fingerprint_window event_id=%s", eventLabel)
+            XLog.d(message = "Diag record dedup skip: reason=fingerprint_window event_id=%s", eventLabel)
             return true
         }
 

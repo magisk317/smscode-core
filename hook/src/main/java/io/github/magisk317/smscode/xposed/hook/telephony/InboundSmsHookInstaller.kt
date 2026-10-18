@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.telephony
 
 import android.content.BroadcastReceiver
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.HookEnv
 import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.xposed.MethodHook
@@ -53,6 +53,7 @@ object InboundSmsHookInstaller {
         HookEnv.api.hookAllConstructors(
             clazz,
             object : MethodHook() {
+                override val stableId: String = "inbound_sms.constructor"
                 override fun afterHookedMethod(param: MethodHookParam) = afterHook(param)
             },
         )
@@ -75,7 +76,7 @@ object InboundSmsHookInstaller {
         val clazz = findClass(className, classLoader) ?: return Result(0, classFound = false)
         val methods = clazz.declaredMethods.filter { it.name == methodName }
         if (methods.isEmpty()) {
-            XLog.e("Method %s for Class %s cannot found", methodName, className)
+            XLog.e(message = "Method %s for Class %s cannot found", methodName, className)
             return Result(0, classFound = true)
         }
         var count = 0
@@ -84,6 +85,7 @@ object InboundSmsHookInstaller {
             HookEnv.api.hookMethod(
                 method,
                 object : MethodHook() {
+                    override val stableId: String = "inbound_sms.dispatch_intent"
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         beforeDispatch(param, receiverIndex)
                     }
@@ -145,6 +147,7 @@ object InboundSmsHookInstaller {
                     HookEnv.api.hookMethod(
                         method,
                         object : MethodHook() {
+                            override val stableId: String = "inbound_sms.dispatcher.$className.$name"
                             override fun beforeHookedMethod(param: MethodHookParam) {
                                 beforeDispatch(className, name, param)
                             }

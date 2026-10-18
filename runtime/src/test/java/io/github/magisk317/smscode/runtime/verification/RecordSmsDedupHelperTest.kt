@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.verification
 
 import io.github.magisk317.smscode.verification.SmsMessage
 
+import io.github.magisk317.xposed.logging.XLog
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.AfterEach

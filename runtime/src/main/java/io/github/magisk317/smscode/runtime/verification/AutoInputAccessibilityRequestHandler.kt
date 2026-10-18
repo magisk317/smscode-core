@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 object AutoInputAccessibilityRequestHandler {
     fun handle(
@@ -53,7 +54,7 @@ object AutoInputAccessibilityRequestHandler {
 
         val result = performAutoInput(request)
         XLog.w(
-            "Accessibility auto input result: attemptId=%d success=%s strategy=%s reason=%s windowPkg=%s",
+            message = "Accessibility auto input result: attemptId=%d success=%s strategy=%s reason=%s windowPkg=%s",
             request.attemptId ?: -1L,
             result.success,
             result.strategy,

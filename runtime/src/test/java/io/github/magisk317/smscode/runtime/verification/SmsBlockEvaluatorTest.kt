@@ -5,6 +5,7 @@ import io.github.magisk317.smscode.verification.BlacklistMatchResult
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
+import io.github.magisk317.xposed.logging.XLog
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals

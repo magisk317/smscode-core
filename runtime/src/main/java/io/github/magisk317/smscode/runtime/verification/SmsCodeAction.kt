@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.verification
 
 import android.content.Context
 import android.os.Bundle
+import io.github.magisk317.xposed.logging.XLog
 import java.util.concurrent.Callable
 
 interface SmsCodeAction<T> {
@@ -17,7 +18,7 @@ abstract class SmsCodeCallableAction<M>(
 
     @Suppress("TooGenericExceptionCaught")
     override fun call(): Bundle? = try {
-        XLog.i("CallableAction#call() START: %s", this.javaClass.simpleName)
+        XLog.i(message = "CallableAction#call() START: %s", this.javaClass.simpleName)
         action()
     } catch (t: Throwable) {
         XLog.e("Error in CallableAction#call()", t)

@@ -1,10 +1,6 @@
 package io.github.magisk317.smscode.runtime.common.utils
 
-import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
 import io.github.magisk317.smscode.runtime.common.packageenv.PackageEnvCore
 import io.github.magisk317.smscode.runtime.common.update.UpdatePolicy
 
@@ -79,24 +75,6 @@ object PackageActions {
                 config.githubLatestReleaseUrl,
                 config.browserMissingMessageResId,
             )
-        }
-    }
-
-    @JvmStatic
-    @SuppressLint("MissingPermission")
-    fun isOnWifi(context: Context): Boolean {
-        return try {
-            if (
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.ACCESS_NETWORK_STATE,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                return false
-            }
-            PackageEnvCore.isOnWifi(context)
-        } catch (_: SecurityException) {
-            false
         }
     }
 }

@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.verification
 
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 object CopyToClipboardActionHelper {
     fun copyCode(

@@ -1,5 +1,7 @@
 package io.github.magisk317.smscode.xposed.utils
 
+import io.github.magisk317.xposed.logging.XLog
+
 /**
  * 当前Xposed模块相关工具类
  */
@@ -39,7 +41,7 @@ object ModuleUtils {
                 if (!moduleVersionFailureLogged) {
                     moduleVersionFailureLogged = true
                     XLog.w(
-                        "getModuleVersion() failed, treating module as disabled: %s",
+                        message = "getModuleVersion() failed, treating module as disabled: %s",
                         throwable.message ?: throwable.javaClass.simpleName,
                         throwable,
                     )

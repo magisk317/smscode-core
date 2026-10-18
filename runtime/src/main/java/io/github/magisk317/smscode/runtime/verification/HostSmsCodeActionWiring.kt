@@ -3,7 +3,7 @@ package io.github.magisk317.smscode.runtime.verification
 import android.content.Context
 import android.os.Handler
 import io.github.magisk317.smscode.verification.SmsMessage
-import io.github.magisk317.smscode.runtime.verification.XLog
+import io.github.magisk317.xposed.logging.XLog
 import java.util.concurrent.Callable
 import java.util.concurrent.ScheduledExecutorService
 
@@ -119,7 +119,7 @@ class HostSmsCodeActionWiring<M : SmsMessage>(
             return
         }
         if (deduplicateEnabled && !claimNotificationDispatch(pluginContext, smsMsg)) return
-        XLog.i("scheduleNotification() running inline: smsCode=%s", smsMsg.smsCode)
+        XLog.i(message = "scheduleNotification() running inline: smsCode=%s", smsMsg.smsCode)
         runCatching {
             newNotifyAction(
                 pluginContext,
@@ -129,7 +129,7 @@ class HostSmsCodeActionWiring<M : SmsMessage>(
                 plan.autoCancelDelayMs ?: 0L,
             )()
         }.onFailure { error ->
-            XLog.e("scheduleNotification() failed: %s", error)
+            XLog.e(message = "scheduleNotification() failed: %s", error)
         }
     }
 

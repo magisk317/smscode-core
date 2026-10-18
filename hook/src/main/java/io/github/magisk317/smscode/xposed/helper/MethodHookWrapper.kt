@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.xposed.helper
 
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.MethodHookParam
 import io.github.magisk317.xposed.SafeMethodHook
 
@@ -18,7 +18,7 @@ abstract class MethodHookWrapper(
     override fun beforeHookedMethod(param: MethodHookParam) {
         val activeRoute = route
         if (activeRoute != null) {
-            XLog.withRoute(activeRoute) {
+            XLog.withRoute(activeRoute.id) {
                 super.beforeHookedMethod(param)
             }
         } else {
@@ -30,7 +30,7 @@ abstract class MethodHookWrapper(
     override fun afterHookedMethod(param: MethodHookParam) {
         val activeRoute = route
         if (activeRoute != null) {
-            XLog.withRoute(activeRoute) {
+            XLog.withRoute(activeRoute.id) {
                 super.afterHookedMethod(param)
             }
         } else {
@@ -40,9 +40,9 @@ abstract class MethodHookWrapper(
 
     override fun onHookError(param: MethodHookParam, error: Throwable, phase: String) {
         if (phase == "before") {
-            XLog.d("Error in hook %s", param.method.name, error)
+            XLog.d(message = "Error in hook %s", param.method.name, error)
         } else {
-            XLog.e("Error in hook %s", param.method.name, error)
+            XLog.e(message = "Error in hook %s", param.method.name, error)
         }
     }
 }

@@ -3,7 +3,7 @@ package io.github.magisk317.smscode.xposed.hook.permission
 import android.Manifest
 import android.os.UserHandle
 import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.xposed.MethodHookParam
 import java.lang.reflect.InvocationTargetException
@@ -135,13 +135,13 @@ object PermissionGrantHelper36 {
             val skipReason = getRuntimeGrantSkipReason(permission)
             if (skipReason != null) {
                 if (runtimeGrantSkipLogged.add(permission)) {
-                    XLog.w("Skip granting %s to %s: %s", permission, packageName, skipReason)
+                    XLog.w(message = "Skip granting %s to %s: %s", permission, packageName, skipReason)
                 }
                 continue
             }
             if (nonChangeablePermissions.contains(permission)) {
                 if (nonChangeableLogged.add(permission)) {
-                    XLog.w("Skip granting %s: permission type not changeable", permission)
+                    XLog.w(message = "Skip granting %s: permission type not changeable", permission)
                 }
                 continue
             }
@@ -282,6 +282,13 @@ object PermissionGrantHelper36 {
                 "grantRuntimePermission",
             )
         }
+        if (lastError?.contains("NoSuchElementException", ignoreCase = true) == true ||
+            lastError?.contains("Array is empty", ignoreCase = true) == true
+        ) {
+            // Android 16/17 (e.g. ColorOS 17 / HyperOS 3): KnownPackages for PermissionController is empty
+            // during system early boot, or PermissionService internal arrays are not yet populated.
+            nonChangeablePermissions.add(permission)
+        }
         if (lastError?.contains("not a changeable permission type", ignoreCase = true) == true) {
             nonChangeablePermissions.add(permission)
         }
@@ -325,22 +332,22 @@ object PermissionGrantHelper36 {
         return try {
             getAllUserIds(pms)
         } catch (e: ReflectiveOperationException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
+            XLog.w(message = "Cannot get user IDs, using default user 0", e)
             intArrayOf(0)
         } catch (e: IllegalArgumentException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
+            XLog.w(message = "Cannot get user IDs, using default user 0", e)
             intArrayOf(0)
         } catch (e: IllegalStateException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
+            XLog.w(message = "Cannot get user IDs, using default user 0", e)
             intArrayOf(0)
         } catch (e: NoSuchElementException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
+            XLog.w(message = "Cannot get user IDs, using default user 0", e)
             intArrayOf(0)
         } catch (e: SecurityException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
+            XLog.w(message = "Cannot get user IDs, using default user 0", e)
             intArrayOf(0)
         } catch (e: UnsupportedOperationException) {
-            XLog.w("Cannot get user IDs, using default user 0", e)
+            XLog.w(message = "Cannot get user IDs, using default user 0", e)
             intArrayOf(0)
         }
     }

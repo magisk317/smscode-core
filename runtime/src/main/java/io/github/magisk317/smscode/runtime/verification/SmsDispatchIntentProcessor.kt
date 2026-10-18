@@ -7,6 +7,7 @@ import io.github.magisk317.smscode.verification.SmsParseResult
 import android.content.Context
 import android.content.Intent
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 class SmsDispatchIntentProcessor<M : SmsMessage>(
     private val pluginContext: Context,
@@ -50,7 +51,7 @@ class SmsDispatchIntentProcessor<M : SmsMessage>(
         val blacklistResult = blacklistMatcher(pluginContext, smsMsg?.sender, smsMsg?.body)
         if (blacklistResult.matched) {
             XLog.w(
-                "Diag sms blacklist matched: event_id=%s type=%s, pattern=%s, delete=%s, block=%s",
+                message = "Diag sms blacklist matched: event_id=%s type=%s, pattern=%s, delete=%s, block=%s",
                 eventId,
                 blacklistResult.matchType,
                 blacklistResult.pattern,
@@ -61,9 +62,9 @@ class SmsDispatchIntentProcessor<M : SmsMessage>(
 
         val parseResult = codeParser(pluginContext, phoneContext, intent, eventId)
         if (parseResult == null) {
-            XLog.d("Diag parse result is null: event_id=%s no code matched or parse failed", eventId)
+            XLog.d(message = "Diag parse result is null: event_id=%s no code matched or parse failed", eventId)
         } else {
-            XLog.i("Diag parse result: event_id=%s blockSms=%s", eventId, parseResult.isBlockSms)
+            XLog.i(message = "Diag parse result: event_id=%s blockSms=%s", eventId, parseResult.isBlockSms)
         }
 
         val decision = decisionEvaluator(

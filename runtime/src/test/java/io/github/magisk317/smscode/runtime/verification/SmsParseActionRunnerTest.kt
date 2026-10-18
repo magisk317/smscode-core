@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.runtime.verification
 
+import io.github.magisk317.xposed.logging.XLog
 import java.util.concurrent.Callable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors

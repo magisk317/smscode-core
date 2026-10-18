@@ -17,6 +17,7 @@ import android.os.HandlerThread
 import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import io.github.magisk317.xposed.logging.XLog
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -150,11 +151,11 @@ object CodeNotificationDeliveryHelper {
         request: CodeNotificationPayload.ReceiverRequest.Rejected,
     ) {
         if (request.resultData == CodeNotificationPayload.RESULT_DATA_BLANK_CODE) {
-            XLog.w("%s ignored blank smsCode", source)
+            XLog.w(message = "%s ignored blank smsCode", source)
             return
         }
         XLog.w(
-            "%s rejected token. expectedEmpty=%s receivedEmpty=%s sentFromUid=%d",
+            message = "%s rejected token. expectedEmpty=%s receivedEmpty=%s sentFromUid=%d",
             source,
             request.expectedTokenEmpty,
             request.receivedTokenEmpty,
@@ -210,7 +211,7 @@ object CodeNotificationDeliveryHelper {
 
     private fun broadcastFailureResult(error: RuntimeException): CodeNotificationPayload.DeliveryResult {
         XLog.w(
-            "App-owned code notification broadcast failed: %s",
+            message = "App-owned code notification broadcast failed: %s",
             error.message ?: error.javaClass.simpleName,
         )
         return CodeNotificationPayload.DeliveryResult(

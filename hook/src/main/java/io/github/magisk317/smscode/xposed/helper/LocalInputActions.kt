@@ -6,7 +6,7 @@ import android.os.Looper
 import android.widget.Toast
 import io.github.magisk317.smscode.runtime.verification.AutoInputBroadcastHelper
 import io.github.magisk317.smscode.xposed.hook.system.SystemInputInjectorHook
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 
 /**
  * Local auto-input broadcast and toast actions for host hook layers.
@@ -51,7 +51,7 @@ object LocalInputActions {
             Toast.makeText(context, text, duration).show()
         }
         XLog.i(
-            "Show toast locally with textLength: %d, duration: %d",
+            message = "Show toast locally with textLength: %d, duration: %d",
             text.length,
             duration,
         )

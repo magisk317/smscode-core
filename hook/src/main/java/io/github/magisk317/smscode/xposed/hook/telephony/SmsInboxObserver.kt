@@ -12,7 +12,8 @@ import io.github.magisk317.smscode.runtime.verification.ObservedInboxScanner
 import io.github.magisk317.smscode.runtime.verification.SmsRoleStateResolver
 import io.github.magisk317.smscode.verification.ObservedInboxScanRecord
 import io.github.magisk317.smscode.verification.SmsInboxSeenTracker
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.smscode.xposed.hook.HookHostCapabilities
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.logging.MagiskOtel
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -21,20 +22,15 @@ import java.util.concurrent.ScheduledExecutorService
  * Watches the SMS inbox and re-runs verification for messages the provider may have
  * written outside the hooked dispatch path.
  *
- * The scanning, routing repair and telemetry live here. What stays with the host is
- * how a code is parsed and how sensitive text is redacted, since both depend on the
- * host's own prefs and escaping rules.
+ * The scanning, routing repair and telemetry live here. Host capabilities (prefs,
+ * escaping, parsing) arrive through the unified [HookHostCapabilities] contract so
+ * both hosts consume core identically.
  */
 class SmsInboxObserver(
     private val pluginContext: Context,
     private val phoneContext: Context,
     private val recordHandler: (ObservedInboxScanRecord) -> Unit,
-    private val isSensitiveDebugLog: (Context) -> Boolean,
-    private val escapeCode: (String) -> String,
-    private val summarizeCode: (String) -> String,
-    private val escapeBody: (String) -> String,
-    private val summarizeBody: (String) -> String,
-    private val parseSmsCode: suspend (Context, String) -> String,
+    private val capabilities: HookHostCapabilities,
 ) {
     private val smsRoleStateResolver = SmsRoleStateResolver()
     private val queryExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
@@ -59,7 +55,7 @@ class SmsInboxObserver(
             emitObserver(result = "ok", reason = "registered")
             queryExecutor.execute { repairRecentRouting() }
         }.onFailure {
-            XLog.w("SmsInboxObserver register failed: %s", it.message ?: it.javaClass.simpleName)
+            XLog.w(message = "SmsInboxObserver register failed: %s", it.message ?: it.javaClass.simpleName)
             emitObserver(result = "error", reason = "register_failed", statusOk = false)
         }
     }
@@ -70,7 +66,7 @@ class SmsInboxObserver(
             XLog.i("SmsInboxObserver unregistered")
             emitObserver(result = "ok", reason = "unregistered")
         }.onFailure {
-            XLog.w("SmsInboxObserver unregister failed: %s", it.message ?: it.javaClass.simpleName)
+            XLog.w(message = "SmsInboxObserver unregister failed: %s", it.message ?: it.javaClass.simpleName)
             emitObserver(result = "error", reason = "unregister_failed", statusOk = false)
         }
         queryExecutor.shutdownNow()
@@ -98,7 +94,7 @@ class SmsInboxObserver(
         }
         XLog.log(
             Log.INFO,
-            LogRoute.SMS_HOOK,
+            LogRoute.SMS_HOOK.id,
             false,
             false,
             "Diag SMS routing repair finished: scanned=%d updated=%d",
@@ -123,9 +119,9 @@ class SmsInboxObserver(
             recentSmsWindowMs = RECENT_SMS_WINDOW_MS,
         ).forEach { record ->
             handled += 1
-            val sensitive = isSensitiveDebugLog(pluginContext)
+            val sensitive = capabilities.isSensitiveDebugLogMode(pluginContext)
             XLog.w(
-                "Diag SMS provider observed: sms_id=%d trigger_uri=%s sender_hash=%s date=%d read=%s simSlot=%d subId=%d code=%s body=%s",
+                message = "Diag SMS provider observed: sms_id=%d trigger_uri=%s sender_hash=%s date=%d read=%s simSlot=%d subId=%d code=%s body=%s",
                 record.smsId,
                 record.triggerUri,
                 senderHash(record.sender),
@@ -133,8 +129,8 @@ class SmsInboxObserver(
                 record.read,
                 record.simSlot,
                 record.subId,
-                if (sensitive) escapeCode(record.code) else summarizeCode(record.code),
-                if (sensitive) escapeBody(record.body) else summarizeBody(record.body),
+                if (sensitive) capabilities.escapeCode(record.code) else capabilities.summarizeCode(record.code),
+                if (sensitive) capabilities.escapeBody(record.body) else capabilities.summarizeBody(record.body),
             )
             logSmsRoleStateForSms(record.smsId, record.triggerUri)
             recordHandler(record)
@@ -185,7 +181,7 @@ class SmsInboxObserver(
         pluginContext = pluginContext,
         phoneContext = phoneContext,
         smsIdTracker = SmsInboxSeenTracker(MAX_TRACKED_SMS_IDS),
-        smsCodeParser = parseSmsCode,
+        smsCodeParser = capabilities::parseSmsCode,
     )
 
     private companion object {

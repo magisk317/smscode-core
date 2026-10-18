@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 object CodeNotificationReceiverHandler {
     data class DeliveryDiagnostics(
@@ -125,7 +126,7 @@ object CodeNotificationReceiverHandler {
 
         val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager?
         if (manager == null) {
-            XLog.w("%s missing NotificationManager", config.source)
+            XLog.w(message = "%s missing NotificationManager", config.source)
             CodeNotificationPayload.finishOrderedResult(
                 receiver,
                 CodeNotificationPayload.RESULT_DATA_MISSING_NOTIFICATION_MANAGER,
@@ -135,10 +136,10 @@ object CodeNotificationReceiverHandler {
         }
 
         val diagnostics = config.inspectDelivery(appContext, config.visualConfig.channelId)
-        XLog.i("%s delivery diagnostics: %s", config.source, diagnostics.summary)
+        XLog.i(message = "%s delivery diagnostics: %s", config.source, diagnostics.summary)
         if (!diagnostics.canPost) {
             XLog.w(
-                "%s posting while app-owned notifications are unavailable: %s",
+                message = "%s posting while app-owned notifications are unavailable: %s",
                 config.source,
                 diagnostics.summary,
             )
@@ -148,7 +149,7 @@ object CodeNotificationReceiverHandler {
             CodeNotificationDeliveryHelper.showNotification(manager, notificationId, notification)
         }.onFailure { throwable ->
             XLog.w(
-                "%s notify failed: id=%d err=%s",
+                message = "%s notify failed: id=%d err=%s",
                 config.source,
                 notificationId,
                 throwable.message ?: throwable.javaClass.simpleName,
@@ -160,7 +161,7 @@ object CodeNotificationReceiverHandler {
             emit(result = "error", statusOk = false, reason = "notify_failed")
             return
         }
-        XLog.i("%s posted app-owned notification id=%d", config.source, notificationId)
+        XLog.i(message = "%s posted app-owned notification id=%d", config.source, notificationId)
         CodeNotificationPayload.finishOrderedResult(
             receiver,
             CodeNotificationPayload.RESULT_DATA_POSTED,

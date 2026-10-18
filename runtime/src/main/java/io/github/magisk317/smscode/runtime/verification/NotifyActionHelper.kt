@@ -6,6 +6,7 @@ import android.content.Context
 import io.github.magisk317.smscode.runtime.contract.notification.NotificationDeliveryDiagnostics
 import io.github.magisk317.smscode.runtime.contract.notification.NotificationPlatformBridge
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 class NotifyActionHelper<M : SmsMessage, R>(
     private val pluginContext: Context,
@@ -101,7 +102,7 @@ class NotifyActionHelper<M : SmsMessage, R>(
 
         if (!diag.canPost) {
             XLog.w(
-                "Code notification unavailable: %s",
+                message = "Code notification unavailable: %s",
                 diag.summary,
             )
             emit(result = "skip", reason = "cannot_post")

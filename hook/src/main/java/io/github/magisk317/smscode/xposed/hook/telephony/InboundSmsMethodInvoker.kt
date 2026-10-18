@@ -2,7 +2,7 @@ package io.github.magisk317.smscode.xposed.hook.telephony
 
 import android.os.Message
 import io.github.magisk317.xposed.HookHelpers
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.ArrayDeque
@@ -46,7 +46,7 @@ open class InboundSmsMethodInvoker(
         reason: String,
         eventId: String,
     ) {
-        XLog.d("Delete raw SMS data from database on Android 24+: reason=%s event_id=%s", reason, eventId)
+        XLog.d(message = "Delete raw SMS data from database on Android 24+: reason=%s event_id=%s", reason, eventId)
         val deleteWhere = fieldReader(smsReceiver, "mDeleteWhere")
         val deleteWhereArgs = fieldReader(smsReceiver, "mDeleteWhereArgs")
         val markDeleted = 2
@@ -108,7 +108,7 @@ open class InboundSmsMethodInvoker(
         reason: String,
         eventId: String,
     ) {
-        XLog.d("Send event(EVENT_BROADCAST_COMPLETE): reason=%s event_id=%s", reason, eventId)
+        XLog.d(message = "Send event(EVENT_BROADCAST_COMPLETE): reason=%s event_id=%s", reason, eventId)
         if (trySendMessage(inboundSmsHandler, EVENT_BROADCAST_COMPLETE)) {
             return
         }
@@ -241,14 +241,14 @@ open class InboundSmsMethodInvoker(
     private fun logMethodSignatures(tag: String, clazz: Class<*>, methodName: String) {
         val methods = collectMethods(clazz, methodName)
         if (methods.isEmpty()) {
-            XLog.w("%s: no method %s in %s", tag, methodName, clazz.name)
+            XLog.w(message = "%s: no method %s in %s", tag, methodName, clazz.name)
             return
         }
         val signatures = methods.joinToString(limit = 80, truncated = "...") { method ->
             val params = method.parameterTypes.joinToString(",") { it.name }
             "${method.name}($params):${method.returnType.name}"
         }
-        XLog.w("%s: %s methods=[%s]", tag, clazz.name, signatures)
+        XLog.w(message = "%s: %s methods=[%s]", tag, clazz.name, signatures)
     }
 
     private companion object {

@@ -8,6 +8,7 @@ import io.github.magisk317.smscode.verification.SmsMessage
 import android.content.Context
 import android.content.Intent
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 class SmsDispatchIntentHandler<M : SmsMessage>(
     private val runtimeResolver: (String) -> VerificationRuntimeContext?,
@@ -108,7 +109,7 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
             blacklistDeleteScheduler(pluginContext, phoneContext, smsMsg)
         }
         decision.blockReason?.let { blockReason ->
-            XLog.w("Diag sms block reason=%s event_id=%s", blockReason.wireValue, eventId)
+            XLog.w(message = "Diag sms block reason=%s event_id=%s", blockReason.wireValue, eventId)
             // Delete SMS from database so it doesn't appear in the inbox
             if (smsMsg != null) {
                 blacklistDeleteScheduler(pluginContext, phoneContext, smsMsg)
@@ -131,7 +132,7 @@ class SmsDispatchIntentHandler<M : SmsMessage>(
         }
         if (decision.shouldAllowSystemPersist) {
             XLog.i(
-                "Diag allow system inbox persist: event_id=%s sender_hash=%s body_len=%d",
+                message = "Diag allow system inbox persist: event_id=%s sender_hash=%s body_len=%d",
                 eventId,
                 senderHash(smsMsg?.sender),
                 smsMsg?.body?.length ?: 0,

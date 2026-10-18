@@ -183,7 +183,7 @@ class SmsCodeFacade(private val config: SmsCodeFacadeConfig) {
                 config.onOfficialRulesRefreshed?.invoke(context, snapshot)
             }
             if (!result.success) {
-                XLog.w("Refresh official SmsCode rules failed: %s", result.errorMessage ?: "unknown")
+                XLog.w(message = "Refresh official SmsCode rules failed: %s", result.errorMessage ?: "unknown")
             }
         }
     }
@@ -294,7 +294,7 @@ class SmsCodeFacade(private val config: SmsCodeFacadeConfig) {
             XLog.d("Load SmsCode rules by file: provider empty and no persisted user rules")
         } else {
             XLog.w(
-                "Load SmsCode rules by file: provider empty but %d persisted user rule(s) found",
+                message = "Load SmsCode rules by file: provider empty but %d persisted user rule(s) found",
                 fileRules.size,
             )
         }
@@ -303,12 +303,12 @@ class SmsCodeFacade(private val config: SmsCodeFacadeConfig) {
     private fun logProviderFailureFallback(fileRules: List<SmsCodeRuleSpec>, throwable: Throwable) {
         if (fileRules.isEmpty()) {
             XLog.d(
-                "Load SmsCode rules by file after provider failure: no persisted user rules, err=%s",
+                message = "Load SmsCode rules by file after provider failure: no persisted user rules, err=%s",
                 throwable.message ?: throwable.javaClass.simpleName,
             )
         } else {
             XLog.w(
-                "Load SmsCode rules by file after provider failure: %d persisted user rule(s) found, err=%s",
+                message = "Load SmsCode rules by file after provider failure: %d persisted user rule(s) found, err=%s",
                 fileRules.size,
                 throwable.message ?: throwable.javaClass.simpleName,
             )
@@ -341,7 +341,7 @@ class SmsCodeFacade(private val config: SmsCodeFacadeConfig) {
     private fun logRejectedOfficialRules(snapshot: SmsCodeRuleCatalogSnapshot) {
         if (snapshot.rejectedRules.isEmpty()) return
         XLog.w(
-            "Official SmsCode rules rejected: source=%s count=%d first=%s",
+            message = "Official SmsCode rules rejected: source=%s count=%d first=%s",
             snapshot.sourceKind.name,
             snapshot.rejectedRules.size,
             snapshot.rejectedRules.first(),

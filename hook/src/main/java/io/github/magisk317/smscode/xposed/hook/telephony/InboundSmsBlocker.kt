@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.telephony
 
 import android.os.Binder
-import io.github.magisk317.smscode.xposed.utils.XLog
+import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.logging.MagiskOtel
 
 class InboundSmsBlocker(
@@ -17,7 +17,7 @@ class InboundSmsBlocker(
         eventId: String,
     ): Boolean {
         val startedAt = System.nanoTime()
-        XLog.w("Diag raw-table delete start: reason=%s event_id=%s", reason, eventId)
+        XLog.w(message = "Diag raw-table delete start: reason=%s event_id=%s", reason, eventId)
         val token = clearCallingIdentity()
         var deleteSucceeded = false
         var deleteError: String? = null

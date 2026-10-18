@@ -5,6 +5,7 @@ import io.github.magisk317.smscode.verification.SmsMessage
 
 import android.content.Context
 import android.content.Intent
+import io.github.magisk317.xposed.logging.XLog
 import kotlinx.coroutines.runBlocking
 import io.github.magisk317.xposed.logging.MagiskOtel
 
@@ -53,7 +54,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
         val blacklistResult = blacklistMatcher(pluginContext, smsMsg?.sender, smsMsg?.body)
         if (blacklistResult.matched) {
             XLog.w(
-                "Diag %s blacklist matched: event_id=%s type=%s pattern=%s delete=%s block=%s",
+                message = "Diag %s blacklist matched: event_id=%s type=%s pattern=%s delete=%s block=%s",
                 source,
                 eventId,
                 blacklistResult.matchType,
@@ -74,7 +75,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
         if (blacklistResult.actionBlock) {
             if (smsCode.isNotBlank()) {
                 XLog.w(
-                    "Diag %s blacklist block contains code: event_id=%s codeLength=%d",
+                    message = "Diag %s blacklist block contains code: event_id=%s codeLength=%d",
                     source,
                     eventId,
                     smsCode.length,
@@ -120,7 +121,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
         }
 
         XLog.w(
-            "Diag %s early block candidate: event_id=%s codeLength=%d",
+            message = "Diag %s early block candidate: event_id=%s codeLength=%d",
             source,
             eventId,
             smsCode.length,

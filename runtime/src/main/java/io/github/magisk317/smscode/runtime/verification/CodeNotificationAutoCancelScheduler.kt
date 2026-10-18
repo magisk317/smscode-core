@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Process
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 object CodeNotificationAutoCancelScheduler {
     enum class Outcome {
@@ -200,7 +201,7 @@ object CodeNotificationAutoCancelScheduler {
             schedule(request, environment)
         }.onFailure { throwable ->
             XLog.w(
-                "%s auto-cancel scheduling failed: id=%d retentionMs=%d err=%s",
+                message = "%s auto-cancel scheduling failed: id=%d retentionMs=%d err=%s",
                 source,
                 request.notificationId,
                 request.retentionTimeMs,
@@ -213,12 +214,12 @@ object CodeNotificationAutoCancelScheduler {
         when (plan.outcome) {
             Outcome.DISABLED -> XLog.i("Auto cancel disabled")
             Outcome.INVALID_RETENTION ->
-                XLog.i("Auto cancel skipped: retentionTimeMs=%d", plan.retentionTimeMs)
+                XLog.i(message = "Auto cancel skipped: retentionTimeMs=%d", plan.retentionTimeMs)
             Outcome.UID_MISMATCH ->
-                XLog.i("Skip alarm auto cancel: uid=%d, appUid=%d", plan.processUid, plan.appUid)
+                XLog.i(message = "Skip alarm auto cancel: uid=%d, appUid=%d", plan.processUid, plan.appUid)
             Outcome.ALARM_UNAVAILABLE -> XLog.d("Auto cancel alarm unavailable")
             Outcome.SCHEDULED ->
-                XLog.i("Schedule auto cancel alarm, id=%d, delayMs=%d", plan.notificationId, plan.retentionTimeMs)
+                XLog.i(message = "Schedule auto cancel alarm, id=%d, delayMs=%d", plan.notificationId, plan.retentionTimeMs)
         }
     }
 

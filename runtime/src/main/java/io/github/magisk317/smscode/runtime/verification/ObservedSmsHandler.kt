@@ -7,6 +7,7 @@ import io.github.magisk317.smscode.verification.SmsMessageDedupKeys
 
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 class ObservedSmsHandler<M : SmsMessage>(
     private val pluginContext: Context,
@@ -73,19 +74,19 @@ class ObservedSmsHandler<M : SmsMessage>(
 
         when (decision.skipReason) {
             SmsInboxObserverDecision.SkipReason.CONFLICT_SUPPRESSED -> {
-                XLog.w("Diag observer conflict skip: event_id=%s sms_id=%d", eventId, record.smsId)
+                XLog.w(message = "Diag observer conflict skip: event_id=%s sms_id=%d", eventId, record.smsId)
                 emit(result = "skip", reason = "conflict_suppressed")
                 return Outcome(eventId = eventId, decision = decision, dispatched = false)
             }
 
             SmsInboxObserverDecision.SkipReason.MODULE_DISABLED -> {
-                XLog.w("Diag observer skip: module disabled event_id=%s", eventId)
+                XLog.w(message = "Diag observer skip: module disabled event_id=%s", eventId)
                 emit(result = "skip", reason = "module_disabled")
                 return Outcome(eventId = eventId, decision = decision, dispatched = false)
             }
 
             SmsInboxObserverDecision.SkipReason.DUPLICATED -> {
-                XLog.d("Diag observer duplicate skip: event_id=%s", eventId)
+                XLog.d(message = "Diag observer duplicate skip: event_id=%s", eventId)
                 emit(result = "skip", reason = "duplicate")
                 return Outcome(eventId = eventId, decision = decision, dispatched = false)
             }
@@ -95,7 +96,7 @@ class ObservedSmsHandler<M : SmsMessage>(
 
         if (record.read) {
             XLog.d(
-                "Diag observer skip: sms already read event_id=%s sms_id=%d uri=%s",
+                message = "Diag observer skip: sms already read event_id=%s sms_id=%d uri=%s",
                 eventId,
                 record.smsId,
                 record.triggerUri,
@@ -114,7 +115,7 @@ class ObservedSmsHandler<M : SmsMessage>(
 
         if (decision.autoInputEnabled) {
             XLog.i(
-                "Diag observer auto-input: event_id=%s sender_hash=%s read=%s uri=%s simSlot=%d subId=%d",
+                message = "Diag observer auto-input: event_id=%s sender_hash=%s read=%s uri=%s simSlot=%d subId=%d",
                 eventId,
                 senderHash(record.sender),
                 record.read,
@@ -123,11 +124,11 @@ class ObservedSmsHandler<M : SmsMessage>(
                 record.subId,
             )
         } else {
-            XLog.d("Diag observer auto-input disabled: event_id=%s", eventId)
+            XLog.d(message = "Diag observer auto-input disabled: event_id=%s", eventId)
         }
 
         decision.recordSkipReason?.let { reason ->
-            XLog.d("Diag observer record skipped: reason=%s event_id=%s", reason.wireValue, eventId)
+            XLog.d(message = "Diag observer record skipped: reason=%s event_id=%s", reason.wireValue, eventId)
         }
 
         dispatcher(pluginContext, phoneContext, smsMsg, eventId, plan)
@@ -162,7 +163,7 @@ class ObservedSmsHandler<M : SmsMessage>(
             return true
         }
         XLog.d(
-            "Diag observer dedup skip: event_id=%s key=%s ageMs=%d",
+            message = "Diag observer dedup skip: event_id=%s key=%s ageMs=%d",
             eventId,
             key,
             claim.ageMs ?: -1L,

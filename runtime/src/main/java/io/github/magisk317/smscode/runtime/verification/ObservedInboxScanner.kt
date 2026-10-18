@@ -12,6 +12,7 @@ import android.telephony.SubscriptionManager
 import android.util.Log
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
+import io.github.magisk317.xposed.logging.XLog
 import kotlinx.coroutines.runBlocking
 import io.github.magisk317.xposed.logging.MagiskOtel
 
@@ -100,7 +101,7 @@ class ObservedInboxScanner(
                 )
             }
         }.getOrElse {
-            XLog.w("SmsInboxObserver scan failed: %s", it.message ?: it.javaClass.simpleName)
+            XLog.w(message = "SmsInboxObserver scan failed: %s", it.message ?: it.javaClass.simpleName)
             emptyList()
         }
     }
@@ -154,7 +155,7 @@ class ObservedInboxScanner(
                     ).normalized(::resolveSlotIndex)
                     XLog.log(
                         Log.DEBUG,
-                        LogRoute.SMS_HOOK,
+                        LogRoute.SMS_HOOK.id,
                         false,
                         false,
                         "Diag SMS routing provider row: sms_id=%d rawSlot=%d rawSubId=%d simSlot=%d subId=%d",

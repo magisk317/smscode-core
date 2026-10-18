@@ -1,16 +1,11 @@
 package io.github.magisk317.smscode.runtime.common.packageenv
 
-import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.SystemClock
-import androidx.core.content.ContextCompat
 import androidx.core.content.pm.PackageInfoCompat
 import io.github.magisk317.smscode.runtime.common.diagnostics.ActivationDiagnosticsStore
 import io.github.magisk317.smscode.runtime.common.diagnostics.RuntimeLogStore
@@ -81,22 +76,6 @@ object PackageEnvCore {
         installer == PLAY_STORE_PACKAGE_NAME
     } catch (_: Exception) {
         false
-    }
-
-    @SuppressLint("MissingPermission")
-    @JvmStatic
-    fun isOnWifi(context: Context): Boolean {
-        if (
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_NETWORK_STATE) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return false
-        }
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            ?: return false
-        val activeNetwork = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
-        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
 
     @JvmStatic

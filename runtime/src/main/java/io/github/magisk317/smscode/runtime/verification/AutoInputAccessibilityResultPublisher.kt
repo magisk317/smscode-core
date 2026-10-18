@@ -8,6 +8,7 @@ import io.github.magisk317.xposed.logging.MagiskOtel
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputAccessibilityResultContract
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
+import io.github.magisk317.xposed.logging.XLog
 
 object AutoInputAccessibilityResultPublisher {
     fun publishOrderedResult(
@@ -105,7 +106,7 @@ object AutoInputAccessibilityResultPublisher {
 
     fun logTerminalResultFailure(error: Throwable) {
         XLog.w(
-            "Accessibility auto input result broadcast failed: %s",
+            message = "Accessibility auto input result broadcast failed: %s",
             error.message ?: error.javaClass.simpleName,
         )
     }

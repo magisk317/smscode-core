@@ -6,6 +6,7 @@ import io.github.magisk317.smscode.verification.SmsMessageDedupKeys
 
 import android.app.ActivityManager
 import android.content.Context
+import io.github.magisk317.xposed.logging.XLog
 import java.lang.reflect.InvocationTargetException
 import java.util.LinkedHashMap
 import io.github.magisk317.xposed.logging.MagiskOtel
@@ -108,7 +109,7 @@ class AutoInputActionHelper<M : SmsMessage>(
         try {
             inputSender(phoneContext, code, autoEnter, inputIntervalMs, attemptId)
             XLog.d(
-                "Auto input request dispatched, autoEnter=%s inputIntervalMs=%d code_len=%d attemptId=%d",
+                message = "Auto input request dispatched, autoEnter=%s inputIntervalMs=%d code_len=%d attemptId=%d",
                 autoEnter,
                 inputIntervalMs,
                 code.length,
@@ -135,7 +136,7 @@ class AutoInputActionHelper<M : SmsMessage>(
         if (runningTasks != null) {
             val topPkgPrimary = runningTasks.firstOrNull()?.topActivity?.packageName
             if (!topPkgPrimary.isNullOrBlank()) {
-                XLog.d("topPackagePrimary: %s", topPkgPrimary)
+                XLog.d(message = "topPackagePrimary: %s", topPkgPrimary)
                 if (isBlockedPackageSafely(topPkgPrimary)) {
                     return true
                 }
@@ -145,7 +146,7 @@ class AutoInputActionHelper<M : SmsMessage>(
         val appProcesses = readRunningProcessesSafely() ?: return false
         val topProcess = appProcesses.firstOrNull()?.processName
         val topPackages = appProcesses.firstOrNull()?.pkgList.orEmpty()
-        XLog.d("topProcessSecondary: %s, topPackages: %s", topProcess, topPackages.contentToString())
+        XLog.d(message = "topProcessSecondary: %s, topPackages: %s", topProcess, topPackages.contentToString())
 
         if (!topProcess.isNullOrBlank() && isBlockedPackageSafely(topProcess)) {
             return true
@@ -168,7 +169,7 @@ class AutoInputActionHelper<M : SmsMessage>(
         )
         if (!sharedClaim.claimed) {
             XLog.d(
-                "Diag auto-input dedup skip: key=%s ageMs=%d source=shared_store",
+                message = "Diag auto-input dedup skip: key=%s ageMs=%d source=shared_store",
                 sharedClaim.key ?: keys.first(),
                 sharedClaim.ageMs ?: -1L,
             )
@@ -190,7 +191,7 @@ class AutoInputActionHelper<M : SmsMessage>(
             if (blockedKey != null) {
                 val last = recentAutoInputs[blockedKey]
                 XLog.d(
-                    "Diag auto-input dedup skip: key=%s ageMs=%d",
+                    message = "Diag auto-input dedup skip: key=%s ageMs=%d",
                     blockedKey,
                     if (last == null) -1L else now - last,
                 )
@@ -225,16 +226,16 @@ class AutoInputActionHelper<M : SmsMessage>(
         return try {
             packageBlockedChecker(packageName)
         } catch (error: SecurityException) {
-            XLog.e("Error occurs when checking blocked package: %s", packageName, error)
+            XLog.e(message = "Error occurs when checking blocked package: %s", packageName, error)
             false
         } catch (error: IllegalArgumentException) {
-            XLog.e("Error occurs when checking blocked package: %s", packageName, error)
+            XLog.e(message = "Error occurs when checking blocked package: %s", packageName, error)
             false
         } catch (error: IllegalStateException) {
-            XLog.e("Error occurs when checking blocked package: %s", packageName, error)
+            XLog.e(message = "Error occurs when checking blocked package: %s", packageName, error)
             false
         } catch (error: UnsupportedOperationException) {
-            XLog.e("Error occurs when checking blocked package: %s", packageName, error)
+            XLog.e(message = "Error occurs when checking blocked package: %s", packageName, error)
             false
         }
     }

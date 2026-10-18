@@ -41,11 +41,16 @@ object AppPreferencesDataStore {
 
     /**
      * Installs the repository hooks. Call from `Application.onCreate` before the
-     * first preference access; later calls replace the hooks and drop any
-     * cached instance so file resolution is recomputed.
+     * first preference access; later calls replace the hooks without discarding
+     * an already active [DataStore] instance, avoiding multiple active DataStore
+     * instances on the same file.
      */
     fun install(hooks: AppPreferencesHooks) {
         this.hooks = hooks
+    }
+
+    @VisibleForTesting
+    internal fun resetForTesting() {
         synchronized(this) {
             INSTANCE = null
             resolvedDataStoreFile = null
@@ -89,7 +94,7 @@ object AppPreferencesDataStore {
         prepareDataStoreCandidate(fallback, label = "fallback")?.let { return it }
 
         XLog.w(
-            "DataStore path fallback unresolved, using primary path anyway: %s",
+            message = "DataStore path fallback unresolved, using primary path anyway: %s",
             primary.absolutePath,
         )
         return primary
@@ -104,7 +109,7 @@ object AppPreferencesDataStore {
             )
             val moved = runCatching { parent.renameTo(backup) }.getOrDefault(false)
             XLog.w(
-                "DataStore parent path is not a directory: label=%s path=%s moved=%s backup=%s",
+                message = "DataStore parent path is not a directory: label=%s path=%s moved=%s backup=%s",
                 label,
                 parent.absolutePath,
                 moved,
@@ -114,7 +119,7 @@ object AppPreferencesDataStore {
         }
         if (!parent.exists() && !parent.mkdirs()) {
             XLog.w(
-                "DataStore parent mkdirs failed: label=%s path=%s",
+                message = "DataStore parent mkdirs failed: label=%s path=%s",
                 label,
                 parent.absolutePath,
             )
@@ -155,7 +160,7 @@ object AppPreferencesDataStore {
         return runCatching { provider.invoke() }.getOrElse { t ->
             if (!remoteProviderLogged) {
                 remoteProviderLogged = true
-                XLog.w("RemotePrefs provider failed: %s", t.message ?: t.javaClass.simpleName)
+                XLog.w(message = "RemotePrefs provider failed: %s", t.message ?: t.javaClass.simpleName)
             }
             null
         }
@@ -217,7 +222,7 @@ object AppPreferencesDataStore {
                 .first()
         }.getOrElse {
             XLog.w(
-                "DataStore int read failed key=%s err=%s",
+                message = "DataStore int read failed key=%s err=%s",
                 key,
                 it.message ?: it.javaClass.simpleName,
             )
@@ -416,7 +421,7 @@ object AppPreferencesDataStore {
             }
         } catch (e: Exception) {
             remotePrefsPublishPending = true
-            XLog.w("RemotePrefs sync failed: %s", e.message ?: e.javaClass.simpleName)
+            XLog.w(message = "RemotePrefs sync failed: %s", e.message ?: e.javaClass.simpleName)
             false
         }
     }
@@ -440,7 +445,7 @@ object AppPreferencesDataStore {
             prefs[key] ?: defaultValue
         }.getOrElse {
             XLog.w(
-                "DataStore type mismatch key=%s err=%s",
+                message = "DataStore type mismatch key=%s err=%s",
                 key.name,
                 it.message ?: it.javaClass.simpleName,
             )

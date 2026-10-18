@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.SystemClock
 import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.xposed.logging.MagiskOtel
+import io.github.magisk317.xposed.logging.XLog
 
 object AutoInputBroadcastHelper {
     fun sendText(
@@ -34,7 +35,7 @@ object AutoInputBroadcastHelper {
         )
         broadcaster(context, intent)
         XLog.i(
-            "Dispatched ACTION_AUTO_INPUT request: attemptId=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
+            message = "Dispatched ACTION_AUTO_INPUT request: attemptId=%d code_len=%d autoEnter=%s inputIntervalMs=%d",
             resolvedAttemptId,
             text.length,
             autoEnter,
@@ -65,7 +66,7 @@ object AutoInputBroadcastHelper {
         ordered: Boolean,
     ) {
         XLog.w(
-            "Accessibility auto input request received: attemptId=%d code_len=%d autoEnter=%s inputIntervalMs=%d ordered=%s",
+            message = "Accessibility auto input request received: attemptId=%d code_len=%d autoEnter=%s inputIntervalMs=%d ordered=%s",
             request.attemptId ?: -1L,
             request.code.length,
             request.autoEnter,
