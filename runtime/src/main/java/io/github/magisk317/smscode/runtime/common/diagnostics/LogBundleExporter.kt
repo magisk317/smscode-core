@@ -1,24 +1,26 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
-import io.github.magisk317.xposed.logging.VerboseLogEnableTracker
 
 import android.content.Context
+import androidx.core.content.pm.PackageInfoCompat
 import io.github.magisk317.xposed.logging.MagiskOtel
-import android.content.Intent
 import android.util.Log
+import io.github.magisk317.xposed.diagnostics.DiagnosticBundleIdentity
+import io.github.magisk317.xposed.diagnostics.DiagnosticBundleNames
+import io.github.magisk317.xposed.diagnostics.DiagnosticBuildStamps
 import io.github.magisk317.xposed.diagnostics.DiagnosticExportMode
 import io.github.magisk317.xposed.diagnostics.DiagnosticShell
 import io.github.magisk317.smscode.runtime.common.packageenv.PackageEnvCore
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import io.github.magisk317.xposed.diagnostics.DiagnosticArchive
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.io.FileInputStream
+import java.security.MessageDigest
 
 data class LogBundleExportResult(
     val file: File?,
@@ -30,38 +32,72 @@ data class LogBundleClearResult(
     val details: String,
 )
 
+internal data class RuntimePackageIdentity(
+    val packageName: String,
+    val versionName: String,
+    val versionCode: String,
+    val distributionChannel: String,
+    val commitSha: String,
+    val apkPath: String,
+    val apkSha256: String,
+) {
+    fun toSummaryLine(): String {
+        return "app package=$packageName versionName=$versionName versionCode=$versionCode " +
+            "distributionChannel=$distributionChannel commitSha=$commitSha " +
+            "apkPath=${apkPath.ifBlank { "unavailable" }} apkSha256=$apkSha256"
+    }
+}
+
 object LogBundleExporter {
 
-    private val LSPOSED_LOG_DIRS = listOf(
-        "/data/adb/lspd/log",
-        "/data/adb/lspd/log.old",
-    )
-    private val redundantAppRouteRuntimeLogPattern = Regex("""^runtime\.app\.\d{4}-\d{2}-\d{2}\.jsonl$""")
     private val legacyTextLogPattern = Regex("""^(logs_\d{4}-\d{2}-\d{2}|runtime(?:\.[A-Za-z0-9_.-]+)?)\.(txt|log)$""")
     private val legacyModuleTextLogPattern = Regex("""^[A-Za-z0-9_.-]+_\d{4}-\d{2}-\d{2}\.txt$""")
     private val opLock = Any()
 
-    fun checkPreExport(verboseLogEnabled: Boolean): String? {
-        if (!PackageEnvCore.hasRootAccess()) {
-            return "uikit_log_export_need_root"
-        }
-        if (!verboseLogEnabled) {
-            return "uikit_log_export_need_verbose_log"
-        }
-        return VerboseLogEnableTracker.shouldBlockExport()
-    }
+    const val BLOCK_REASON_NEED_ROOT = "uikit_log_export_need_root"
+    private const val HASH_BUFFER_SIZE = 64 * 1024
+    private const val HEX_BYTE_MASK = 0xff
+    private const val CORE_LIBRARY_NAME = "smscode-core"
+    private const val CORE_BUILD_CONFIG = "io.github.magisk317.smscode.runtime.common.BuildConfig"
+
+
+    /**
+     * Root gate for log export: the bundle pulls LSPosed/module log dirs under
+     * /data, so a non-root device can never produce a usable archive.
+     *
+     * @return a block reason key, or null when export may proceed.
+     */
+    fun checkPreExport(): String? =
+        if (!PackageEnvCore.hasRootAccess()) BLOCK_REASON_NEED_ROOT else null
 
     @Suppress("TooGenericExceptionCaught")
     fun buildLogBundle(
         context: Context,
-        mode: DiagnosticExportMode,
+        mode: DiagnosticExportMode = DiagnosticExportMode.current(),
     ): LogBundleExportResult {
+        checkPreExport()?.let { reason ->
+            return LogBundleExportResult(file = null, details = reason)
+        }
         synchronized(opLock) {
             val config = RuntimeDiagnosticsEnvironment.current()
-            val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
-            val exportDir = getPrivateExportDir(context)
+            val packageIdentity = readPackageIdentity(context, config)
+            // A host cannot forward this module's own stamp: core depends on the kit with
+            // `implementation`, so its BuildConfig is invisible to the app that embeds core.
+            val libraryCommitShas = config.libraryCommitShas +
+                (CORE_LIBRARY_NAME to DiagnosticBuildStamps.moduleCommitHash(CORE_BUILD_CONFIG))
+            val identity = DiagnosticBundleIdentity.of(
+                product = config.product,
+                packageName = packageIdentity.packageName,
+                versionName = packageIdentity.versionName,
+                versionCode = packageIdentity.versionCode,
+                distributionChannel = packageIdentity.distributionChannel,
+                commitSha = packageIdentity.commitSha,
+                libraryCommitShas = libraryCommitShas,
+            )
+            val timestamp = DiagnosticBundleNames.exportTimestamp()
+            val exportDir = getPrivateExportDir(context, config)
             val result = DiagnosticArchive.buildBundle(
-                context = context,
+                identity = identity,
                 timestamp = timestamp,
                 exportDir = exportDir,
                 exportFilePrefix = config.exportFilePrefix,
@@ -73,7 +109,7 @@ object LogBundleExporter {
                     )
                 },
                 collect = { stagingDir, details ->
-                    details += "export mode=" + mode.name
+                    details += packageIdentity.toSummaryLine()
                     val appLogSrc = StorageUtils.getLogDir(context)
                     if (appLogSrc != null && appLogSrc.exists()) {
                         val deletedLegacyLogs = deleteLegacyTextLogFiles(appLogSrc)
@@ -84,10 +120,10 @@ object LogBundleExporter {
                         DiagnosticArchive.copyDirectory(
                             source = appLogSrc,
                             target = stagedAppLogDir,
-                            includeFile = { file -> !isRedundantAppRouteRuntimeLog(file) },
+                            includeFile = { file -> !RuntimeLogStore.isRedundantRoutedRuntimeLog(file) },
                             onWarning = { message -> logWarn(config.logTag, message) },
                         )
-                        writeRuntimeLogSummaryFile(stagedAppLogDir)
+                        writeRuntimeLogSummaryFile(stagedAppLogDir, packageIdentity, identity)
                         details += "app log: ${appLogSrc.absolutePath}"
                         details += summarizeRuntimeLogFiles(stagedAppLogDir)
                     } else {
@@ -108,9 +144,9 @@ object LogBundleExporter {
                     }
 
                     DiagnosticShell.copyLsposedLogs(
-                        dirs = LSPOSED_LOG_DIRS,
                         stagingDir = stagingDir,
                         details = details,
+                        mode = mode,
                         onWarning = { message -> logWarn(config.logTag, message) },
                     )
                     DiagnosticShell.captureLogcat(
@@ -144,36 +180,20 @@ object LogBundleExporter {
         }
     }
 
-    fun shareLogBundle(context: Context, file: File) {
-        val config = RuntimeDiagnosticsEnvironment.current()
-        val intent = DiagnosticArchive.buildShareIntent(
-            context = context,
-            file = file,
-            authority = context.packageName + ".files",
-            onInfo = { message -> logInfo(config.logTag, message) },
-            onWarning = { message -> logWarn(config.logTag, message) },
-        )
-        val chooser = Intent.createChooser(intent, null).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
-            clipData = intent.clipData
-        }
-        context.startActivity(chooser)
-    }
-
     fun clearLogFolders(context: Context): LogBundleClearResult {
         synchronized(opLock) {
             val details = mutableListOf<String>()
             var success = true
+            val config = RuntimeDiagnosticsEnvironment.current()
 
             RuntimeLogStore.clear()
 
             val targets = listOf(
                 "log" to StorageUtils.getLogDir(context),
                 "crash" to StorageUtils.getCrashLogDir(context),
-                "private_export" to getPrivateExportDir(context),
-            )
+                "private_export" to getPrivateExportDir(context, config),
+            ) + StorageUtils.getLegacyPrivateLogExportDirs(context, config.privateExportDirName)
+                .map { "legacy_export:${it.name}" to it }
 
             targets.forEach { (name, dir) ->
                 if (dir == null) {
@@ -181,7 +201,7 @@ object LogBundleExporter {
                     details += "$name unavailable"
                     return@forEach
                 }
-                val ok = clearDirectoryContents(RuntimeDiagnosticsEnvironment.current().logTag, dir)
+                val ok = clearDirectoryContents(config.logTag, dir)
                 if (ok) {
                     details += "$name cleared"
                 } else {
@@ -217,51 +237,114 @@ object LogBundleExporter {
         return "runtime log files: ${runtimeFiles.size} [$names]"
     }
 
-    private fun writeRuntimeLogSummaryFile(stagedAppLogDir: File) {
+    private fun writeRuntimeLogSummaryFile(
+        stagedAppLogDir: File,
+        packageIdentity: RuntimePackageIdentity,
+        identity: DiagnosticBundleIdentity,
+    ) {
         runCatching {
             val summary = RuntimeLogStore.summarizeFiles()
-            val content = buildJsonObject {
-                put("fileCount", summary.fileCount)
-                put("totalBytes", summary.totalBytes)
-                put("entryCount", summary.entryCount)
-                if (summary.firstTimestamp == null) {
-                    put("firstTimestamp", JsonNull)
-                } else {
-                    put("firstTimestamp", summary.firstTimestamp)
-                }
-                if (summary.lastTimestamp == null) {
-                    put("lastTimestamp", JsonNull)
-                } else {
-                    put("lastTimestamp", summary.lastTimestamp)
-                }
-                putJsonArray("files") {
-                    summary.files.forEach { file ->
-                        add(
-                            buildJsonObject {
-                                put("name", file.name)
-                                put("sizeBytes", file.sizeBytes)
-                                put("lineCount", file.lineCount)
-                                if (file.firstTimestamp == null) {
-                                    put("firstTimestamp", JsonNull)
-                                } else {
-                                    put("firstTimestamp", file.firstTimestamp)
-                                }
-                                if (file.lastTimestamp == null) {
-                                    put("lastTimestamp", JsonNull)
-                                } else {
-                                    put("lastTimestamp", file.lastTimestamp)
-                                }
-                            },
-                        )
-                    }
-                }
-            }
+            val content = buildRuntimeSummaryJson(summary, packageIdentity, identity)
             File(stagedAppLogDir, "runtime_summary.json").writeText(content.toString())
         }
     }
 
-    internal fun isRedundantAppRouteRuntimeLog(file: File): Boolean {
-        return file.isFile && redundantAppRouteRuntimeLogPattern.matches(file.name)
+    internal fun buildRuntimeSummaryJson(
+        summary: RuntimeLogFileSummary,
+        packageIdentity: RuntimePackageIdentity,
+        identity: DiagnosticBundleIdentity,
+    ): JsonObject {
+        return buildJsonObject {
+            identity.jsonFields().forEach { (key, value) -> put(key, value) }
+            put("apkPath", packageIdentity.apkPath)
+            put("apkSha256", packageIdentity.apkSha256)
+            put("fileCount", summary.fileCount)
+            put("totalBytes", summary.totalBytes)
+            put("entryCount", summary.entryCount)
+            if (summary.firstTimestamp == null) {
+                put("firstTimestamp", JsonNull)
+            } else {
+                put("firstTimestamp", summary.firstTimestamp)
+            }
+            if (summary.lastTimestamp == null) {
+                put("lastTimestamp", JsonNull)
+            } else {
+                put("lastTimestamp", summary.lastTimestamp)
+            }
+            putJsonArray("files") {
+                summary.files.forEach { file ->
+                    add(
+                        buildJsonObject {
+                            put("name", file.name)
+                            put("sizeBytes", file.sizeBytes)
+                            put("lineCount", file.lineCount)
+                            if (file.firstTimestamp == null) {
+                                put("firstTimestamp", JsonNull)
+                            } else {
+                                put("firstTimestamp", file.firstTimestamp)
+                            }
+                            if (file.lastTimestamp == null) {
+                                put("lastTimestamp", JsonNull)
+                            } else {
+                                put("lastTimestamp", file.lastTimestamp)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    internal fun readPackageIdentity(
+        context: Context,
+        config: RuntimeDiagnosticsConfig,
+    ): RuntimePackageIdentity {
+        val packageName = context.packageName
+        val packageInfo = runCatching {
+            context.packageManager.getPackageInfo(packageName, 0)
+        }.getOrElse { error ->
+            return RuntimePackageIdentity(
+                packageName = packageName,
+                versionName = "unavailable",
+                versionCode = "unavailable",
+                distributionChannel = config.distributionChannel,
+                commitSha = config.commitHash,
+                apkPath = "",
+                apkSha256 = "unavailable:${error.javaClass.simpleName}",
+            )
+        }
+        val apkPath = packageInfo.applicationInfo?.sourceDir.orEmpty()
+        return RuntimePackageIdentity(
+            packageName = packageName,
+            versionName = packageInfo.versionName.orEmpty().ifBlank { "unavailable" },
+            versionCode = PackageInfoCompat.getLongVersionCode(packageInfo).toString(),
+            distributionChannel = config.distributionChannel,
+            commitSha = config.commitHash,
+            apkPath = apkPath,
+            apkSha256 = sha256FileOrUnavailable(apkPath),
+        )
+    }
+
+    internal fun sha256FileOrUnavailable(path: String): String {
+        if (path.isBlank()) return "unavailable:path_missing"
+        val file = File(path)
+        if (!file.isFile) return "unavailable:file_missing"
+        return runCatching {
+            val digest = MessageDigest.getInstance("SHA-256")
+            FileInputStream(file).use { input ->
+                val buffer = ByteArray(HASH_BUFFER_SIZE)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
+                }
+            }
+            digest.digest().joinToString(separator = "") { byte ->
+                (byte.toInt() and HEX_BYTE_MASK).toString(16).padStart(2, '0')
+            }
+        }.getOrElse { error ->
+            "unavailable:${error.javaClass.simpleName}"
+        }
     }
 
 
@@ -307,8 +390,8 @@ object LogBundleExporter {
         return DiagnosticArchive.ensureDirectory(dir, recreateWhenFile)
     }
 
-    private fun getPrivateExportDir(context: Context): File {
-        return StorageUtils.getPrivateLogExportDir(context)
+    private fun getPrivateExportDir(context: Context, config: RuntimeDiagnosticsConfig): File {
+        return StorageUtils.getPrivateLogExportDir(context, config.privateExportDirName)
     }
 
     private fun logInfo(tag: String, message: String) {

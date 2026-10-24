@@ -4,6 +4,7 @@ import io.github.magisk317.smscode.verification.ObservedInboxScanRecord
 import io.github.magisk317.smscode.verification.SmsInboxObserverDecision
 import io.github.magisk317.smscode.verification.SmsMessage
 import io.github.magisk317.smscode.verification.SmsMessageDedupKeys
+import io.github.magisk317.smscode.verification.SmsDuplicateCheckResult
 
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
@@ -19,7 +20,7 @@ class ObservedSmsHandler<M : SmsMessage>(
     private val conflictSuppressor: (Context, String) -> Boolean,
     private val sharedGateClaimer: (Context, String, String, Long, Int) -> ClaimResult,
     private val roleStateLogger: (String) -> Unit = {},
-    private val duplicateChecker: (SmsCodePostParseCoordinator.Settings, String, String, Long) -> Boolean,
+    private val duplicateChecker: (SmsCodePostParseCoordinator.Settings, String, String, Long) -> SmsDuplicateCheckResult,
     private val smsEnricher: (Context, ObservedInboxScanRecord) -> M,
     private val dispatcher: (
         Context,
@@ -58,15 +59,20 @@ class ObservedSmsHandler<M : SmsMessage>(
         val settings = settingsLoader(pluginContext)
         val plan = planFactory(settings)
         val eventId = buildObservedEventId(record.smsId, record.date)
-        val decision = SmsInboxObserverDecision.evaluate(
-            moduleEnabled = moduleEnabledReader(pluginContext),
-            suppressedByRelay = conflictSuppressor(phoneContext, OBSERVER_CONFLICT_SOURCE),
-            duplicated = duplicateChecker(
+        val duplicateResult = if (plan.deduplicateSmsEnabled) {
+            duplicateChecker(
                 settings,
                 record.sender,
                 record.body,
                 record.date,
-            ),
+            )
+        } else {
+            SmsDuplicateCheckResult.NOT_DUPLICATE
+        }
+        val decision = SmsInboxObserverDecision.evaluate(
+            moduleEnabled = moduleEnabledReader(pluginContext),
+            suppressedByRelay = conflictSuppressor(phoneContext, OBSERVER_CONFLICT_SOURCE),
+            duplicateCheckResult = duplicateResult,
             autoInputEnabled = plan.autoInputEnabled,
             shouldRecord = plan.shouldRecord,
             deduplicateSmsEnabled = plan.deduplicateSmsEnabled,
@@ -88,6 +94,12 @@ class ObservedSmsHandler<M : SmsMessage>(
             SmsInboxObserverDecision.SkipReason.DUPLICATED -> {
                 XLog.d(message = "Diag observer duplicate skip: event_id=%s", eventId)
                 emit(result = "skip", reason = "duplicate")
+                return Outcome(eventId = eventId, decision = decision, dispatched = false)
+            }
+
+            SmsInboxObserverDecision.SkipReason.DUPLICATE_CHECK_UNAVAILABLE -> {
+                XLog.w(message = "Diag observer duplicate check unavailable: event_id=%s", eventId)
+                emit(result = "error", statusOk = false, reason = "duplicate_check_unavailable")
                 return Outcome(eventId = eventId, decision = decision, dispatched = false)
             }
 

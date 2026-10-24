@@ -169,7 +169,7 @@ class NotificationManagerHook : BaseHook() {
         val modulePackage = endpoint.packageName
 
         if (pkg == modulePackage) {
-            XLog.d("NotificationManagerHook: skip self notification. pkg=%s", pkg)
+            XLog.d("NotificationManagerHook: skip self notification. pkg=$pkg")
             emit(result = "skip", reason = "self", targetPackage = pkg)
             return
         }
@@ -189,7 +189,7 @@ class NotificationManagerHook : BaseHook() {
                     notification.category ?: "<null>",
                 )
             }
-            XLog.d("NotificationManagerHook: skip blank content. pkg=%s", pkg)
+            XLog.d("NotificationManagerHook: skip blank content. pkg=$pkg")
             emit(result = "skip", reason = "blank_content", targetPackage = pkg)
             return
         }
@@ -886,14 +886,7 @@ class NotificationManagerHook : BaseHook() {
 
     private fun isSensitiveDebugLogEnabled(
         callerPackageHint: String? = null,
-    ): Boolean {
-        if (!CoreRuntime.access.debug) return false
-        return readCorePrefBoolean(
-            key = NotificationHookConst.KEY_SENSITIVE_DEBUG_LOG_MODE,
-            defaultValue = false,
-            callerPackageHint = callerPackageHint,
-        )
-    }
+    ): Boolean = CoreRuntime.access.debug
 
     private fun readCorePrefBoolean(
         key: String,

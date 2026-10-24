@@ -13,7 +13,7 @@ class SmsInboxObserverDecisionTest {
         val decision = SmsInboxObserverDecision.evaluate(
             moduleEnabled = true,
             suppressedByRelay = true,
-            duplicated = false,
+            duplicateCheckResult = SmsDuplicateCheckResult.NOT_DUPLICATE,
             autoInputEnabled = true,
             shouldRecord = true,
             deduplicateSmsEnabled = false,
@@ -29,7 +29,7 @@ class SmsInboxObserverDecisionTest {
         val decision = SmsInboxObserverDecision.evaluate(
             moduleEnabled = false,
             suppressedByRelay = false,
-            duplicated = false,
+            duplicateCheckResult = SmsDuplicateCheckResult.NOT_DUPLICATE,
             autoInputEnabled = true,
             shouldRecord = true,
             deduplicateSmsEnabled = false,
@@ -45,10 +45,10 @@ class SmsInboxObserverDecisionTest {
         val decision = SmsInboxObserverDecision.evaluate(
             moduleEnabled = true,
             suppressedByRelay = false,
-            duplicated = true,
+            duplicateCheckResult = SmsDuplicateCheckResult.DUPLICATE,
             autoInputEnabled = true,
             shouldRecord = true,
-            deduplicateSmsEnabled = false,
+            deduplicateSmsEnabled = true,
         )
 
         assertEquals(SmsInboxObserverDecision.SkipReason.DUPLICATED, decision.skipReason)
@@ -57,11 +57,42 @@ class SmsInboxObserverDecisionTest {
     }
 
     @Test
+    fun evaluate_failsClosedWhenDuplicateCheckIsUnavailable() {
+        val decision = SmsInboxObserverDecision.evaluate(
+            moduleEnabled = true,
+            suppressedByRelay = false,
+            duplicateCheckResult = SmsDuplicateCheckResult.UNAVAILABLE,
+            autoInputEnabled = true,
+            shouldRecord = true,
+            deduplicateSmsEnabled = true,
+        )
+
+        assertEquals(SmsInboxObserverDecision.SkipReason.DUPLICATE_CHECK_UNAVAILABLE, decision.skipReason)
+        assertFalse(decision.shouldProceed)
+        assertFalse(decision.autoInputEnabled)
+    }
+
+    @Test
+    fun evaluate_ignoresUnavailableDuplicateCheckWhenDeduplicationIsDisabled() {
+        val decision = SmsInboxObserverDecision.evaluate(
+            moduleEnabled = true,
+            suppressedByRelay = false,
+            duplicateCheckResult = SmsDuplicateCheckResult.UNAVAILABLE,
+            autoInputEnabled = true,
+            shouldRecord = true,
+            deduplicateSmsEnabled = false,
+        )
+
+        assertNull(decision.skipReason)
+        assertTrue(decision.shouldProceed)
+    }
+
+    @Test
     fun evaluate_marksRecordSkipReasonFromPlan() {
         val decision = SmsInboxObserverDecision.evaluate(
             moduleEnabled = true,
             suppressedByRelay = false,
-            duplicated = false,
+            duplicateCheckResult = SmsDuplicateCheckResult.NOT_DUPLICATE,
             autoInputEnabled = false,
             shouldRecord = false,
             deduplicateSmsEnabled = true,
@@ -78,7 +109,7 @@ class SmsInboxObserverDecisionTest {
         val decision = SmsInboxObserverDecision.evaluate(
             moduleEnabled = true,
             suppressedByRelay = false,
-            duplicated = false,
+            duplicateCheckResult = SmsDuplicateCheckResult.NOT_DUPLICATE,
             autoInputEnabled = true,
             shouldRecord = true,
             deduplicateSmsEnabled = false,

@@ -13,6 +13,7 @@ import io.github.magisk317.xposed.logging.DailyJsonlLogStore
 import io.github.magisk317.xposed.logging.LogEvent
 import io.github.magisk317.xposed.logging.LogLevel
 import io.github.magisk317.xposed.logging.LogSanitizer
+import io.github.magisk317.xposed.logging.MagiskLogPolicy
 import io.github.magisk317.xposed.logging.NoopLogSanitizer
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import kotlinx.serialization.json.Json
@@ -71,8 +72,6 @@ object RuntimeLogStore {
     private const val INTERNAL_TAG = "RuntimeLogStore"
     private const val LOG_FILE_NAME = "runtime.jsonl"
     private const val MAX_BUFFER_SIZE = 1200
-    private const val DEFAULT_RETENTION_DAYS = 2
-    private const val MIN_RETENTION_DAYS = 1
     private const val RETENTION_REFRESH_INTERVAL_MS = 5_000L
     private const val RETENTION_PRUNE_INTERVAL_MS = 60_000L
     private const val MAX_READ_LINES = 2000
@@ -100,6 +99,7 @@ object RuntimeLogStore {
     private val buffer = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
     private val pendingFileEntries = ArrayDeque<RuntimeLogEntry>(MAX_BUFFER_SIZE)
     private val dailyRuntimeLogRegex = Regex("""^runtime\.\d{4}-\d{2}-\d{2}\.jsonl$""")
+    private val redundantRoutedRuntimeLogPattern = Regex("""^runtime\.[a-z][a-z0-9_]*\.\d{4}-\d{2}-\d{2}\.jsonl$""")
     private val jsonLineParser = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -119,7 +119,7 @@ object RuntimeLogStore {
     private var enabled: Boolean = false
 
     @Volatile
-    private var retentionDays: Int = DEFAULT_RETENTION_DAYS
+    private var retentionDays: Int = MagiskLogPolicy.DEFAULT_LOG_RETENTION_DAYS
 
     @Volatile
     private var lastRetentionRefreshAtMs: Long = 0L
@@ -147,7 +147,7 @@ object RuntimeLogStore {
     fun isEnabled(): Boolean = enabled
 
     fun setRetentionDays(days: Int) {
-        retentionDays = days.coerceAtLeast(MIN_RETENTION_DAYS)
+        retentionDays = MagiskLogPolicy.retentionDays(days)
     }
 
     fun append(
@@ -291,7 +291,10 @@ object RuntimeLogStore {
 
     fun exportToFile(context: Context, minutes: Int?, keyword: String?, limit: Int = 1200): File? {
         val startedAt = System.nanoTime()
-        val dir = StorageUtils.getPrivateLogExportDir(context)
+        val dir = StorageUtils.getPrivateLogExportDir(
+            context,
+            RuntimeDiagnosticsEnvironment.current().privateExportDirName,
+        )
         if (!dir.exists() && !dir.mkdirs()) {
             MagiskOtel.event(
                 name = "app.monitor",
@@ -396,7 +399,7 @@ object RuntimeLogStore {
         val dir = StorageUtils.getLogDir(context) ?: return emptyList()
         return dir.listFiles()
             .orEmpty()
-            .filter { it.isFile && isRuntimeLogFileName(it.name) }
+            .filter { it.isFile && isRuntimeLogFileName(it.name) && !isRedundantRoutedRuntimeLog(it) }
             .sortedWith(compareBy<File> { runtimeLogSortTime(it) }.thenBy { it.name })
     }
 
@@ -502,7 +505,7 @@ object RuntimeLogStore {
                 val entry = pendingFileEntries.removeFirst()
                 fileStore.appendLine(
                     logDir = logDir,
-                    baseFileNames = listOf(LOG_FILE_NAME, routeFileName(entry.route)),
+                    baseFileNames = listOf(LOG_FILE_NAME),
                     timestampMs = entry.timestamp,
                     line = encode(entry),
                 )
@@ -534,16 +537,20 @@ object RuntimeLogStore {
             )
         }.getOrNull()
         if (providerBundle != null) {
-            return providerBundle.getInt(
-                RuntimeStateProviderContract.RESULT_RETENTION_DAYS,
-                DEFAULT_RETENTION_DAYS,
+            return MagiskLogPolicy.retentionDays(
+                providerBundle.getInt(
+                    RuntimeStateProviderContract.RESULT_RETENTION_DAYS,
+                    MagiskLogPolicy.DEFAULT_LOG_RETENTION_DAYS,
+                ),
             )
         }
 
         // Fallback to direct read (works in app process).
         val config = RuntimeDiagnosticsEnvironment.current()
-        return config.logRetentionDaysProvider?.invoke(context)
-            ?: DEFAULT_RETENTION_DAYS
+        return MagiskLogPolicy.retentionDays(
+            config.logRetentionDaysProvider?.invoke(context)
+                ?: MagiskLogPolicy.DEFAULT_LOG_RETENTION_DAYS,
+        )
     }
 
     private fun maybePruneExpiredLogsLocked(logDir: File, now: Long) {
@@ -555,6 +562,17 @@ object RuntimeLogStore {
             retentionDays = retentionDays,
             isManagedFile = ::isRuntimeLogFileName,
         )
+        deleteRedundantRoutedLogs(logDir)
+    }
+
+    internal fun deleteRedundantRoutedLogs(logDir: File): Int {
+        return logDir.listFiles().orEmpty().count { file ->
+            isRedundantRoutedRuntimeLog(file) && file.delete()
+        }
+    }
+
+    internal fun isRedundantRoutedRuntimeLog(file: File): Boolean {
+        return file.isFile && redundantRoutedRuntimeLogPattern.matches(file.name)
     }
 
     private fun isRuntimeLogFileName(name: String): Boolean {
@@ -656,19 +674,6 @@ object RuntimeLogStore {
 
     private fun normalizeRoute(route: String?): String {
         return LogRoute.normalize(route)
-    }
-
-    private fun routeFileName(route: String): String {
-        return when (normalizeRoute(route)) {
-            ROUTE_SMS_HOOK -> "runtime.sms_hook.jsonl"
-            ROUTE_NMS_HOOK -> "runtime.nms_hook.jsonl"
-            ROUTE_SYSTEM_INPUT -> "runtime.system_input.jsonl"
-            ROUTE_PERMISSION_HOOK -> "runtime.permission_hook.jsonl"
-            ROUTE_FORWARD -> "runtime.forward.jsonl"
-            ROUTE_SENDER -> "runtime.sender.jsonl"
-            ROUTE_ROOT_DB -> "runtime.root_db.jsonl"
-            else -> "runtime.app.jsonl"
-        }
     }
 
     fun routeFromCallerClassName(className: String?): String {

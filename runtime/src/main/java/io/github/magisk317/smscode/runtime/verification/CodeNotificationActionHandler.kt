@@ -131,7 +131,7 @@ object CodeNotificationActionHandler {
     ): AutoCancelResult {
         return handleAutoCancelIntent(intent) { notificationId ->
             cancelNotification(context, notificationId)
-            XLog.i("Notification auto cancelled by alarm, id=%d", notificationId)
+            XLog.i("Notification auto cancelled by alarm, id=$notificationId")
         }
     }
 

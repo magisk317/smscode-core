@@ -143,10 +143,7 @@ class RecordSmsActionHelper<M : SmsMessage>(
                 "error",
                 false,
                 "insert_failed",
-                mapOf(
-                    "error" to (insertResult.error ?: insertResult.detail ?: "unknown"),
-                    "error_class" to (insertResult.errorClass ?: "unknown"),
-                ),
+                recordSmsInsertFailureAttributes(insertResult),
             )
         }
     }
@@ -161,4 +158,19 @@ class RecordSmsActionHelper<M : SmsMessage>(
         private const val SHARED_RECORD_DEDUP_FILE_NAME = "record_insert_gate"
         private const val MAX_ATTRIBUTE_VALUE_LENGTH = 160
     }
+}
+
+internal fun recordSmsInsertFailureAttributes(
+    insertResult: RecordSmsActionHelper.InsertResult,
+): Map<String, String> {
+    val error = insertResult.error ?: insertResult.detail ?: "unknown"
+    val errorMessage = error
+        .replace('\n', ' ')
+        .replace('\r', ' ')
+        .take(160)
+    return mapOf(
+        "error" to error,
+        "error_msg" to errorMessage,
+        "error_class" to (insertResult.errorClass ?: "unknown"),
+    )
 }

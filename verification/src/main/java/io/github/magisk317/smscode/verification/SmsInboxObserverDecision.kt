@@ -5,6 +5,7 @@ object SmsInboxObserverDecision {
         CONFLICT_SUPPRESSED,
         MODULE_DISABLED,
         DUPLICATED,
+        DUPLICATE_CHECK_UNAVAILABLE,
     }
 
     enum class RecordSkipReason(val wireValue: String) {
@@ -23,7 +24,7 @@ object SmsInboxObserverDecision {
     fun evaluate(
         moduleEnabled: Boolean,
         suppressedByRelay: Boolean,
-        duplicated: Boolean,
+        duplicateCheckResult: SmsDuplicateCheckResult,
         autoInputEnabled: Boolean,
         shouldRecord: Boolean,
         deduplicateSmsEnabled: Boolean,
@@ -40,7 +41,13 @@ object SmsInboxObserverDecision {
                 autoInputEnabled = false,
             )
         }
-        if (duplicated) {
+        if (deduplicateSmsEnabled && duplicateCheckResult == SmsDuplicateCheckResult.UNAVAILABLE) {
+            return Decision(
+                skipReason = SkipReason.DUPLICATE_CHECK_UNAVAILABLE,
+                autoInputEnabled = false,
+            )
+        }
+        if (deduplicateSmsEnabled && duplicateCheckResult == SmsDuplicateCheckResult.DUPLICATE) {
             return Decision(
                 skipReason = SkipReason.DUPLICATED,
                 autoInputEnabled = false,

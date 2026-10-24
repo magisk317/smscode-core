@@ -34,7 +34,7 @@ object CopyToClipboardActionHelper {
             return
         }
         try {
-            XLog.d("Attempting to copy code to clipboard with context: %s", phoneContext)
+            XLog.d("Attempting to copy code to clipboard with context: $phoneContext")
             copyAction(phoneContext, smsCode)
             emit(result = "ok")
         } catch (error: SecurityException) {

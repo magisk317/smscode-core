@@ -14,7 +14,12 @@ object StorageUtils {
 
     private const val LOG_DIR_NAME = "log"
     private const val CRASH_DIR_NAME = "crash"
-    private const val PRIVATE_LOG_EXPORT_DIR_NAME = "xsms_logs"
+
+    /**
+     * Export directories written by releases that named the archive after one specific host
+     * app. The name now follows the product token, so these are only ever cleared.
+     */
+    private val LEGACY_PRIVATE_LOG_EXPORT_DIR_NAMES = listOf("xsms_logs")
 
     @JvmStatic
     fun isSDCardMounted(): Boolean {
@@ -38,10 +43,17 @@ object StorageUtils {
      * 获取日志导出目录（应用私有）
      */
     @JvmStatic
-    fun getPrivateLogExportDir(context: Context): File = ensurePrivateSubDir(
+    fun getPrivateLogExportDir(context: Context, dirName: String): File = ensurePrivateSubDir(
         context,
-        PRIVATE_LOG_EXPORT_DIR_NAME,
-    ) ?: File(context.filesDir, PRIVATE_LOG_EXPORT_DIR_NAME)
+        dirName,
+    ) ?: File(context.filesDir, dirName)
+
+    @JvmStatic
+    fun getLegacyPrivateLogExportDirs(context: Context, currentDirName: String): List<File> =
+        LEGACY_PRIVATE_LOG_EXPORT_DIR_NAMES
+            .filter { it != currentDirName }
+            .map { name -> File(context.filesDir, name) }
+            .filter { it.exists() }
 
     @JvmStatic
     fun getPublicDocumentsDir(context: Context): File =

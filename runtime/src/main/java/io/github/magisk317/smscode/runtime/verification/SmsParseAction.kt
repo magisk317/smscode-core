@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.runtime.verification
 
 import io.github.magisk317.smscode.verification.SmsMessage
+import io.github.magisk317.smscode.verification.SmsDuplicateCheckResult
 
 import android.content.Context
 import android.content.Intent
@@ -22,7 +23,7 @@ class SmsParseAction<M>(
     private val summarizeSender: (Boolean, String?) -> String,
     private val summarizeBody: (Boolean, String?) -> String,
     private val summarizeCode: (Boolean, String?) -> String,
-    private val duplicateChecker: suspend (String?, String, Long) -> Boolean,
+    private val duplicateChecker: suspend (String?, String, Long) -> SmsDuplicateCheckResult,
     private val preparedSmsResolver: suspend (Context, Context, M, Intent, Long) -> M?,
     // Per-step soft timeout for the suspending duplicate check / prepared-SMS resolution. Kept well
     // below the runner's wall-clock timeout so a well-behaved (cancellation-cooperative) suspend
@@ -88,13 +89,24 @@ class SmsParseAction<M>(
         XLog.d(message = "Diag SMS body: %s", summarizeBody(sensitiveDebugLog, msgBody))
 
         if (deduplicateEnabled) {
-            val duplicated = runCancellable("duplicateChecker", default = false) {
+            val duplicateResult = runCancellable(
+                "duplicateChecker",
+                default = SmsDuplicateCheckResult.UNAVAILABLE,
+            ) {
                 duplicateChecker(sender, msgBody, timestamp)
             }
-            if (duplicated) {
-                XLog.i("Duplicate SMS detected by fingerprint, skip parsing.")
-                emit(result = "skip", extra = mapOf("reason" to "duplicate"))
-                return Outcome(duplicated = true)
+            when (duplicateResult) {
+                SmsDuplicateCheckResult.DUPLICATE -> {
+                    XLog.i("Duplicate SMS detected by fingerprint, skip parsing.")
+                    emit(result = "skip", extra = mapOf("reason" to "duplicate"))
+                    return Outcome(duplicated = true)
+                }
+                SmsDuplicateCheckResult.UNAVAILABLE -> {
+                    XLog.w("SMS duplicate check unavailable, skip parsing.")
+                    emit(result = "error", statusOk = false, extra = mapOf("reason" to "duplicate_check_unavailable"))
+                    return null
+                }
+                SmsDuplicateCheckResult.NOT_DUPLICATE -> Unit
             }
         }
 
