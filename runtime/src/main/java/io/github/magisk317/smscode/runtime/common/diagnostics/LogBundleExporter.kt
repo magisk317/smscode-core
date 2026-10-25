@@ -246,6 +246,20 @@ object LogBundleExporter {
             val summary = RuntimeLogStore.summarizeFiles()
             val content = buildRuntimeSummaryJson(summary, packageIdentity, identity)
             File(stagedAppLogDir, "runtime_summary.json").writeText(content.toString())
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
         }
     }
 

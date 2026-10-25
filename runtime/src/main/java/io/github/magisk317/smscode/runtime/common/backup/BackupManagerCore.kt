@@ -386,7 +386,11 @@ object BackupManagerCore {
                     .onFailure { Log.w(LOG_TAG, "beforeDatabaseRestore failed", it) }
 
                 allDatabaseFileNames(config).forEach { name ->
-                    runCatching { File(dbDir, name).delete() }
+                    val stale = File(dbDir, name)
+                    val cleared = runCatching { stale.delete() }.getOrDefault(false)
+                    if (!cleared && stale.exists()) {
+                        Log.w(LOG_TAG, "Stale database file survived the pre-restore clear: $name")
+                    }
                 }
 
                 var copiedMainDb = false
@@ -410,7 +414,9 @@ object BackupManagerCore {
                 )
                 return copiedMainDb
             } finally {
-                runCatching { tmpDir.deleteRecursively() }
+                runCatching { tmpDir.deleteRecursively() }.onFailure {
+                    Log.w(LOG_TAG, "deleting the backup staging directory failed", it)
+                }
             }
         }
         Log.w(LOG_TAG, "restoreDatabaseFromBackup failed: openInputStream null uri=$uri")

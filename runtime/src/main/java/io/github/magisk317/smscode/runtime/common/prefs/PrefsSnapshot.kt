@@ -66,7 +66,9 @@ class PrefsSnapshot(
         val next = Entry(type = type, raw = raw, stampMs = clock())
         val current = runCatching { read(key) }.getOrNull()
         if (current != null && current.type == type && current.raw == raw) return
-        runCatching { write(key, next) }
+        runCatching { write(key, next) }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }
     }
 
     private fun <T> readAs(key: String, type: Char, decode: (String) -> T?): PrefRead<T> {

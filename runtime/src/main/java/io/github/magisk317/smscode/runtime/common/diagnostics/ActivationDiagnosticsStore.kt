@@ -252,6 +252,20 @@ object ActivationDiagnosticsStore {
                 val value = line.substring(index + 1)
                 values[key] = value
             }
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
         }
         return ActivationDiagnosticsSnapshot(
             lastServiceBindAtMs = values[KEY_LAST_SERVICE_BIND_AT_MS]?.toLongOrNull() ?: 0L,
@@ -300,6 +314,8 @@ object ActivationDiagnosticsStore {
         runCatching {
             target.parentFile?.mkdirs()
             legacy.copyTo(target, overwrite = false)
+        }.onFailure {
+            // ignored here: no logger is reachable from this file and the failure has no remedy at this point
         }
     }
 

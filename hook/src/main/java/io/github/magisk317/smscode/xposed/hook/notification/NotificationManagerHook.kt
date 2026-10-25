@@ -1357,11 +1357,15 @@ class NotificationManagerHook : BaseHook() {
             if (allUserHandle != null && result.none { it == allUserHandle }) {
                 result.add(allUserHandle)
             }
+        }.onFailure {
+            XLog.w("reading UserHandle.ALL failed: ${it.message}", it)
         }
         if (result.isEmpty()) {
             runCatching {
                 val owner = UserHandle::class.java.getField("OWNER").get(null) as? UserHandle
                 if (owner != null) result.add(owner)
+            }.onFailure {
+                XLog.w("reading UserHandle.OWNER failed: ${it.message}", it)
             }
         }
         return result

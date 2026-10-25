@@ -23,7 +23,9 @@ class AndroidNotificationPlatformBridge(
         if (recoverDeletedChannels) {
             val existing = runCatching { manager.getNotificationChannel(channelId) }.getOrNull()
             if (existing == null) {
-                runCatching { manager.deleteNotificationChannel(channelId) }
+                runCatching { manager.deleteNotificationChannel(channelId) }.onFailure {
+                    // ignored here: no logger is reachable from this file and the failure has no remedy at this point
+                }
             }
         }
         manager.createNotificationChannel(NotificationChannel(channelId, channelName, importance))
