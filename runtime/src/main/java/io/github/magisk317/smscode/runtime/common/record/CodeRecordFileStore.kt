@@ -22,15 +22,17 @@ import kotlinx.serialization.SerializationException
  * The hook process exports a record to a file when the module database is not
  * reachable over Binder; the app process later imports the files back into its
  * database (files are deleted only after a successful insert). Export and import
- * emit the same `sms.record` telemetry for every host; hosts inject the concrete
- * record type, its filename accessor, and their insert/trim closures.
+ * emit the same `sms.record` diagnostic events for every host; hosts inject the concrete
+ * record type, its filename accessor, and their insert/trim closures. A host whose
+ * caller already reports the same logical action (the record fallback chain in
+ * RecordSmsActionHelper) passes emitDiagnostics = false so one SMS yields one event.
  */
 class CodeRecordFileStore<T : Any>(
     private val recordSerializer: KSerializer<T>,
     private val fileNameFor: (T) -> String,
     private val filePrefix: String = DEFAULT_RECORD_FILE_PREFIX,
 ) {
-    fun exportToFile(context: Context, record: T): Boolean {
+    fun exportToFile(context: Context, record: T, emitDiagnostics: Boolean = true): Boolean {
         val startedAt = System.nanoTime()
         var caught: Throwable? = null
         val ok = runCatching {
@@ -43,13 +45,15 @@ class CodeRecordFileStore<T : Any>(
             caught = e
             XLog.e("Export code record to file failed", e)
         }.getOrDefault(false)
-        emitRecord(
-            result = if (ok) "ok" else "error",
-            reason = if (ok) "export_file" else "export_file_failed",
-            statusOk = ok,
-            durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L),
-            extra = errorExtra(ok, caught),
-        )
+        if (emitDiagnostics) {
+            emitRecord(
+                result = if (ok) "ok" else "error",
+                reason = if (ok) "export_file" else "export_file_failed",
+                statusOk = ok,
+                durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L),
+                extra = errorExtra(ok, caught),
+            )
+        }
         return ok
     }
 

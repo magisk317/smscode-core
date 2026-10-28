@@ -103,7 +103,7 @@ class SmsParseAction<M>(
                 }
                 SmsDuplicateCheckResult.UNAVAILABLE -> {
                     XLog.w("SMS duplicate check unavailable, skip parsing.")
-                    emit(result = "error", statusOk = false, extra = mapOf("reason" to "duplicate_check_unavailable"))
+                    emit(result = "skip", extra = mapOf("reason" to "duplicate_check_unavailable"))
                     return null
                 }
                 SmsDuplicateCheckResult.NOT_DUPLICATE -> Unit

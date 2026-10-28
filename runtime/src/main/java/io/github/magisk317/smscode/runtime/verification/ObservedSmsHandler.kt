@@ -99,7 +99,7 @@ class ObservedSmsHandler<M : SmsMessage>(
 
             SmsInboxObserverDecision.SkipReason.DUPLICATE_CHECK_UNAVAILABLE -> {
                 XLog.w(message = "Diag observer duplicate check unavailable: event_id=%s", eventId)
-                emit(result = "error", statusOk = false, reason = "duplicate_check_unavailable")
+                emit(result = "skip", reason = "duplicate_check_unavailable")
                 return Outcome(eventId = eventId, decision = decision, dispatched = false)
             }
 
