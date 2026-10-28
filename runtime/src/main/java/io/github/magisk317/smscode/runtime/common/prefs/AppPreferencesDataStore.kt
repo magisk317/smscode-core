@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import io.github.magisk317.smscode.runtime.contract.prefs.PrefRead
 import io.github.magisk317.smscode.runtime.contract.prefs.PreferenceChange
 import io.github.magisk317.smscode.runtime.contract.prefs.PreferenceChangeSet
 import io.github.magisk317.xposed.logging.XLog
@@ -34,6 +35,7 @@ import java.io.File
  */
 object AppPreferencesDataStore {
     private const val DATASTORE_FILE_NAME = "app_preferences.preferences_pb"
+    private const val SOURCE_DATA_STORE = "datastore"
     private const val TAG_INTERNAL_PREFIX = "internal_"
 
     @Volatile
@@ -189,6 +191,28 @@ object AppPreferencesDataStore {
         return getInstance(context).data
             .map { prefs: Preferences -> coerceBooleanValue(key, safeRead(prefs, prefKey, defaultValue)) }
             .first()
+    }
+
+    /**
+     * Tri-state boolean read. [PrefRead.Miss] means the key was never written, so the caller must
+     * fall back to its own rule (a channel switch falling back to the build's provenance, for
+     * example); [PrefRead.Unavailable] means the store could not be read at all. Neither may be
+     * poisoned into a fabricated default, which is why this sits next to [getBoolean] rather than
+     * reusing it: a plain default cannot tell "unset" apart from "explicitly false".
+     */
+    suspend fun readBoolean(context: Context, key: String, defaultValue: Boolean = false): PrefRead<Boolean> {
+        val prefKey = booleanPreferencesKey(key)
+        return runCatching {
+            val prefs = getInstance(context).data.first()
+            if (!prefs.contains(prefKey)) {
+                PrefRead.Miss
+            } else {
+                PrefRead.Hit(coerceBooleanValue(key, safeRead(prefs, prefKey, defaultValue)), SOURCE_DATA_STORE)
+            }
+        }.getOrElse {
+            XLog.w("AppPreferencesDataStore: boolean read unavailable for $key: ${it.message}")
+            PrefRead.Unavailable
+        }
     }
 
     suspend fun setBoolean(context: Context, key: String, value: Boolean) {
