@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.net
+package io.github.magisk317.forward.net
 
 import okhttp3.OkHttpClient
 import kotlin.time.Duration.Companion.seconds

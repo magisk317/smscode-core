@@ -1,11 +1,11 @@
-package io.github.magisk317.relay.engine.service
+package io.github.magisk317.forward.engine.service
 
-import io.github.magisk317.relay.engine.model.AppInfoData
-import io.github.magisk317.relay.engine.model.ForwardFilterRule
-import io.github.magisk317.relay.engine.model.NotifyRouteRuleData
-import io.github.magisk317.relay.engine.model.Rule
-import io.github.magisk317.relay.engine.model.Sender
-import io.github.magisk317.relay.engine.model.SmsCodeRuleData
+import io.github.magisk317.forward.engine.model.AppInfoData
+import io.github.magisk317.forward.engine.model.ForwardFilterRule
+import io.github.magisk317.forward.engine.model.NotifyRouteRuleData
+import io.github.magisk317.forward.engine.model.Rule
+import io.github.magisk317.forward.engine.model.Sender
+import io.github.magisk317.forward.engine.model.SmsCodeRuleData
 import kotlinx.coroutines.flow.Flow
 
 interface AppConfigRepository {

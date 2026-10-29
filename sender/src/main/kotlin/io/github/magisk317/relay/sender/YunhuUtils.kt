@@ -1,9 +1,9 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.net.HttpUtils
-import io.github.magisk317.relay.sender.config.YunhuSetting
-import io.github.magisk317.relay.sender.result.YunhuResult
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.net.HttpUtils
+import io.github.magisk317.forward.sender.config.YunhuSetting
+import io.github.magisk317.forward.sender.result.YunhuResult
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject

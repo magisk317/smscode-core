@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.magisk317.relay.security"
+    namespace = "io.github.magisk317.forward.security"
 
     buildFeatures {
         buildConfig = true

@@ -9,7 +9,7 @@ kotlin {
     jvm()
 
     android {
-        namespace = "io.github.magisk317.relay.engine.api"
+        namespace = "io.github.magisk317.forward.engine.api"
         compileSdk(project.magiskCompileSdk())
         minSdk = libs.versions.minSdk.get().toInt()
     }

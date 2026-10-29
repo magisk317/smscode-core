@@ -1,13 +1,13 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.content.Context
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.engine.model.Sender
-import io.github.magisk317.relay.engine.service.ScheduledSmsSender
-import io.github.magisk317.relay.engine.service.SenderConfigSanitizer
-import io.github.magisk317.relay.engine.service.SenderRuntimeServiceRegistry
-import io.github.magisk317.relay.engine.service.SenderRuntimeServices
-import io.github.magisk317.relay.sender.config.SmsSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.engine.model.Sender
+import io.github.magisk317.forward.engine.service.ScheduledSmsSender
+import io.github.magisk317.forward.engine.service.SenderConfigSanitizer
+import io.github.magisk317.forward.engine.service.SenderRuntimeServiceRegistry
+import io.github.magisk317.forward.engine.service.SenderRuntimeServices
+import io.github.magisk317.forward.sender.config.SmsSetting
 import io.github.magisk317.xposed.logging.MagiskOtel
 
 object SenderRuntimeInstaller {

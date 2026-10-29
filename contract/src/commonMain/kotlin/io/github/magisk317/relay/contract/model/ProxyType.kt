@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.contract.model
+package io.github.magisk317.forward.contract.model
 
 /**
  * Proxy kind carried by sender settings.

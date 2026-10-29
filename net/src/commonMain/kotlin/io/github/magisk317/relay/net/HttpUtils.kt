@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.net
+package io.github.magisk317.forward.net
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

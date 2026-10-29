@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.contract.constant
+package io.github.magisk317.forward.contract.constant
 
 object RelayPrefConst {
 
@@ -215,7 +215,7 @@ object RelayPrefConst {
     const val KEY_REMOTE_AGENT_DEVICE_APP_INFOS = "pref_remote_agent_device_app_infos"
     const val KEY_LOCAL_CONFIG_REVISION = "pref_local_config_revision"
     const val KEY_LOCAL_CONFIG_PENDING_LOCAL_CHANGES = "pref_local_config_pending_mutations"
-    private const val ACTION_NAMESPACE = "io.github.magisk317.relay"
+    private const val ACTION_NAMESPACE = "io.github.magisk317.forward"
     const val ACTION_FORWARD_SMS = "$ACTION_NAMESPACE.ACTION_FORWARD_SMS"
     const val ACTION_INGEST_CUSTOM_MESSAGE = "$ACTION_NAMESPACE.ACTION_INGEST_CUSTOM_MESSAGE"
     const val ACTION_LOW_BATTERY_REMINDER = "$ACTION_NAMESPACE.ACTION_LOW_BATTERY_REMINDER"

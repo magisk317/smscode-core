@@ -1,8 +1,8 @@
-package io.github.magisk317.relay.engine.service
+package io.github.magisk317.forward.engine.service
 
-import io.github.magisk317.relay.contract.constant.DispatchStrategy
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.engine.model.Sender
+import io.github.magisk317.forward.contract.constant.DispatchStrategy
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.engine.model.Sender
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope

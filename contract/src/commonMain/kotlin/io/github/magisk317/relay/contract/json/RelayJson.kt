@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.contract.json
+package io.github.magisk317.forward.contract.json
 
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi

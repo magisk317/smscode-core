@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.engine.schedule
+package io.github.magisk317.forward.engine.schedule
 
 import kotlin.time.Clock
 import kotlin.time.Instant

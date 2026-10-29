@@ -1,9 +1,9 @@
-package io.github.magisk317.relay.engine.service
+package io.github.magisk317.forward.engine.service
 
-import io.github.magisk317.relay.contract.constant.MessageType
-import io.github.magisk317.relay.engine.event.RelayEvent
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.engine.model.SystemEnvironment
+import io.github.magisk317.forward.contract.constant.MessageType
+import io.github.magisk317.forward.engine.event.RelayEvent
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.engine.model.SystemEnvironment
 import kotlin.time.Instant
 
 data class DispatchPayloadContext(

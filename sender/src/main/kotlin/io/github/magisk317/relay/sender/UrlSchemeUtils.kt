@@ -1,10 +1,10 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.sender.config.UrlSchemeSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.sender.config.UrlSchemeSetting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat

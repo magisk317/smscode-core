@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.engine.schedule
+package io.github.magisk317.forward.engine.schedule
 
-import io.github.magisk317.relay.contract.model.ForwardSilentPeriodConfig
+import io.github.magisk317.forward.contract.model.ForwardSilentPeriodConfig
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDateTime
 import kotlin.time.Clock

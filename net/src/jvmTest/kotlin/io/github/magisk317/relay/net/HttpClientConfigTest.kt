@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.net
+package io.github.magisk317.forward.net
 
 import java.net.Proxy
-import io.github.magisk317.relay.contract.model.ProxyType
+import io.github.magisk317.forward.contract.model.ProxyType
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request

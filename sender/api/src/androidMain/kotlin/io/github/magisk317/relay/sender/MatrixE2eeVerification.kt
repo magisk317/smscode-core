@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.content.Context
-import io.github.magisk317.relay.sender.config.MatrixSetting
+import io.github.magisk317.forward.sender.config.MatrixSetting
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +19,7 @@ interface MatrixE2eeVerification {
     suspend fun approve()
     suspend fun decline()
     suspend fun cancel()
-    suspend fun revokeDevice(context: android.content.Context, setting: io.github.magisk317.relay.sender.config.MatrixSetting)
+    suspend fun revokeDevice(context: android.content.Context, setting: io.github.magisk317.forward.sender.config.MatrixSetting)
     fun reset()
     fun stop() {}
 }
@@ -104,7 +104,7 @@ object MatrixE2eeVerificationProvider {
         override suspend fun approve() = Unit
         override suspend fun decline() = Unit
         override suspend fun cancel() = Unit
-        override suspend fun revokeDevice(context: android.content.Context, setting: io.github.magisk317.relay.sender.config.MatrixSetting) = Unit
+        override suspend fun revokeDevice(context: android.content.Context, setting: io.github.magisk317.forward.sender.config.MatrixSetting) = Unit
         override fun reset() = Unit
     }
 }

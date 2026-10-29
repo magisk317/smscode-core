@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import kotlinx.serialization.Serializable
 

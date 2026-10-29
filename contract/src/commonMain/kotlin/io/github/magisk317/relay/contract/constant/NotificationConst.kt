@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.contract.constant
+package io.github.magisk317.forward.contract.constant
 
 object NotificationConst {
 

@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.security
+package io.github.magisk317.forward.security
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties

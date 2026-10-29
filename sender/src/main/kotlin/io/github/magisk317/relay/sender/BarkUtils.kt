@@ -1,12 +1,12 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.text.TextUtils
 import android.util.Base64
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.net.RelayHttpClients
-import io.github.magisk317.relay.net.parseBasicAuthUrl
-import io.github.magisk317.relay.sender.result.BarkResult
-import io.github.magisk317.relay.sender.config.BarkSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.net.RelayHttpClients
+import io.github.magisk317.forward.net.parseBasicAuthUrl
+import io.github.magisk317.forward.sender.result.BarkResult
+import io.github.magisk317.forward.sender.config.BarkSetting
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType

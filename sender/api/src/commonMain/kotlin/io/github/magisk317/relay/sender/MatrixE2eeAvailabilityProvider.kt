@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 /**
  * Service locator that exposes the current [MatrixE2eeAvailability] instance

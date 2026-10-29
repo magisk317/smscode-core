@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.engine.model
+package io.github.magisk317.forward.engine.model
 
 /**
  * 路由层唯一需要的通道身份：主键。

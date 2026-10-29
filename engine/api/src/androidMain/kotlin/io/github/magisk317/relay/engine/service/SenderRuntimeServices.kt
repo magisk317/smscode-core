@@ -1,8 +1,8 @@
-package io.github.magisk317.relay.engine.service
+package io.github.magisk317.forward.engine.service
 
 import android.content.Context
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.engine.model.Sender
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.engine.model.Sender
 
 interface SenderConfigSanitizer {
     fun sanitizeSenderLenient(sender: Sender): Sender

@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.engine.model
+package io.github.magisk317.forward.engine.model
 
 import kotlinx.serialization.Serializable
 

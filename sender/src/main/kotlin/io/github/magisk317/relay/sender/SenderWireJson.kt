@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.contract.json.RelayJson
+import io.github.magisk317.forward.contract.json.RelayJson
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive

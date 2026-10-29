@@ -1,8 +1,8 @@
-package io.github.magisk317.relay.engine.filter
+package io.github.magisk317.forward.engine.filter
 
-import io.github.magisk317.relay.contract.constant.MessageType
-import io.github.magisk317.relay.engine.event.RelayEvent
-import io.github.magisk317.relay.engine.model.ForwardFilterRule
+import io.github.magisk317.forward.contract.constant.MessageType
+import io.github.magisk317.forward.engine.event.RelayEvent
+import io.github.magisk317.forward.engine.model.ForwardFilterRule
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

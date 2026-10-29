@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.magisk317.relay.sender"
+    namespace = "io.github.magisk317.forward.sender"
 
     defaultConfig {
         consumerProguardFiles("consumer-rules.pro")

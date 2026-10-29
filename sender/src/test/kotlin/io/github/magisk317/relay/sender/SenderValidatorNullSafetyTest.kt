@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.Sender
-import io.github.magisk317.relay.engine.sender.SenderType
+import io.github.magisk317.forward.engine.model.Sender
+import io.github.magisk317.forward.engine.sender.SenderType
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull

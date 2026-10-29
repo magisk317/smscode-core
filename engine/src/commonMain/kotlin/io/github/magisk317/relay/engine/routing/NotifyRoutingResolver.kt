@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.engine.routing
+package io.github.magisk317.forward.engine.routing
 
-import io.github.magisk317.relay.engine.model.SenderIdentity
+import io.github.magisk317.forward.engine.model.SenderIdentity
 
 interface NotifyRouteRuleReader {
     suspend fun getSenderIdsByScopeAndPackage(scope: Int, packageName: String): List<Long>

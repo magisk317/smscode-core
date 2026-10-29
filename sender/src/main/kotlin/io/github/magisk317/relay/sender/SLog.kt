@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 /**
  * Internal logging facade for sender implementations.

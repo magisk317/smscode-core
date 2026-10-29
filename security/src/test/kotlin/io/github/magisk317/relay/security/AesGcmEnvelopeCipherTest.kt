@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.security
+package io.github.magisk317.forward.security
 
 import java.util.Base64
 import javax.crypto.spec.SecretKeySpec

@@ -1,8 +1,8 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.contract.model.ProxyType
-import io.github.magisk317.relay.sender.config.MatrixSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.contract.model.ProxyType
+import io.github.magisk317.forward.sender.config.MatrixSetting
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.Date

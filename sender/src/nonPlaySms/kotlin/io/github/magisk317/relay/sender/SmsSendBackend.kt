@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -13,7 +13,7 @@ import android.os.Build
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
 import androidx.core.content.ContextCompat
-import io.github.magisk317.relay.sender.config.SmsSetting
+import io.github.magisk317.forward.sender.config.SmsSetting
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeout

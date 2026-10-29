@@ -1,9 +1,9 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.BatterySnapshot
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.engine.model.NetworkSnapshot
-import io.github.magisk317.relay.engine.model.SystemEnvironment
+import io.github.magisk317.forward.engine.model.BatterySnapshot
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.engine.model.NetworkSnapshot
+import io.github.magisk317.forward.engine.model.SystemEnvironment
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

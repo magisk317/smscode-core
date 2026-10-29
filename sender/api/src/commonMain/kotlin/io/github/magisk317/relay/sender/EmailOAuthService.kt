@@ -1,10 +1,10 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 /**
  * Public interface for the OAuth2 device-code flow, exposed to the UI layer.
  *
- * The UI depends only on [io.github.magisk317.relay.sender.api] and cannot see
- * the implementation in [io.github.magisk317.relay.sender.OAuth2Service]; this
+ * The UI depends only on [io.github.magisk317.forward.sender.api] and cannot see
+ * the implementation in [io.github.magisk317.forward.sender.OAuth2Service]; this
  * interface bridges the two.
  */
 interface EmailOAuthService {

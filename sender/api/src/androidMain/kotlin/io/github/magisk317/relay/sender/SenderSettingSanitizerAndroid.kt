@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.Sender
-import io.github.magisk317.relay.engine.sender.SenderActiveScheduleEvaluator
+import io.github.magisk317.forward.engine.model.Sender
+import io.github.magisk317.forward.engine.sender.SenderActiveScheduleEvaluator
 
 /**
  * `Sender` is `@Parcelize` and therefore Android-only, so the entry points that

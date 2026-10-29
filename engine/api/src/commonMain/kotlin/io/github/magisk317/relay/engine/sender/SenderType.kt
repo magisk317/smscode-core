@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.engine.sender
+package io.github.magisk317.forward.engine.sender
 
 object SenderType {
     const val DINGTALK_GROUP_ROBOT = 0

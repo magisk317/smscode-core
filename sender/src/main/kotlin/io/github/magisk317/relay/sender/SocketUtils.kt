@@ -1,9 +1,9 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.text.TextUtils
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.sender.config.SocketSetting
-import io.github.magisk317.relay.sender.SenderSettingSanitizer
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.sender.config.SocketSetting
+import io.github.magisk317.forward.sender.SenderSettingSanitizer
 import io.github.magisk317.xposed.logging.MagiskOtel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

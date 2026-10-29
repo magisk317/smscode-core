@@ -1,11 +1,11 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.net.ProxyConfig
-import io.github.magisk317.relay.net.RelayHttpClients
-import io.github.magisk317.relay.net.applyProxy
-import io.github.magisk317.relay.sender.result.WeworkAgentResult
-import io.github.magisk317.relay.sender.config.WeworkAgentSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.net.ProxyConfig
+import io.github.magisk317.forward.net.RelayHttpClients
+import io.github.magisk317.forward.net.applyProxy
+import io.github.magisk317.forward.sender.result.WeworkAgentResult
+import io.github.magisk317.forward.sender.config.WeworkAgentSetting
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient

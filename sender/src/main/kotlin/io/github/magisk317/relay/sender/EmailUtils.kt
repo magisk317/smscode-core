@@ -1,9 +1,9 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.engine.service.SenderRuntimeServiceRegistry
-import io.github.magisk317.relay.sender.config.EmailSetting
-import io.github.magisk317.relay.sender.SenderSettingSanitizer
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.engine.service.SenderRuntimeServiceRegistry
+import io.github.magisk317.forward.sender.config.EmailSetting
+import io.github.magisk317.forward.sender.SenderSettingSanitizer
 import com.sun.mail.smtp.SMTPTransport
 import jakarta.mail.Message
 import jakarta.mail.MessagingException

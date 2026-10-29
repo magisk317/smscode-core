@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import java.io.IOException
 import java.net.SocketTimeoutException

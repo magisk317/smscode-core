@@ -1,8 +1,8 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.content.Context
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.sender.config.SmsSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.sender.config.SmsSetting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

@@ -1,3 +1,3 @@
-package io.github.magisk317.relay.engine
+package io.github.magisk317.forward.engine
 
 object RelayEngineMarker

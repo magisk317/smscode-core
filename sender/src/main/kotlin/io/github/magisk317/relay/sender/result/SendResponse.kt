@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender.result
+package io.github.magisk317.forward.sender.result
 
 import androidx.annotation.Keep
 

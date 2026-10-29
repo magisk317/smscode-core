@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.engine.routing
+package io.github.magisk317.forward.engine.routing
 
 object NotifyRouteScope {
     const val APP_ALLOW_SENDER = 1

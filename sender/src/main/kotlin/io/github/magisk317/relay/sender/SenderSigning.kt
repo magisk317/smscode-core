@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets

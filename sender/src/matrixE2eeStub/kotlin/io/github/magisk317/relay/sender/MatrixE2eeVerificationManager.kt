@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.content.Context
-import io.github.magisk317.relay.sender.config.MatrixSetting
+import io.github.magisk317.forward.sender.config.MatrixSetting
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

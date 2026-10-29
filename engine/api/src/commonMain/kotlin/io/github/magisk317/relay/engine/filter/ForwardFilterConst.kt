@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.engine.filter
+package io.github.magisk317.forward.engine.filter
 
 object ForwardFilterConst {
     const val MSG_TYPE_SMS = "sms"

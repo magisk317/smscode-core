@@ -1,14 +1,14 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.content.Context
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.engine.model.Sender
-import io.github.magisk317.relay.engine.service.ScheduledSmsSender
-import io.github.magisk317.relay.engine.service.SenderConfigSanitizer
-import io.github.magisk317.relay.engine.service.SenderDispatchResult
-import io.github.magisk317.relay.engine.service.SenderDispatcher
-import io.github.magisk317.relay.engine.service.SenderRuntimeServiceRegistry
-import io.github.magisk317.relay.engine.service.SenderRuntimeServices
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.engine.model.Sender
+import io.github.magisk317.forward.engine.service.ScheduledSmsSender
+import io.github.magisk317.forward.engine.service.SenderConfigSanitizer
+import io.github.magisk317.forward.engine.service.SenderDispatchResult
+import io.github.magisk317.forward.engine.service.SenderDispatcher
+import io.github.magisk317.forward.engine.service.SenderRuntimeServiceRegistry
+import io.github.magisk317.forward.engine.service.SenderRuntimeServices
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull

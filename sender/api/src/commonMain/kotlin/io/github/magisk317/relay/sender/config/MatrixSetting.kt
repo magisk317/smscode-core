@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.sender.config
+package io.github.magisk317.forward.sender.config
 
-import io.github.magisk317.relay.contract.model.ProxyType
+import io.github.magisk317.forward.contract.model.ProxyType
 import kotlinx.serialization.Serializable as KotlinSerializable
 
 @KotlinSerializable

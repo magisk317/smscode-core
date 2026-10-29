@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 /**
  * Reports the runtime availability of the Matrix E2EE module.

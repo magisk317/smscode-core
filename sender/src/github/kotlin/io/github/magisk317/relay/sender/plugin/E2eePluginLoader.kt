@@ -1,16 +1,16 @@
-package io.github.magisk317.relay.sender.plugin
+package io.github.magisk317.forward.sender.plugin
 
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import dalvik.system.DexClassLoader
-import io.github.magisk317.relay.sender.BuildConfig
-import io.github.magisk317.relay.sender.E2eeModuleStatus
-import io.github.magisk317.relay.sender.MatrixE2eeSenderProvider
-import io.github.magisk317.relay.sender.MatrixE2eeVerificationManager
-import io.github.magisk317.relay.sender.MatrixE2eeVerificationProvider
-import io.github.magisk317.relay.sender.SLog
+import io.github.magisk317.forward.sender.BuildConfig
+import io.github.magisk317.forward.sender.E2eeModuleStatus
+import io.github.magisk317.forward.sender.MatrixE2eeSenderProvider
+import io.github.magisk317.forward.sender.MatrixE2eeVerificationManager
+import io.github.magisk317.forward.sender.MatrixE2eeVerificationProvider
+import io.github.magisk317.forward.sender.SLog
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.reflect.Method
@@ -560,7 +560,7 @@ internal class E2eePluginLoader {
         private const val PLUGIN_APK_NAME = "plugin.apk"
         private const val PLUGIN_MANIFEST_ASSET = "assets/plugin-manifest.json"
         private const val PLUGIN_ENTRY_CLASS =
-            "io.github.magisk317.relay.matrix.e2ee.plugin.PluginEntry"
+            "io.github.magisk317.forward.matrix.e2ee.plugin.PluginEntry"
 
         /** Extracted native libraries, used as the DexClassLoader librarySearchPath. */
         private const val LIB_DIR = "e2ee-plugin-lib"

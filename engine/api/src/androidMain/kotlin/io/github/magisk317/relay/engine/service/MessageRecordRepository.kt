@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.engine.service
+package io.github.magisk317.forward.engine.service
 
-import io.github.magisk317.relay.engine.model.ReadRecordData
-import io.github.magisk317.relay.engine.model.ReadSmsBlacklistHitData
+import io.github.magisk317.forward.engine.model.ReadRecordData
+import io.github.magisk317.forward.engine.model.ReadSmsBlacklistHitData
 import kotlinx.coroutines.flow.Flow
 
 interface MessageRecordRepository {

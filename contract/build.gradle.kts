@@ -10,7 +10,7 @@ kotlin {
     jvm()
 
     android {
-        namespace = "io.github.magisk317.relay.contract"
+        namespace = "io.github.magisk317.forward.contract"
         compileSdk(project.magiskCompileSdk())
         minSdk = libs.versions.minSdk.get().toInt()
     }

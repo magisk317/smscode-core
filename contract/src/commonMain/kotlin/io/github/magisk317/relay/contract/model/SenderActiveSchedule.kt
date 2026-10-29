@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.contract.model
+package io.github.magisk317.forward.contract.model
 
-import io.github.magisk317.relay.contract.constant.MessageType
+import io.github.magisk317.forward.contract.constant.MessageType
 import kotlinx.serialization.Serializable
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDateTime

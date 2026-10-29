@@ -1,9 +1,9 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.net.RelayHttpClients
-import io.github.magisk317.relay.sender.config.NtfySetting
-import io.github.magisk317.relay.sender.SenderSettingSanitizer
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.net.RelayHttpClients
+import io.github.magisk317.forward.sender.config.NtfySetting
+import io.github.magisk317.forward.sender.SenderSettingSanitizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull

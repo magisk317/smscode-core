@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.security.AesGcmEnvelopeCipher
+import io.github.magisk317.forward.security.AesGcmEnvelopeCipher
 import javax.crypto.spec.SecretKeySpec
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

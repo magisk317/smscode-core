@@ -1,11 +1,11 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.util.Base64
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.net.RelayHttpClients
-import io.github.magisk317.relay.net.ProxyConfig
-import io.github.magisk317.relay.net.applyProxy
-import io.github.magisk317.relay.sender.config.TelegramSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.net.RelayHttpClients
+import io.github.magisk317.forward.net.ProxyConfig
+import io.github.magisk317.forward.net.applyProxy
+import io.github.magisk317.forward.sender.config.TelegramSetting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject

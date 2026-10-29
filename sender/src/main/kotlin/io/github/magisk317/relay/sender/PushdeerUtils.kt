@@ -1,8 +1,8 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.net.RelayHttpClients
-import io.github.magisk317.relay.sender.config.PushdeerSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.net.RelayHttpClients
+import io.github.magisk317.forward.sender.config.PushdeerSetting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable

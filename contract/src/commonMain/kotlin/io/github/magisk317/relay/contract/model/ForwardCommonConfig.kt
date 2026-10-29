@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.contract.model
+package io.github.magisk317.forward.contract.model
 
-import io.github.magisk317.relay.contract.constant.DispatchStrategy
+import io.github.magisk317.forward.contract.constant.DispatchStrategy
 import kotlinx.serialization.Serializable
 
 @Serializable

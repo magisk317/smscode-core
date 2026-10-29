@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.engine.model
+package io.github.magisk317.forward.engine.model
 
 /**
  * 通话类型标签。正文（MessageFormatter）与标题（SenderTemplateRenderer）共用，

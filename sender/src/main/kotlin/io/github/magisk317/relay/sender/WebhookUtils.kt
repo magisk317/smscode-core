@@ -1,12 +1,12 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.text.TextUtils
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.net.ProxyConfig
-import io.github.magisk317.relay.net.RelayHttpClients
-import io.github.magisk317.relay.net.applyProxy
-import io.github.magisk317.relay.sender.SenderSettingSanitizer
-import io.github.magisk317.relay.sender.config.WebhookSetting
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.net.ProxyConfig
+import io.github.magisk317.forward.net.RelayHttpClients
+import io.github.magisk317.forward.net.applyProxy
+import io.github.magisk317.forward.sender.SenderSettingSanitizer
+import io.github.magisk317.forward.sender.config.WebhookSetting
 import io.github.magisk317.xposed.logging.MagiskOtel
 import io.github.magisk317.xposed.logging.SecretRedactor
 import java.io.IOException

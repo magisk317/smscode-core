@@ -1,10 +1,10 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.text.TextUtils
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.sender.result.DingtalkResult
-import io.github.magisk317.relay.sender.config.DingtalkGroupRobotSetting
-import io.github.magisk317.relay.net.HttpUtils
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.sender.result.DingtalkResult
+import io.github.magisk317.forward.sender.config.DingtalkGroupRobotSetting
+import io.github.magisk317.forward.net.HttpUtils
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject

@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.contract.json.RelayJson
-import io.github.magisk317.relay.engine.sender.SenderType
+import io.github.magisk317.forward.contract.json.RelayJson
+import io.github.magisk317.forward.engine.sender.SenderType
 import java.io.File
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.jupiter.api.Assertions.assertEquals

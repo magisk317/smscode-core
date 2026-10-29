@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.engine.model
+package io.github.magisk317.forward.engine.model
 
-import io.github.magisk317.relay.contract.model.PlatformSerializable
+import io.github.magisk317.forward.contract.model.PlatformSerializable
 import kotlin.time.Instant
 
 @Suppress("unused")

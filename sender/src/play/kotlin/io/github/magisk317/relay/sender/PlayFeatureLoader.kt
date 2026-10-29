@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.content.Context
 import com.google.android.play.core.splitcompat.SplitCompat
@@ -243,7 +243,7 @@ internal class PlayFeatureLoader(private val context: Context) : MatrixE2eeAvail
          * This class is expected to exist in the feature/matrix-e2ee module.
          */
         private const val PROBE_CLASS_NAME =
-            "io.github.magisk317.relay.feature.matrix.e2ee.MatrixE2eeFeature"
+            "io.github.magisk317.forward.feature.matrix.e2ee.MatrixE2eeFeature"
 
         /**
          * Runtime bridge exported by the DFM. The base APK reaches it through
@@ -251,6 +251,6 @@ internal class PlayFeatureLoader(private val context: Context) : MatrixE2eeAvail
          * matrix-rust-sdk implementation.
          */
         private const val BRIDGE_CLASS_NAME =
-            "io.github.magisk317.relay.feature.matrix.e2ee.MatrixE2eeBridge"
+            "io.github.magisk317.forward.feature.matrix.e2ee.MatrixE2eeBridge"
     }
 }

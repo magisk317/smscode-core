@@ -1,6 +1,6 @@
-package io.github.magisk317.relay.engine.service
+package io.github.magisk317.forward.engine.service
 
-import io.github.magisk317.relay.engine.model.ScheduledTask
+import io.github.magisk317.forward.engine.model.ScheduledTask
 import kotlinx.coroutines.flow.Flow
 
 interface ScheduledTaskRepository {

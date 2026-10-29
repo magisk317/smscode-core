@@ -1,9 +1,9 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.content.Context
 import android.content.SharedPreferences
-import io.github.magisk317.relay.security.AndroidKeystoreKeyProvider
-import io.github.magisk317.relay.security.AesGcmEnvelopeCipher
+import io.github.magisk317.forward.security.AndroidKeystoreKeyProvider
+import io.github.magisk317.forward.security.AesGcmEnvelopeCipher
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 

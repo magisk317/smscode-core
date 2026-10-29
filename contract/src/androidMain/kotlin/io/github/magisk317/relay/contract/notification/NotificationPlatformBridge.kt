@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.contract.notification
+package io.github.magisk317.forward.contract.notification
 
 import android.content.Context
 import io.github.magisk317.smscode.runtime.contract.notification.NoopNotificationPlatformBridge as CoreNoopNotificationPlatformBridge

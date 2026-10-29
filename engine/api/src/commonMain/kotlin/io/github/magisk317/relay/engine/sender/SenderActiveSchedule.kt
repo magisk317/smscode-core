@@ -1,12 +1,12 @@
-package io.github.magisk317.relay.engine.sender
+package io.github.magisk317.forward.engine.sender
 
-import io.github.magisk317.relay.contract.constant.MessageType
-import io.github.magisk317.relay.contract.model.SenderActiveSchedule as ContractSenderActiveSchedule
-import io.github.magisk317.relay.contract.model.SenderActiveScheduleConst as ContractSenderActiveScheduleConst
-import io.github.magisk317.relay.contract.model.SenderActiveScheduleEvaluator as ContractSenderActiveScheduleEvaluator
-import io.github.magisk317.relay.contract.model.SenderActiveScheduleRange as ContractSenderActiveScheduleRange
-import io.github.magisk317.relay.contract.model.SenderActiveScheduleRule as ContractSenderActiveScheduleRule
-import io.github.magisk317.relay.contract.model.SenderActiveScheduleSummary as ContractSenderActiveScheduleSummary
+import io.github.magisk317.forward.contract.constant.MessageType
+import io.github.magisk317.forward.contract.model.SenderActiveSchedule as ContractSenderActiveSchedule
+import io.github.magisk317.forward.contract.model.SenderActiveScheduleConst as ContractSenderActiveScheduleConst
+import io.github.magisk317.forward.contract.model.SenderActiveScheduleEvaluator as ContractSenderActiveScheduleEvaluator
+import io.github.magisk317.forward.contract.model.SenderActiveScheduleRange as ContractSenderActiveScheduleRange
+import io.github.magisk317.forward.contract.model.SenderActiveScheduleRule as ContractSenderActiveScheduleRule
+import io.github.magisk317.forward.contract.model.SenderActiveScheduleSummary as ContractSenderActiveScheduleSummary
 import kotlinx.datetime.LocalDateTime
 import kotlin.time.Clock
 import kotlinx.datetime.TimeZone

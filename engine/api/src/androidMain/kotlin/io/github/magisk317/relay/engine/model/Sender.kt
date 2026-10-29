@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.engine.model
+package io.github.magisk317.forward.engine.model
 
 import android.os.Parcelable
-import io.github.magisk317.relay.engine.sender.SenderActiveSchedule
+import io.github.magisk317.forward.engine.sender.SenderActiveSchedule
 import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.Serializable
 import java.util.Date

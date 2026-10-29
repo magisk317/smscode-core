@@ -1,7 +1,7 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
-import io.github.magisk317.relay.engine.model.CallTypeLabelFormatter
-import io.github.magisk317.relay.engine.model.MsgInfo
+import io.github.magisk317.forward.engine.model.CallTypeLabelFormatter
+import io.github.magisk317.forward.engine.model.MsgInfo
 import io.github.magisk317.smscode.runtime.contract.sim.SimSlotLabelFormatter
 import java.text.SimpleDateFormat
 import java.util.Date

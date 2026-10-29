@@ -1,10 +1,10 @@
-package io.github.magisk317.relay.sender
+package io.github.magisk317.forward.sender
 
 import android.text.TextUtils
-import io.github.magisk317.relay.engine.model.MsgInfo
-import io.github.magisk317.relay.sender.result.PushplusResult
-import io.github.magisk317.relay.sender.config.PushplusSetting
-import io.github.magisk317.relay.net.HttpUtils
+import io.github.magisk317.forward.engine.model.MsgInfo
+import io.github.magisk317.forward.sender.result.PushplusResult
+import io.github.magisk317.forward.sender.config.PushplusSetting
+import io.github.magisk317.forward.net.HttpUtils
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 

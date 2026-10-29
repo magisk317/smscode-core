@@ -1,4 +1,4 @@
-package io.github.magisk317.relay.engine.service
+package io.github.magisk317.forward.engine.service
 
 interface RecordRepository {
     suspend fun insertDispatchLog(log: DispatchLogData): Long
