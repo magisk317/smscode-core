@@ -56,4 +56,56 @@ interface HookHostCapabilities {
         verboseLogging: Boolean,
     ) {
     }
+
+    /**
+     * Called once per hooked process after the module runtime is installed. Hosts use it to
+     * report which processes the framework actually injected, so the settings UI can explain
+     * a missing system-server hook (module installed or updated after boot).
+     */
+    fun recordHookProcessOnline(
+        context: Context,
+        packageName: String,
+        processName: String,
+        source: String,
+        moduleVersion: Int,
+        verboseLogging: Boolean,
+    ) {
+    }
+
+    /**
+     * Records the publisher of a notification that looks like a call event, even when the
+     * package is not in the call-source list. Diagnostics only: never gates forwarding.
+     */
+    fun recordCallNotificationSource(
+        context: Context,
+        packageName: String,
+        channelId: String,
+        category: String,
+        verboseLogging: Boolean,
+    ) {
+    }
+
+    /** Records the install result of one hook so the settings page can show it. */
+    fun recordHookInstall(
+        context: Context?,
+        hook: String,
+        status: String,
+        packageName: String,
+        processName: String,
+        detail: String,
+        verboseLogging: Boolean,
+    ) {
+    }
+
+    /** Records the last notification seen by a relay path, including skip reasons. */
+    fun recordNotifyEvent(
+        context: Context,
+        source: String,
+        packageName: String,
+        channelId: String,
+        msgType: String,
+        skipReason: String,
+        verboseLogging: Boolean,
+    ) {
+    }
 }

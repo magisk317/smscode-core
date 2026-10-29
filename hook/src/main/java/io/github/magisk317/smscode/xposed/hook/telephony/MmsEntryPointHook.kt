@@ -184,6 +184,19 @@ class MmsEntryPointHook(
                 statusOk = true,
             )
         }
+        host.capabilities.recordHookInstall(
+            context = null,
+            hook = "mms",
+            status = if (totalHooks > 0) "installed" else "no_entrypoints",
+            packageName = TARGET_PACKAGE,
+            processName = lpparam.processName.ifBlank { TARGET_PACKAGE },
+            detail = if (totalHooks > 0) {
+                "methods=$totalHooks missing=${installation.missingClassNames.size}"
+            } else {
+                installation.missingClassNames.joinToString(",").ifBlank { "no_entrypoints" }
+            },
+            verboseLogging = false,
+        )
     }
 
     private fun maybeBlock(

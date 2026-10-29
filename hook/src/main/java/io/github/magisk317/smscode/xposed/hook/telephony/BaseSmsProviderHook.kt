@@ -86,9 +86,27 @@ abstract class BaseSmsProviderHook(
             XLog.w(message = "SmsProviderHook: class not found: %s", SmsProviderHookInstaller.TARGET_CLASS)
             host.onTargetClassMissing(param)
             SmsProviderHookInstaller.recordLoad(result = "skip", reason = "class_missing")
+            host.capabilities.recordHookInstall(
+                context = null,
+                hook = "sms_provider",
+                status = "class_missing",
+                packageName = param.packageName,
+                processName = param.processName.ifBlank { param.packageName },
+                detail = SmsProviderHookInstaller.TARGET_CLASS,
+                verboseLogging = false,
+            )
             return
         }
         SmsProviderHookInstaller.recordLoad(result = "ok", reason = "installed")
+        host.capabilities.recordHookInstall(
+            context = null,
+            hook = "sms_provider",
+            status = "installed",
+            packageName = param.packageName,
+            processName = param.processName.ifBlank { param.packageName },
+            detail = "installed",
+            verboseLogging = false,
+        )
     }
 
     private fun handleWrite(call: SmsProviderHookInstaller.WriteCall) {
