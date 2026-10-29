@@ -62,7 +62,7 @@ class CallNotificationClassifierTest {
     @Test
     fun `falls back to unknown type but keeps ongoing stage on call channel`() {
         val classification = CallNotificationClassifier.classify(
-            packageName = "com.example.dialer",
+            packageName = "com.example.chat",
             category = "call",
             channelId = "ongoing_call",
             title = "Dialer",
