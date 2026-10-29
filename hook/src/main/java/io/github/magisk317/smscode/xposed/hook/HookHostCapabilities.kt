@@ -16,9 +16,9 @@ import android.content.Context
  * runtime bridge they own - and core's hooks consume the contract. Domain hooks
  * (forward pipeline, keep-alive, verification prefs) stay outside it.
  */
-interface HookHostCapabilities {
+interface HookHostCapabilities : io.github.magisk317.xposed.runtime.HookHostCapabilities {
     /** Verbose-mode lookup for the module process. */
-    fun isVerboseLogMode(context: Context): Boolean
+    overridefun isVerboseLogMode(context: Context): Boolean
 
     /** Sensitive-debug lookup: when true, codes/bodies are escaped instead of summarized. */
     fun isSensitiveDebugLogMode(context: Context): Boolean
@@ -42,13 +42,13 @@ interface HookHostCapabilities {
      * Called once per hooked process after the plugin context becomes available.
      * Hosts use it to install per-process runtime state (log context binding etc.).
      */
-    fun onProcessInit(context: Context) {}
+    overridefun onProcessInit(context: Context) {}
 
     /**
      * Records a hook heartbeat for diagnostics. [packageName] is the hooked
      * package (e.g. com.android.mms, com.android.providers.telephony).
      */
-    fun recordHookHeartbeat(
+    overridefun recordHookHeartbeat(
         context: Context,
         packageName: String,
         processName: String,
@@ -62,7 +62,7 @@ interface HookHostCapabilities {
      * report which processes the framework actually injected, so the settings UI can explain
      * a missing system-server hook (module installed or updated after boot).
      */
-    fun recordHookProcessOnline(
+    overridefun recordHookProcessOnline(
         context: Context,
         packageName: String,
         processName: String,
@@ -76,7 +76,7 @@ interface HookHostCapabilities {
      * Records the publisher of a notification that looks like a call event, even when the
      * package is not in the call-source list. Diagnostics only: never gates forwarding.
      */
-    fun recordCallNotificationSource(
+    overridefun recordCallNotificationSource(
         context: Context,
         packageName: String,
         channelId: String,
@@ -86,7 +86,7 @@ interface HookHostCapabilities {
     }
 
     /** Records the install result of one hook so the settings page can show it. */
-    fun recordHookInstall(
+    overridefun recordHookInstall(
         context: Context?,
         hook: String,
         status: String,
@@ -98,7 +98,7 @@ interface HookHostCapabilities {
     }
 
     /** Records the last notification seen by a relay path, including skip reasons. */
-    fun recordNotifyEvent(
+    overridefun recordNotifyEvent(
         context: Context,
         source: String,
         packageName: String,
