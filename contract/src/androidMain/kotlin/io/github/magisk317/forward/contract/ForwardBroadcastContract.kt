@@ -6,6 +6,13 @@ import kotlin.math.abs
 /** Android transport adapter for the product-neutral forwarding payload. */
 object ForwardBroadcastContract {
     const val ACTION_FORWARD = "io.github.magisk317.forward.action.FORWARD"
+
+    /** Action suffix appended to the runtime namespace to form the forward broadcast action. */
+    const val ACTION_FORWARD_SUFFIX = "ACTION_FORWARD_SMS"
+
+    /** Action suffix appended to the runtime namespace to form the recovery wake-up action. */
+    const val ACTION_RECOVERY_WAKEUP_SUFFIX = "FORCE_STOP_RECOVERY_WAKEUP"
+
     const val EXTRA_EVENT_ID = "event_id"
     const val EXTRA_SENDER = "sender"
     const val EXTRA_BODY = "body"
@@ -22,6 +29,13 @@ object ForwardBroadcastContract {
     const val EXTRA_SIM_SLOT = "sim_slot"
     const val EXTRA_SUB_ID = "sub_id"
     const val EXTRA_APP_ICON = "app_icon"
+    const val EXTRA_FORCE_STOP_REASON = "reason"
+
+    /** Forward broadcast action for a module namespace, matching the receiver manifest filter. */
+    fun forwardAction(namespace: String): String = "$namespace.$ACTION_FORWARD_SUFFIX"
+
+    /** Recovery wake-up action for a module namespace, matching the recovery service filter. */
+    fun recoveryWakeupAction(namespace: String): String = "$namespace.$ACTION_RECOVERY_WAKEUP_SUFFIX"
 
     fun write(intent: Intent, payload: ForwardPayload, token: String? = null): Intent = intent.apply {
         putExtra(EXTRA_EVENT_ID, payload.eventId)
