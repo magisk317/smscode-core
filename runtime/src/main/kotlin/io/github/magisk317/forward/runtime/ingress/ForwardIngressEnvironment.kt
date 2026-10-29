@@ -68,11 +68,11 @@ interface ForwardIngressEnvironment {
     suspend fun expectedIpcToken(): String
 
     /** Configurable dedup window (seconds) for identical verification codes, already clamped. */
-    fun smsCodeDedupWindowSeconds(): Int
+    suspend fun smsCodeDedupWindowSeconds(): Int
 
-    fun isAppNotifyMessageTypeEnabled(): Boolean
+    suspend fun isAppNotifyMessageTypeEnabled(): Boolean
 
-    fun isForwardAppNotifyEnabled(): Boolean
+    suspend fun isForwardAppNotifyEnabled(): Boolean
 
     /** Per-package forwarding gate; null when the package is unknown to the product. */
     suspend fun appForwardingState(packageName: String): AppForwardingState?
