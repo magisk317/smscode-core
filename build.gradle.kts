@@ -7,7 +7,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") apply false
 }
 
-val moduleNames = listOf("contract", "capture", "runtime", "engine", "engine/api", "sender", "sender/api", "net", "security", "db")
+val moduleNames = listOf("contract", "capture", "runtime", "engine", "engine/api", "sender", "sender/api", "net", "security", "db", "android")
 
 tasks.register("verifyModuleBoundaries") {
     group = "verification"
