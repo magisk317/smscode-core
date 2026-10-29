@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "ac6326b2698810e045c4ff4b35b33bd6",
+    "identityHash": "0021afc93b46385235ab0ca9cd4b94f2",
     "entities": [
       {
         "tableName": "forward_event",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_id` TEXT NOT NULL, `msg_type` INTEGER NOT NULL, `sender` TEXT, `body` TEXT, `date` INTEGER NOT NULL, `processed_time` INTEGER NOT NULL DEFAULT 0, `company` TEXT, `sms_code` TEXT, `package_name` TEXT, `notify_channel_id` TEXT NOT NULL DEFAULT '', `call_type` INTEGER NOT NULL DEFAULT 0, `sim_slot` INTEGER NOT NULL DEFAULT -1, `sub_id` INTEGER NOT NULL DEFAULT 0, `contact_name` TEXT NOT NULL DEFAULT '', `phone_area` TEXT NOT NULL DEFAULT '', `session_key` TEXT NOT NULL DEFAULT '', `forward_status` INTEGER NOT NULL, `forward_target` TEXT, `forward_message` TEXT, `forward_time` INTEGER)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_id` TEXT NOT NULL, `msg_type` INTEGER NOT NULL, `sender` TEXT, `body` TEXT, `date` INTEGER NOT NULL, `processed_time` INTEGER NOT NULL DEFAULT 0, `company` TEXT, `sms_code` TEXT, `package_name` TEXT, `notify_channel_id` TEXT NOT NULL DEFAULT '', `call_type` INTEGER NOT NULL DEFAULT 0, `sim_slot` INTEGER NOT NULL DEFAULT -1, `sub_id` INTEGER NOT NULL DEFAULT 0, `contact_name` TEXT NOT NULL DEFAULT '', `phone_area` TEXT NOT NULL DEFAULT '', `session_key` TEXT NOT NULL DEFAULT '', `forward_status` INTEGER NOT NULL, `forward_target` TEXT, `forward_message` TEXT, `forward_time` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -132,7 +132,8 @@
           {
             "fieldPath": "forwardTime",
             "columnName": "forward_time",
-            "affinity": "INTEGER"
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -253,11 +254,312 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_forward_sender_dispatch_log_created_at` ON `${TABLE_NAME}` (`created_at`)"
           }
         ]
+      },
+      {
+        "tableName": "forward_sender",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `type` INTEGER NOT NULL DEFAULT 1, `name` TEXT NOT NULL DEFAULT '', `json_setting` TEXT NOT NULL DEFAULT '', `status` INTEGER NOT NULL DEFAULT 1, `time` INTEGER NOT NULL, `receive_code` INTEGER NOT NULL DEFAULT 1, `receive_non_code` INTEGER NOT NULL DEFAULT 0, `receive_app_notify` INTEGER NOT NULL DEFAULT 1, `receive_call_notify` INTEGER NOT NULL DEFAULT 0, `active_schedule_json` TEXT NOT NULL DEFAULT '', `priority` INTEGER NOT NULL DEFAULT 0, `custom_template` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "jsonSetting",
+            "columnName": "json_setting",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "time",
+            "columnName": "time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receiveCode",
+            "columnName": "receive_code",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "receiveNonCode",
+            "columnName": "receive_non_code",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "receiveAppNotify",
+            "columnName": "receive_app_notify",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "receiveCallNotify",
+            "columnName": "receive_call_notify",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "activeScheduleJson",
+            "columnName": "active_schedule_json",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "priority",
+            "columnName": "priority",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "customTemplate",
+            "columnName": "custom_template",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "forward_route_rule",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `scope` INTEGER NOT NULL, `package_name` TEXT NOT NULL, `sender_id` INTEGER NOT NULL, `update_time` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "senderId",
+            "columnName": "sender_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updateTime",
+            "columnName": "update_time",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "forward_filter_rule",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `msg_type` TEXT NOT NULL, `scope_type` TEXT NOT NULL, `scope_key` TEXT NOT NULL DEFAULT '', `sender_id` INTEGER NOT NULL DEFAULT 0, `policy` TEXT NOT NULL, `match_mode` TEXT NOT NULL, `pattern` TEXT NOT NULL, `enabled` INTEGER NOT NULL DEFAULT 1, `update_time` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "msgType",
+            "columnName": "msg_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopeType",
+            "columnName": "scope_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopeKey",
+            "columnName": "scope_key",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "senderId",
+            "columnName": "sender_id",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "policy",
+            "columnName": "policy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "matchMode",
+            "columnName": "match_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pattern",
+            "columnName": "pattern",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "updateTime",
+            "columnName": "update_time",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "forward_scheduled_task",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT NOT NULL DEFAULT '', `task_type` TEXT NOT NULL DEFAULT 'sms', `cron_expression` TEXT NOT NULL DEFAULT '', `sim_slot` INTEGER NOT NULL DEFAULT 0, `mobiles` TEXT NOT NULL DEFAULT '', `content` TEXT NOT NULL DEFAULT '', `status` INTEGER NOT NULL DEFAULT 1, `last_run_time` INTEGER NOT NULL DEFAULT 0, `next_run_time` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "taskType",
+            "columnName": "task_type",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'sms'"
+          },
+          {
+            "fieldPath": "cronExpression",
+            "columnName": "cron_expression",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "simSlot",
+            "columnName": "sim_slot",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "mobiles",
+            "columnName": "mobiles",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "lastRunTime",
+            "columnName": "last_run_time",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "nextRunTime",
+            "columnName": "next_run_time",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ac6326b2698810e045c4ff4b35b33bd6')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0021afc93b46385235ab0ca9cd4b94f2')"
     ]
   }
 }

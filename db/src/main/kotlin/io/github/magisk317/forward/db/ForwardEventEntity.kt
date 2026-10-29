@@ -62,7 +62,7 @@ data class ForwardEventEntity(
     @ColumnInfo(name = "forward_message")
     val forwardMessage: String? = null,
     @ColumnInfo(name = "forward_time")
-    val forwardTime: Long? = null,
+    val forwardTime: Long = 0,
 ) {
     companion object {
         const val FORWARD_STATUS_NONE = 0
