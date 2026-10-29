@@ -2,7 +2,7 @@ package io.github.magisk317.smscode.xposed.hook.permission
 
 import android.Manifest
 import android.os.UserHandle
-import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
+import io.github.magisk317.xposed.capability.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.xposed.MethodHookParam

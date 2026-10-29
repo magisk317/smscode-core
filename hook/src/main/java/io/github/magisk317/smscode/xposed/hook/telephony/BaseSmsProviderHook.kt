@@ -1,8 +1,8 @@
 package io.github.magisk317.smscode.xposed.hook.telephony
 
 import android.content.Context
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.xposed.hook.HookHostCapabilities
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
+import io.github.magisk317.smscode.xposed.hook.telephony.SmsHookCapabilities
 import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.LoadParam
@@ -10,7 +10,7 @@ import io.github.magisk317.xposed.LoadParam
 /**
  * Host-specific wiring for [BaseSmsProviderHook].
  *
- * Hosts implement the domain pieces and supply one [HookHostCapabilities] adapter;
+ * Hosts implement the domain pieces and supply one [SmsHookCapabilities] adapter;
  * the capability members below have default implementations delegating to it, so
  * XSC (`HookRuntimeBridge`) and xinyi-relay (`xpbridge` facades) converge on the
  * same contract instead of drifting per file.
@@ -20,7 +20,7 @@ interface SmsProviderHookHost {
     val applicationId: String
 
     /** Unified host capabilities (prefs, escaping, parsing, heartbeat, process init). */
-    val capabilities: HookHostCapabilities
+    val capabilities: SmsHookCapabilities
 
     /**
      * Called once per hooked process after the plugin context becomes available,

@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.permission
 
 import android.os.Build
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.LoadParam
 import io.github.magisk317.xposed.logging.XLog

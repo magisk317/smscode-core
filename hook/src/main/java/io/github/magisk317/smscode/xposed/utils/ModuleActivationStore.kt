@@ -1,4 +1,4 @@
-package io.github.magisk317.smscode.xposed.utils
+package io.github.magisk317.xposed.capability.utils
 
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel

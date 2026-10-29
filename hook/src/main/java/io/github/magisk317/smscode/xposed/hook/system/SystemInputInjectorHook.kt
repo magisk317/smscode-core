@@ -1,6 +1,6 @@
 package io.github.magisk317.smscode.xposed.hook.system
 
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputFallbackPolicy
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputFallbackPolicy
 
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
@@ -19,20 +19,20 @@ import android.os.SystemClock
 import android.view.InputEvent
 import android.view.KeyCharacterMap
 import android.widget.Toast
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputAccessibilityResultContract
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputAccessibilityResultContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputResultBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.logging.XLog
-import io.github.magisk317.smscode.xposed.runtime.CoreHookPolicyHolder
+import io.github.magisk317.xposed.capability.runtime.CoreHookPolicyHolder
 import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.HookEnv
 import io.github.magisk317.xposed.LoadParam
 import io.github.magisk317.xposed.MethodHook
 import io.github.magisk317.xposed.MethodHookParam
-import io.github.magisk317.smscode.xposed.prefs.CorePrefs
-import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
+import io.github.magisk317.xposed.capability.prefs.CorePrefs
+import io.github.magisk317.xposed.capability.utils.resolveStaticIntFieldOrDefault
 import io.github.magisk317.xposed.runNonFatalCatching
 import io.github.magisk317.xposed.runNonFatalOrNull
 import java.lang.reflect.Method
@@ -328,7 +328,7 @@ class SystemInputInjectorHook : BaseHook() {
                             sendingUid = sendingUid,
                             systemContextUid = appUid,
                             senderPackages = senderPackages,
-                            modulePackageName = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.applicationId,
+                            modulePackageName = io.github.magisk317.xposed.capability.runtime.CoreRuntime.access.applicationId,
                         )
                     ) {
                         XLog.w(
@@ -487,7 +487,7 @@ class SystemInputInjectorHook : BaseHook() {
             success = result.success,
             reason = result.reason,
             windowPackage = result.windowPackage,
-            modulePackage = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.applicationId,
+            modulePackage = io.github.magisk317.xposed.capability.runtime.CoreRuntime.access.applicationId,
             homePackages = resolveHomePackages(context),
         )
     }
@@ -874,7 +874,7 @@ class SystemInputInjectorHook : BaseHook() {
     ) {
         if (attemptId == null) return
         runNonFatalCatching {
-            val appId = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.applicationId
+            val appId = io.github.magisk317.xposed.capability.runtime.CoreRuntime.access.applicationId
             val token = normalizeIpcToken(CorePrefs.getString(KEY_IPC_TOKEN, ""))
             val intent = AutoInputResultBroadcastContract.buildResultIntent(
                 action = resolveActionAutoInputResult(),
@@ -918,17 +918,17 @@ class SystemInputInjectorHook : BaseHook() {
         @Suppress("unused")
         fun resolveActionAutoInput(): String =
             AutoInputBroadcastContract.resolveActionAutoInput(
-                io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace,
+                io.github.magisk317.xposed.capability.runtime.CoreRuntime.access.actionNamespace,
             )
 
         fun resolveActionShowToast(): String =
             AutoInputBroadcastContract.resolveActionShowToast(
-                io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace,
+                io.github.magisk317.xposed.capability.runtime.CoreRuntime.access.actionNamespace,
             )
 
         fun resolveActionAutoInputResult(): String =
             AutoInputBroadcastContract.resolveActionAutoInputResult(
-                io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace,
+                io.github.magisk317.xposed.capability.runtime.CoreRuntime.access.actionNamespace,
             )
 
         val KEY_IPC_TOKEN: String

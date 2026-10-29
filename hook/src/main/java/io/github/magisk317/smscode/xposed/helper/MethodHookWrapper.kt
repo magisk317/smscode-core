@@ -1,6 +1,6 @@
-package io.github.magisk317.smscode.xposed.helper
+package io.github.magisk317.xposed.capability.helper
 
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.MethodHookParam
 import io.github.magisk317.xposed.SafeMethodHook

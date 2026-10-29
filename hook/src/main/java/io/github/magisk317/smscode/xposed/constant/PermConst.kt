@@ -1,8 +1,8 @@
-package io.github.magisk317.smscode.xposed.constant
+package io.github.magisk317.xposed.capability.constant
 
 import android.Manifest
 import android.os.Build
-import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
+import io.github.magisk317.xposed.capability.runtime.CoreRuntime
 import java.util.ArrayList
 import java.util.HashMap
 

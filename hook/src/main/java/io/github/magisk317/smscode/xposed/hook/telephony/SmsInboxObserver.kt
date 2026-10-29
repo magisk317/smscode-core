@@ -7,12 +7,12 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Telephony
 import android.util.Log
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.runtime.verification.ObservedInboxScanner
 import io.github.magisk317.smscode.runtime.verification.SmsRoleStateResolver
 import io.github.magisk317.smscode.verification.ObservedInboxScanRecord
 import io.github.magisk317.smscode.verification.SmsInboxSeenTracker
-import io.github.magisk317.smscode.xposed.hook.HookHostCapabilities
+import io.github.magisk317.smscode.xposed.hook.telephony.SmsHookCapabilities
 import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.logging.MagiskOtel
 import java.util.concurrent.Executors
@@ -23,14 +23,14 @@ import java.util.concurrent.ScheduledExecutorService
  * written outside the hooked dispatch path.
  *
  * The scanning, routing repair and telemetry live here. Host capabilities (prefs,
- * escaping, parsing) arrive through the unified [HookHostCapabilities] contract so
+ * escaping, parsing) arrive through the unified [SmsHookCapabilities] contract so
  * both hosts consume core identically.
  */
 class SmsInboxObserver(
     private val pluginContext: Context,
     private val phoneContext: Context,
     private val recordHandler: (ObservedInboxScanRecord) -> Unit,
-    private val capabilities: HookHostCapabilities,
+    private val capabilities: SmsHookCapabilities,
 ) {
     private val smsRoleStateResolver = SmsRoleStateResolver()
     private val queryExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()

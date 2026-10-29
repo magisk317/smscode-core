@@ -1,4 +1,4 @@
-package io.github.magisk317.smscode.xposed.helper
+package io.github.magisk317.xposed.capability.helper
 
 import android.content.Context
 import io.github.magisk317.xposed.HookHelpers

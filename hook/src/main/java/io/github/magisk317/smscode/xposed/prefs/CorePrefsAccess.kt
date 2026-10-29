@@ -1,4 +1,4 @@
-package io.github.magisk317.smscode.xposed.prefs
+package io.github.magisk317.xposed.capability.prefs
 
 import io.github.magisk317.xposed.logging.MagiskOtel
 

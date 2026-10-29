@@ -2,9 +2,9 @@ package io.github.magisk317.smscode.xposed.hook.telephony
 
 import android.content.Context
 import android.content.Intent
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.runtime.verification.SmsIntentHookSupport
-import io.github.magisk317.smscode.xposed.hook.HookHostCapabilities
+import io.github.magisk317.smscode.xposed.hook.telephony.SmsHookCapabilities
 import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.LoadParam
@@ -40,7 +40,7 @@ data class BlockEvaluation(
  * Core owns the MMS entry-point interception flow (install, duplicate/conflict
  * filtering, block evaluation, telemetry). Hosts supply the pieces that differ:
  * their own conflict arbiter, blacklist recorder, block-evaluator/parse-worker
- * factories - plus one [HookHostCapabilities] adapter whose defaults back the
+ * factories - plus one [SmsHookCapabilities] adapter whose defaults back the
  * verbose-mode and process-init members, so both hosts converge on one contract.
  */
 interface MmsEntryPointHookHost {
@@ -48,7 +48,7 @@ interface MmsEntryPointHookHost {
     val applicationId: String
 
     /** Unified host capabilities (prefs, escaping, parsing, heartbeat, process init). */
-    val capabilities: HookHostCapabilities
+    val capabilities: SmsHookCapabilities
 
     /** Returns true when another module already owns this SMS and we must stay silent. */
     fun shouldSuppressByRelay(context: Context, tag: String): Boolean
@@ -59,7 +59,7 @@ interface MmsEntryPointHookHost {
 
     /**
      * Called once per intercepted SMS before evaluation (bind log context, heartbeat).
-     * Default binds the host's per-process runtime state via [HookHostCapabilities].
+     * Default binds the host's per-process runtime state via [SmsHookCapabilities].
      */
     fun onPluginContextReady(
         pluginContext: Context,

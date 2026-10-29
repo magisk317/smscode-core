@@ -1,4 +1,4 @@
-package io.github.magisk317.smscode.xposed.utils
+package io.github.magisk317.xposed.capability.utils
 
 object NotificationLogSanitizer {
     @JvmStatic

@@ -18,26 +18,26 @@ import io.github.magisk317.smscode.rule.model.SmsCodeParseSourceKind
 import io.github.magisk317.smscode.rule.model.SmsCodeRuleSpec
 import io.github.magisk317.smscode.rule.utils.SmsCodeUtils
 import io.github.magisk317.smscode.runtime.common.notification.CallNotificationMatcher
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.xposed.hook.HookHostCapabilities
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
+import io.github.magisk317.smscode.xposed.hook.telephony.SmsHookCapabilities
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.HookEnv
 import io.github.magisk317.xposed.HookHelpers
 import io.github.magisk317.xposed.LoadParam
 import io.github.magisk317.xposed.MethodHook
 import io.github.magisk317.xposed.MethodHookParam
-import io.github.magisk317.smscode.xposed.prefs.CorePrefs
-import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
-import io.github.magisk317.smscode.xposed.utils.NotificationLogSanitizer
+import io.github.magisk317.xposed.capability.prefs.CorePrefs
+import io.github.magisk317.xposed.capability.runtime.CoreRuntime
+import io.github.magisk317.xposed.capability.utils.NotificationLogSanitizer
 import io.github.magisk317.xposed.logging.XLog
-import io.github.magisk317.smscode.xposed.utils.resolveStaticIntFieldOrDefault
+import io.github.magisk317.xposed.capability.utils.resolveStaticIntFieldOrDefault
 import io.github.magisk317.xposed.runNonFatalCatching
 import io.github.magisk317.xposed.runNonFatalOrNull
 import java.util.Locale
 import io.github.magisk317.xposed.logging.MagiskOtel
 
 class NotificationManagerHook(
-    private val capabilities: HookHostCapabilities? = null,
+    private val capabilities: SmsHookCapabilities? = null,
 ) : BaseHook() {
     private data class ModuleEndpoint(
         val packageName: String,

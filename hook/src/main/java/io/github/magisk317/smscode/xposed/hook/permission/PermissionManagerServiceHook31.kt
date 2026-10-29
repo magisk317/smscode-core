@@ -2,10 +2,10 @@ package io.github.magisk317.smscode.xposed.hook.permission
 
 import android.os.UserHandle
 import androidx.annotation.RequiresApi
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
-import io.github.magisk317.smscode.xposed.constant.PermConst.PACKAGE_PERMISSIONS
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
+import io.github.magisk317.xposed.capability.constant.PermConst.PACKAGE_PERMISSIONS
 import io.github.magisk317.xposed.logging.XLog
-import io.github.magisk317.smscode.xposed.helper.MethodHookWrapper
+import io.github.magisk317.xposed.capability.helper.MethodHookWrapper
 import io.github.magisk317.xposed.BaseSubHook
 import io.github.magisk317.xposed.MethodHook
 import io.github.magisk317.xposed.HookEnv

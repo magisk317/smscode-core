@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.xposed.hook.notification
 
 object NotificationHookConst {
-    private fun resolveNamespace(): String = io.github.magisk317.smscode.xposed.runtime.CoreRuntime.access.actionNamespace
+    private fun resolveNamespace(): String = io.github.magisk317.xposed.capability.runtime.CoreRuntime.access.actionNamespace
 
     val ACTION_FORWARD_SMS: String
         get() = "${resolveNamespace()}.ACTION_FORWARD_SMS"
