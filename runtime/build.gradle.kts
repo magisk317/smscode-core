@@ -9,6 +9,7 @@ android {
 
 dependencies {
     implementation(project(":magisk-xposed-kit:logging"))
+    implementation(project(":magisk-xposed-kit:runtime"))
     implementation(project(":magisk-xposed-kit:diagnostics"))
     val domainProjectPath = if (project.path.startsWith(":smscode-core:")) {
         ":smscode-core:domain"
