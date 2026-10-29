@@ -17,7 +17,9 @@ import io.github.magisk317.smscode.rule.model.SmsCodeParseSource
 import io.github.magisk317.smscode.rule.model.SmsCodeParseSourceKind
 import io.github.magisk317.smscode.rule.model.SmsCodeRuleSpec
 import io.github.magisk317.smscode.rule.utils.SmsCodeUtils
+import io.github.magisk317.smscode.runtime.common.notification.CallNotificationMatcher
 import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.smscode.xposed.hook.HookHostCapabilities
 import io.github.magisk317.xposed.BaseHook
 import io.github.magisk317.xposed.HookEnv
 import io.github.magisk317.xposed.HookHelpers
@@ -34,7 +36,9 @@ import io.github.magisk317.xposed.runNonFatalOrNull
 import java.util.Locale
 import io.github.magisk317.xposed.logging.MagiskOtel
 
-class NotificationManagerHook : BaseHook() {
+class NotificationManagerHook(
+    private val capabilities: HookHostCapabilities? = null,
+) : BaseHook() {
     private data class ModuleEndpoint(
         val packageName: String,
     )
@@ -59,6 +63,15 @@ class NotificationManagerHook : BaseHook() {
 
     @Volatile
     private var lastForegroundRelaunchAttemptAt: Long = 0L
+
+    @Volatile
+    private var lastCallSourceReportAtMs = 0L
+
+    @Volatile
+    private var lastCallSourceReportPackage = ""
+
+    @Volatile
+    private var lastNotifyReportAtMs = 0L
 
     private data class NotifyRoute(
         val msgType: String,
@@ -89,6 +102,15 @@ class NotificationManagerHook : BaseHook() {
             val methods = nmsClass.declaredMethods.filter { it.name == "enqueueNotificationInternal" }
             if (methods.isEmpty()) {
                 XLog.w("NotificationManagerHook: no enqueueNotificationInternal method found")
+                capabilities?.recordHookInstall(
+                    context = null,
+                    hook = "nms",
+                    status = "method_missing",
+                    packageName = "android",
+                    processName = "system",
+                    detail = "enqueueNotificationInternal",
+                    verboseLogging = false,
+                )
                 return
             }
 
@@ -109,8 +131,26 @@ class NotificationManagerHook : BaseHook() {
                 )
             }
             XLog.w("NotificationManagerHook: successfully hooked enqueueNotificationInternal")
+            capabilities?.recordHookInstall(
+                context = null,
+                hook = "nms",
+                status = "installed",
+                packageName = "android",
+                processName = "system",
+                detail = "enqueueNotificationInternal",
+                verboseLogging = false,
+            )
         }.onFailure { t ->
             XLog.e(message = "NotificationManagerHook: failed to hook NotificationManagerService", t)
+            capabilities?.recordHookInstall(
+                context = null,
+                hook = "nms",
+                status = "error",
+                packageName = "android",
+                processName = "system",
+                detail = t.javaClass.simpleName,
+                verboseLogging = false,
+            )
         }
     }
 
@@ -193,6 +233,16 @@ class NotificationManagerHook : BaseHook() {
             emit(result = "skip", reason = "blank_content", targetPackage = pkg)
             return
         }
+        reportCallNotificationSource(
+            systemContext = systemContext,
+            packageName = pkg,
+            title = title,
+            body = body,
+            tickerText = tickerText,
+            expandedText = expandedText,
+            notifyChannelId = notifyChannelId,
+            category = notification.category,
+        )
         val notifyRoute = resolveNotifyRoute(
             packageName = pkg,
             notification = notification,
@@ -218,6 +268,13 @@ class NotificationManagerHook : BaseHook() {
                 notifyChannelId.ifBlank { "<empty>" },
                 Integer.toHexString(notification.flags),
                 notification.category ?: "<null>",
+            )
+            reportNotifyEvent(
+                systemContext = systemContext,
+                packageName = pkg,
+                channelId = notifyChannelId,
+                msgType = notifyRoute.msgType,
+                skipReason = skipReason,
             )
             emit(result = "skip", reason = skipReason, targetPackage = pkg, msgType = notifyRoute.msgType)
             return
@@ -288,6 +345,13 @@ class NotificationManagerHook : BaseHook() {
             NotificationLogSanitizer.formatTitle(title, sensitiveDebugLog),
             NotificationLogSanitizer.formatBody(body, sensitiveDebugLog),
         )
+        reportNotifyEvent(
+            systemContext = systemContext,
+            packageName = pkg,
+            channelId = notifyChannelId,
+            msgType = notifyRoute.msgType,
+            skipReason = "",
+        )
         dispatchForwardBroadcast(systemContext, forwardIntent, pkg, eventId, endpoint)
         emit(
             result = "ok",
@@ -295,6 +359,64 @@ class NotificationManagerHook : BaseHook() {
             targetPackage = pkg,
             msgType = notifyRoute.msgType,
         )
+    }
+
+    private fun reportNotifyEvent(
+        systemContext: Context,
+        packageName: String,
+        channelId: String,
+        msgType: String,
+        skipReason: String,
+    ) {
+        val host = capabilities ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastNotifyReportAtMs < NOTIFY_REPORT_INTERVAL_MS) return
+        lastNotifyReportAtMs = now
+        runNonFatalCatching {
+            host.recordNotifyEvent(
+                context = systemContext,
+                source = "nms",
+                packageName = packageName,
+                channelId = channelId,
+                msgType = msgType,
+                skipReason = skipReason,
+                verboseLogging = false,
+            )
+        }
+    }
+
+    private fun reportCallNotificationSource(
+        systemContext: Context,
+        packageName: String,
+        title: String,
+        body: String,
+        tickerText: String,
+        expandedText: String,
+        notifyChannelId: String,
+        category: String?,
+    ) {
+        val host = capabilities ?: return
+        val now = System.currentTimeMillis()
+        if (
+            packageName == lastCallSourceReportPackage &&
+            now - lastCallSourceReportAtMs < CALL_SOURCE_REPORT_INTERVAL_MS
+        ) {
+            return
+        }
+        val normalizedText = normalizeCallHintText(title, body, tickerText, expandedText)
+        val hasCallKeyword = containsAnyKeyword(normalizedText, CALL_NOTIFY_KEYWORDS)
+        if (!CallNotificationMatcher.looksLikeCall(category, notifyChannelId, hasCallKeyword)) return
+        lastCallSourceReportAtMs = now
+        lastCallSourceReportPackage = packageName
+        runNonFatalCatching {
+            host.recordCallNotificationSource(
+                context = systemContext,
+                packageName = packageName,
+                channelId = notifyChannelId,
+                category = category.orEmpty(),
+                verboseLogging = false,
+            )
+        }
     }
 
     private fun resolveNotifyRoute(
@@ -308,12 +430,18 @@ class NotificationManagerHook : BaseHook() {
     ): NotifyRoute {
         val normalizedText = normalizeCallHintText(title, body, tickerText, expandedText)
         val isCallCategory = notification.category == Notification.CATEGORY_CALL
-        val isDialerPackage = isDialerPackage(packageName)
+        val callSourceMatched = CallNotificationMatcher.isCallSourcePackage(packageName) ||
+            CallNotificationMatcher.isTelecomCallChannel(notifyChannelId)
         val hasCallKeyword = containsAnyKeyword(normalizedText, CALL_NOTIFY_KEYWORDS)
-        val isCallNotify = (isDialerPackage && isCallCategory) || (isDialerPackage && hasCallKeyword)
+        val isCallNotify = CallNotificationMatcher.isCallNotification(
+            packageName = packageName,
+            category = notification.category,
+            channelId = notifyChannelId,
+            hasCallKeyword = hasCallKeyword,
+        )
         if (isCallNotify) {
             var callType = resolveCallType(normalizedText)
-            if (callType == CALL_TYPE_UNKNOWN && isDialerPackage && isCallCategory) {
+            if (callType == CALL_TYPE_UNKNOWN && callSourceMatched && isCallCategory) {
                 callType = CALL_TYPE_INCOMING
             }
             val callStage = resolveCallStage(
@@ -584,12 +712,6 @@ class NotificationManagerHook : BaseHook() {
     private fun isOngoingCallChannel(notifyChannelId: String): Boolean {
         val normalized = notifyChannelId.lowercase(Locale.ROOT)
         return normalized.contains("ongoing") || normalized.contains("incall") || normalized.contains("in_call")
-    }
-
-    private fun isDialerPackage(packageName: String): Boolean {
-        val normalized = packageName.lowercase(Locale.ROOT)
-        if (normalized in CALL_NOTIFY_PACKAGE_ALLOWLIST) return true
-        return normalized.contains("dialer") || normalized.contains("incallui")
     }
 
     private fun isTelephonySmsPackage(packageName: String): Boolean {
@@ -1475,11 +1597,6 @@ class NotificationManagerHook : BaseHook() {
         private const val CALL_TYPE_BLOCKED = 6
         private const val CALL_TYPE_LABEL_DEFAULT = "通话通知"
         private const val PACKAGE_MANAGER_MATCH_ALL_FALLBACK = 0x00020000
-        private val CALL_NOTIFY_PACKAGE_ALLOWLIST = setOf(
-            "com.android.dialer",
-            "com.google.android.dialer",
-            "com.android.incallui",
-        )
         private val TELEPHONY_SMS_PACKAGE_ALLOWLIST = setOf(
             "com.android.phone",
             "com.android.providers.telephony",
@@ -1613,6 +1730,8 @@ class NotificationManagerHook : BaseHook() {
         )
         private val PHONE_CANDIDATE_REGEX = Regex("(\\+?\\d[\\d\\s\\-]{4,}\\d)")
         private const val RECOVERY_COOLDOWN_MS = 3000L
+        private const val CALL_SOURCE_REPORT_INTERVAL_MS = 10_000L
+        private const val NOTIFY_REPORT_INTERVAL_MS = 1_000L
         private const val FOREGROUND_RELAUNCH_COOLDOWN_MS = 60_000L
         private const val RECOVERY_PREF_CACHE_MS = 30_000L
     }
