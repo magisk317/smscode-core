@@ -6,6 +6,7 @@ dependencies {
     api(project(":magisk-forward-core:contract"))
     implementation(project(":magisk-forward-core:engine"))
     implementation(project(":magisk-forward-core:db"))
+    implementation(project(":magisk-forward-core:android"))
     implementation(project(":magisk-xposed-kit:logging"))
     implementation(project(":magisk-xposed-kit:runtime"))
     implementation(project(":smscode-core:contract"))
