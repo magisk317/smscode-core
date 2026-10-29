@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform.library)
@@ -6,16 +8,43 @@ plugins {
 
 kotlin {
     jvm()
+
     android {
-        namespace = "io.github.magisk317.forward.contract"
+        namespace = "io.github.magisk317.relay.contract"
         compileSdk(project.magiskCompileSdk())
         minSdk = libs.versions.minSdk.get().toInt()
     }
+
     sourceSets {
         commonMain.dependencies {
-            api(libs.kotlinx.coroutines.core)
-            api(libs.kotlinx.serialization.json)
-            api(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
+        }
+        androidMain.dependencies {
+            // implementation, not api: smscode domain types must not leak through the
+            // cross-platform contract API surface; consumers declare their own deps.
+            implementation(project(":smscode-core:contract"))
+            implementation(project(":smscode-core:verification"))
+            implementation(project(":smscode-core:runtime"))
+            implementation(libs.androidx.core.ktx)
         }
     }
+}
+
+dependencies {
+    add("jvmTestImplementation", libs.junit.jupiter)
+    add("jvmTestRuntimeOnly", libs.junit.platform.launcher)
+}
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    useJUnitPlatform()
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
+    // Kept deliberately: PlatformSerializable must stay an expect/actual classifier
+    // (a common class cannot otherwise acquire java.io.Serializable), and Parcelize
+    // serializes Sender.activeSchedule through it. KT-61573 keeps that pattern in
+    // Beta, so the warning is suppressed here instead of being fixed away.
+    compilerOptions.freeCompilerArgs.add("-Xexpect-actual-classes")
 }

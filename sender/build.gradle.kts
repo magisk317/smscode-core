@@ -1,27 +1,59 @@
 plugins {
-    alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.kotlin.multiplatform.library)
+    id("magisk.android.library")
+    id("magisk.android.distribution")
     alias(libs.plugins.kotlin.serialization)
+    id(libs.plugins.kotlin.parcelize.get().pluginId)
 }
 
-kotlin {
-    jvm()
-    android {
-        namespace = "io.github.magisk317.forward.sender"
-        compileSdk(project.magiskCompileSdk())
-        minSdk = libs.versions.minSdk.get().toInt()
+android {
+    namespace = "io.github.magisk317.relay.sender"
+
+    defaultConfig {
+        consumerProguardFiles("consumer-rules.pro")
     }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    packaging {
+        resources {
+            excludes += "META-INF/NOTICE.md"
+            excludes += "META-INF/LICENSE.md"
+        }
+    }
+
     sourceSets {
-        commonMain.dependencies {
-            api(project(":magisk-forward-core:contract"))
-            api(project(":magisk-forward-core:engine"))
-            api(libs.kotlinx.coroutines.core)
-            api(libs.kotlinx.serialization.json)
+        // Play keeps the dynamic-feature path; GitHub keeps the plaintext
+        // MatrixE2eeUtils/MatrixE2eeVerificationManager stubs (the real
+        // implementation arrives at runtime from the e2ee plugin APK).
+        listOf("play", "github").forEach { flavor ->
+            getByName(flavor).kotlin.directories.add("src/matrixE2eeStub/kotlin")
         }
-        androidMain.dependencies {
-            implementation(project(":magisk-xposed-kit:logging"))
-            implementation(libs.androidx.core.ktx)
-            implementation(libs.okhttp)
-        }
+        getByName("github").kotlin.directories.add("src/nonPlaySms/kotlin")
     }
+}
+
+dependencies {
+    api(project(":magisk-xposed-kit:logging"))
+    implementation(project(":magisk-forward-core:sender:api"))
+    implementation(project(":magisk-forward-core:security"))
+    implementation(project(":magisk-forward-core:contract"))
+    implementation(project(":magisk-forward-core:engine:api"))
+    implementation(project(":magisk-forward-core:net"))
+    implementation(project(":smscode-core:contract"))
+    implementation(project(":smscode-core:runtime"))
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
+    implementation(libs.jakarta.mail)
+    implementation(libs.paho.mqtt)
+    // Play Feature Delivery for on-demand E2EE module installation
+    add("playImplementation", libs.play.feature.delivery)
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.kotlinx.coroutines.core)
+    testImplementation(libs.kotest.property)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }

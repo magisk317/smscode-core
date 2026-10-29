@@ -1,21 +1,31 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform.library)
-    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
     jvm()
+
     android {
-        namespace = "io.github.magisk317.forward.engine"
+        namespace = "io.github.magisk317.relay.engine"
         compileSdk(project.magiskCompileSdk())
         minSdk = libs.versions.minSdk.get().toInt()
     }
+
     sourceSets {
         commonMain.dependencies {
-            api(project(":magisk-forward-core:contract"))
-            api(libs.kotlinx.coroutines.core)
-            api(libs.kotlinx.serialization.json)
+            api(project(":magisk-forward-core:engine:api"))
+            implementation(project(":magisk-forward-core:contract"))
+            implementation(libs.kotlinx.coroutines.core)
         }
     }
+}
+
+dependencies {
+    add("jvmTestImplementation", libs.junit.jupiter)
+    add("jvmTestRuntimeOnly", libs.junit.platform.launcher)
+}
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    useJUnitPlatform()
 }
