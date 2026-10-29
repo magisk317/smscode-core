@@ -18,7 +18,7 @@ import android.content.Context
  */
 interface HookHostCapabilities : io.github.magisk317.xposed.runtime.HookHostCapabilities {
     /** Verbose-mode lookup for the module process. */
-    overridefun isVerboseLogMode(context: Context): Boolean
+    override fun isVerboseLogMode(context: Context): Boolean
 
     /** Sensitive-debug lookup: when true, codes/bodies are escaped instead of summarized. */
     fun isSensitiveDebugLogMode(context: Context): Boolean
@@ -42,13 +42,13 @@ interface HookHostCapabilities : io.github.magisk317.xposed.runtime.HookHostCapa
      * Called once per hooked process after the plugin context becomes available.
      * Hosts use it to install per-process runtime state (log context binding etc.).
      */
-    overridefun onProcessInit(context: Context) {}
+    override fun onProcessInit(context: Context) {}
 
     /**
      * Records a hook heartbeat for diagnostics. [packageName] is the hooked
      * package (e.g. com.android.mms, com.android.providers.telephony).
      */
-    overridefun recordHookHeartbeat(
+    override fun recordHookHeartbeat(
         context: Context,
         packageName: String,
         processName: String,
@@ -62,7 +62,7 @@ interface HookHostCapabilities : io.github.magisk317.xposed.runtime.HookHostCapa
      * report which processes the framework actually injected, so the settings UI can explain
      * a missing system-server hook (module installed or updated after boot).
      */
-    overridefun recordHookProcessOnline(
+    override fun recordHookProcessOnline(
         context: Context,
         packageName: String,
         processName: String,
@@ -76,7 +76,7 @@ interface HookHostCapabilities : io.github.magisk317.xposed.runtime.HookHostCapa
      * Records the publisher of a notification that looks like a call event, even when the
      * package is not in the call-source list. Diagnostics only: never gates forwarding.
      */
-    overridefun recordCallNotificationSource(
+    override fun recordCallNotificationSource(
         context: Context,
         packageName: String,
         channelId: String,
@@ -86,7 +86,7 @@ interface HookHostCapabilities : io.github.magisk317.xposed.runtime.HookHostCapa
     }
 
     /** Records the install result of one hook so the settings page can show it. */
-    overridefun recordHookInstall(
+    override fun recordHookInstall(
         context: Context?,
         hook: String,
         status: String,
@@ -98,7 +98,7 @@ interface HookHostCapabilities : io.github.magisk317.xposed.runtime.HookHostCapa
     }
 
     /** Records the last notification seen by a relay path, including skip reasons. */
-    overridefun recordNotifyEvent(
+    override fun recordNotifyEvent(
         context: Context,
         source: String,
         packageName: String,
