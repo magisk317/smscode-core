@@ -1,0 +1,263 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "ac6326b2698810e045c4ff4b35b33bd6",
+    "entities": [
+      {
+        "tableName": "forward_event",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_id` TEXT NOT NULL, `msg_type` INTEGER NOT NULL, `sender` TEXT, `body` TEXT, `date` INTEGER NOT NULL, `processed_time` INTEGER NOT NULL DEFAULT 0, `company` TEXT, `sms_code` TEXT, `package_name` TEXT, `notify_channel_id` TEXT NOT NULL DEFAULT '', `call_type` INTEGER NOT NULL DEFAULT 0, `sim_slot` INTEGER NOT NULL DEFAULT -1, `sub_id` INTEGER NOT NULL DEFAULT 0, `contact_name` TEXT NOT NULL DEFAULT '', `phone_area` TEXT NOT NULL DEFAULT '', `session_key` TEXT NOT NULL DEFAULT '', `forward_status` INTEGER NOT NULL, `forward_target` TEXT, `forward_message` TEXT, `forward_time` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventId",
+            "columnName": "event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "msgType",
+            "columnName": "msg_type",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sender",
+            "columnName": "sender",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "body",
+            "columnName": "body",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "processedTime",
+            "columnName": "processed_time",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "company",
+            "columnName": "company",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "smsCode",
+            "columnName": "sms_code",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notifyChannelId",
+            "columnName": "notify_channel_id",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "callType",
+            "columnName": "call_type",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "simSlot",
+            "columnName": "sim_slot",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "-1"
+          },
+          {
+            "fieldPath": "subId",
+            "columnName": "sub_id",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "contactName",
+            "columnName": "contact_name",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "phoneArea",
+            "columnName": "phone_area",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sessionKey",
+            "columnName": "session_key",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "forwardStatus",
+            "columnName": "forward_status",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "forwardTarget",
+            "columnName": "forward_target",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "forwardMessage",
+            "columnName": "forward_message",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "forwardTime",
+            "columnName": "forward_time",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_forward_event_event_id",
+            "unique": false,
+            "columnNames": [
+              "event_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forward_event_event_id` ON `${TABLE_NAME}` (`event_id`)"
+          },
+          {
+            "name": "index_forward_event_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forward_event_date` ON `${TABLE_NAME}` (`date`)"
+          },
+          {
+            "name": "index_forward_event_msg_type_forward_status",
+            "unique": false,
+            "columnNames": [
+              "msg_type",
+              "forward_status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forward_event_msg_type_forward_status` ON `${TABLE_NAME}` (`msg_type`, `forward_status`)"
+          }
+        ]
+      },
+      {
+        "tableName": "forward_sender_dispatch_log",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `record_id` INTEGER, `sender_id` INTEGER NOT NULL, `sender_type` INTEGER NOT NULL, `msg_type` INTEGER NOT NULL, `success` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordId",
+            "columnName": "record_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "senderId",
+            "columnName": "sender_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "senderType",
+            "columnName": "sender_type",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "msgType",
+            "columnName": "msg_type",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "success",
+            "columnName": "success",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_forward_sender_dispatch_log_record_id",
+            "unique": false,
+            "columnNames": [
+              "record_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forward_sender_dispatch_log_record_id` ON `${TABLE_NAME}` (`record_id`)"
+          },
+          {
+            "name": "index_forward_sender_dispatch_log_sender_id",
+            "unique": false,
+            "columnNames": [
+              "sender_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forward_sender_dispatch_log_sender_id` ON `${TABLE_NAME}` (`sender_id`)"
+          },
+          {
+            "name": "index_forward_sender_dispatch_log_created_at",
+            "unique": false,
+            "columnNames": [
+              "created_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forward_sender_dispatch_log_created_at` ON `${TABLE_NAME}` (`created_at`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ac6326b2698810e045c4ff4b35b33bd6')"
+    ]
+  }
+}
