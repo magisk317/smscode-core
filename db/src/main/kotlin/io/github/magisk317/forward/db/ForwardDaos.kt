@@ -24,6 +24,9 @@ interface ForwardEventDao {
     fun observeAll(): Flow<List<ForwardEventEntity>>
 
     @Query("SELECT * FROM forward_event ORDER BY date DESC")
+    suspend fun getAll(): List<ForwardEventEntity>
+
+    @Query("SELECT * FROM forward_event ORDER BY date DESC")
     fun getAllFlow(): Flow<List<ForwardEventEntity>>
 
     @Query("SELECT COUNT(*) FROM forward_event")
@@ -34,6 +37,9 @@ interface ForwardEventDao {
 
     @Query("DELETE FROM forward_event WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Delete
+    suspend fun delete(event: ForwardEventEntity)
 
     @Query("DELETE FROM forward_event")
     suspend fun clearAll()
