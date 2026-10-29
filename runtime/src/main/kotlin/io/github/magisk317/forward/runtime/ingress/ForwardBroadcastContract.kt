@@ -27,6 +27,7 @@ object ForwardBroadcastContract {
     const val EXTRA_ACTION_BLOCK = "blacklist_action_block"
     const val EXTRA_BLOCK_REASON = "blacklist_block_reason"
     const val EXTRA_CREATED_AT = "blacklist_created_at"
+    const val EXTRA_BLACKLIST_SOURCE = "blacklist_hit_source"
 
     const val MSG_TYPE_SMS = "sms"
     const val MSG_TYPE_APP_NOTIFY = "app_notify"
