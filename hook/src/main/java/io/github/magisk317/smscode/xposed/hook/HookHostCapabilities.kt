@@ -48,7 +48,7 @@ interface HookHostCapabilities : io.github.magisk317.xposed.runtime.HookHostCapa
      * Records a hook heartbeat for diagnostics. [packageName] is the hooked
      * package (e.g. com.android.mms, com.android.providers.telephony).
      */
-    override fun recordHookHeartbeat(
+    fun recordHookHeartbeat(
         context: Context,
         packageName: String,
         processName: String,
