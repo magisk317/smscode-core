@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Binder
+import android.os.Process
 import android.os.UserHandle
 import io.github.magisk317.forward.contract.ForwardBroadcastContract
 import io.github.magisk317.xposed.HookHelpers
