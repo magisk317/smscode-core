@@ -10,7 +10,7 @@ import android.os.Build
 import android.provider.Telephony
 import android.telephony.SubscriptionManager
 import android.util.Log
-import io.github.magisk317.smscode.runtime.contract.logging.LogRoute
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
 import io.github.magisk317.xposed.logging.XLog
 import kotlinx.coroutines.runBlocking

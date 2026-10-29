@@ -1,4 +1,4 @@
-package io.github.magisk317.smscode.runtime.contract.autoinput
+package io.github.magisk317.xposed.runtime.contract.autoinput
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull

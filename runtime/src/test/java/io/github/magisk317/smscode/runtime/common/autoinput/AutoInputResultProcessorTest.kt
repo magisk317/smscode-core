@@ -1,8 +1,8 @@
 package io.github.magisk317.smscode.runtime.common.autoinput
 
 import android.content.Intent
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputResultBroadcastContract
 import java.io.Serializable
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals

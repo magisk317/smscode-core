@@ -5,9 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import io.github.magisk317.xposed.logging.MagiskOtel
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputAccessibilityResultContract
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputAccessibilityResultContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputResultBroadcastContract
 import io.github.magisk317.xposed.logging.XLog
 
 object AutoInputAccessibilityResultPublisher {

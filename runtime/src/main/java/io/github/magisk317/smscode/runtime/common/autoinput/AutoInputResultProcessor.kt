@@ -1,8 +1,8 @@
 package io.github.magisk317.smscode.runtime.common.autoinput
 
 import android.content.Intent
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputResultBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputResultBroadcastContract
 import io.github.magisk317.smscode.runtime.contract.ipc.IpcTokenMatcher
 import io.github.magisk317.xposed.logging.MagiskOtel
 

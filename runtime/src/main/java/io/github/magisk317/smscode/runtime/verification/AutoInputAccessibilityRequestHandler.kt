@@ -3,7 +3,7 @@ package io.github.magisk317.smscode.runtime.verification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import io.github.magisk317.smscode.runtime.contract.autoinput.AutoInputBroadcastContract
+import io.github.magisk317.xposed.runtime.contract.autoinput.AutoInputBroadcastContract
 import io.github.magisk317.xposed.logging.MagiskOtel
 import io.github.magisk317.xposed.logging.XLog
 

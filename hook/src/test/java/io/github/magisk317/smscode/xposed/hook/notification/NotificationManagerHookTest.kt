@@ -2,10 +2,10 @@ package io.github.magisk317.smscode.xposed.hook.notification
 
 import io.github.magisk317.smscode.rule.model.SmsCodeParseSource
 import io.github.magisk317.smscode.rule.model.SmsCodeParseSourceKind
-import io.github.magisk317.smscode.xposed.prefs.CorePrefs
-import io.github.magisk317.smscode.xposed.prefs.CorePrefsAccess
-import io.github.magisk317.smscode.xposed.runtime.CoreRuntime
-import io.github.magisk317.smscode.xposed.runtime.CoreRuntimeAccess
+import io.github.magisk317.xposed.capability.prefs.CorePrefs
+import io.github.magisk317.xposed.capability.prefs.CorePrefsAccess
+import io.github.magisk317.xposed.capability.runtime.CoreRuntime
+import io.github.magisk317.xposed.capability.runtime.CoreRuntimeAccess
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
