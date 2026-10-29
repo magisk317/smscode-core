@@ -7,7 +7,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.util.Log
-import io.github.magisk317.smscode.runtime.contract.ipc.RuntimeStateProviderContract
+import io.github.magisk317.xposed.runtime.RuntimeStateProviderContract
 import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.logging.DailyJsonlLogStore
 import io.github.magisk317.xposed.logging.LogEvent

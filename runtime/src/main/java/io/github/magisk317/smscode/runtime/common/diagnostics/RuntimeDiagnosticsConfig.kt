@@ -1,8 +1,8 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
-import io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationDiagnosticsSnapshot
-import io.github.magisk317.smscode.runtime.contract.diagnostics.ActivationStatusInputs
+import io.github.magisk317.xposed.runtime.state.RuntimeDiagnosticsSnapshot
+import io.github.magisk317.xposed.runtime.state.RuntimeStatusInputs
 import io.github.magisk317.xposed.diagnostics.DiagnosticBundleIdentity
 import io.github.magisk317.xposed.diagnostics.DiagnosticBundleNames
 
@@ -25,7 +25,7 @@ data class RuntimeDiagnosticsConfig(
     val libraryCommitShas: Map<String, String> = emptyMap(),
     val logRetentionDaysProvider: ((Context) -> Int)? = null,
     val runtimeConnectedProvider: () -> Boolean = { false },
-    val activationStatusResolver: ((Context, ActivationDiagnosticsSnapshot, ActivationStatusInputs) -> Boolean)? = null,
+    val activationStatusResolver: ((Context, RuntimeDiagnosticsSnapshot, RuntimeStatusInputs) -> Boolean)? = null,
     val routeResolver: ((String?) -> String)? = null,
 )
 

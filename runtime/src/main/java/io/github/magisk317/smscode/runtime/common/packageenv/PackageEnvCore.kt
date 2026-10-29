@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.SystemClock
 import androidx.core.content.pm.PackageInfoCompat
-import io.github.magisk317.smscode.runtime.common.diagnostics.ActivationDiagnosticsStore
+import io.github.magisk317.xposed.runtime.state.RuntimeStateStore
 import io.github.magisk317.smscode.runtime.common.diagnostics.RuntimeLogStore
 import io.github.magisk317.smscode.runtime.contract.packageenv.PackageState
 import io.github.magisk317.smscode.runtime.contract.packageenv.PackageVersionInfo
@@ -88,7 +88,7 @@ object PackageEnvCore {
     fun resolveFrameworkInfo(context: Context): FrameworkInfo? {
         val installedInfo = FrameworkInfoResolver.resolveInstalledModuleInfo()
         if (installedInfo != null) return installedInfo
-        val snapshot = ActivationDiagnosticsStore.snapshot(context)
+        val snapshot = RuntimeStateStore.snapshot(context)
         return FrameworkInfoResolver.resolveFromServiceSnapshot(
             frameworkName = snapshot.lastServiceFrameworkName,
             frameworkVersion = snapshot.lastServiceFrameworkVersion,
