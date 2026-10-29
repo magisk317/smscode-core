@@ -1,6 +1,9 @@
 plugins { id("magisk.android.library") }
 
-android { namespace = "io.github.magisk317.forward.runtime" }
+android {
+    namespace = "io.github.magisk317.forward.runtime"
+    defaultConfig { missingDimensionStrategy("distribution", "github") }
+}
 
 dependencies {
     api(project(":magisk-forward-core:contract"))
