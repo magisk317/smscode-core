@@ -12,7 +12,7 @@ import org.junit.jupiter.api.assertThrows
 class EmailOAuthEnvelopeCipherTest {
     private val key = SecretKeySpec(ByteArray(32) { index -> (index + 1).toByte() }, "AES")
     private val cipher = AesGcmEnvelopeCipher(keyProvider = { key }, envelopeVersion = "v1")
-    private val aad = "test.package|xinyi_oauth2_credentials|oauth2_cred|v1".toByteArray()
+    private val aad = "test.package|test_oauth2_credentials|oauth2_cred|v1".toByteArray()
 
     @Test
     fun credentialsJsonRoundTripsThroughEnvelope() {
@@ -37,7 +37,7 @@ class EmailOAuthEnvelopeCipherTest {
         assertEquals(credentials, restored)
         assertFalse(encrypted.contains("refresh-token"))
         assertThrows<Exception> {
-            cipher.decrypt(encrypted, "other.package|xinyi_oauth2_credentials|oauth2_cred|v1".toByteArray())
+            cipher.decrypt(encrypted, "other.package|test_oauth2_credentials|oauth2_cred|v1".toByteArray())
         }
     }
 }

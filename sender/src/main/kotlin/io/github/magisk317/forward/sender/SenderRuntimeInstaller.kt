@@ -15,6 +15,15 @@ object SenderRuntimeInstaller {
     private var oauthService: OAuth2Service? = null
 
     /**
+     * Install the product's Matrix login session identity. Must be called before any
+     * sender performs a Matrix login; without it the shared sender falls back to a
+     * library-neutral device id.
+     */
+    fun installMatrixLogin(config: ForwardSenderHostConfig) {
+        ForwardMatrixLogin.install(config.matrixLogin)
+    }
+
+    /**
      * Install the OAuth2 service with the given credential store. Must be called
      * before [install] so that the service is available to senders.
      */

@@ -215,9 +215,9 @@ object MatrixUtils {
                     put("user", username)
                 })
                 put("password", password)
-                put("initial_device_display_name", "XinyiRelay")
-                // Use a fixed device ID so we don't proliferate zombie devices
-                put("device_id", "XINYI_RELAY")
+                put("initial_device_display_name", ForwardMatrixLogin.displayName)
+                // Use the host's fixed device ID so we don't proliferate zombie devices
+                put("device_id", ForwardMatrixLogin.deviceId)
             }
 
             val request = Request.Builder()
