@@ -1,6 +1,6 @@
 package io.github.magisk317.smscode.runtime.verification
 
-import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
+import io.github.magisk317.xposed.contract.dedup.BoundedTimestampMap
 import java.io.File
 import java.io.RandomAccessFile
 import io.github.magisk317.xposed.logging.MagiskOtel

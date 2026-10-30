@@ -1,6 +1,6 @@
 package io.github.magisk317.smscode.runtime.contract.record
 
-import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
+import io.github.magisk317.xposed.contract.sim.SmsRoutingMetadata
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

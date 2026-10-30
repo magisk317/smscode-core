@@ -10,6 +10,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":magisk-xposed-kit:runtime"))
+    implementation(project(":magisk-xposed-kit:contract"))
     val runtimeContractProjectPath = if (project.path.startsWith(":smscode-core:")) {
         ":smscode-core:contract"
     } else {

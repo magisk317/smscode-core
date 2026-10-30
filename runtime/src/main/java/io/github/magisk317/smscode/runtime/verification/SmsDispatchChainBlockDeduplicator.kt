@@ -2,7 +2,7 @@ package io.github.magisk317.smscode.runtime.verification
 
 import io.github.magisk317.smscode.verification.SmsMessage
 
-import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
+import io.github.magisk317.xposed.contract.dedup.BoundedTimestampMap
 import io.github.magisk317.xposed.logging.MagiskOtel
 
 class SmsDispatchChainBlockDeduplicator(

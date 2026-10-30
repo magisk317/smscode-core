@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.sim
 
-import io.github.magisk317.smscode.runtime.contract.sim.SimSlotLabelFormatter
-import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
+import io.github.magisk317.xposed.contract.sim.SimSlotLabelFormatter
+import io.github.magisk317.xposed.contract.sim.SmsRoutingMetadata
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test

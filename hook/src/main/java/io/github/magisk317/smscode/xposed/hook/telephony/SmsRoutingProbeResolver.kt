@@ -1,8 +1,8 @@
 package io.github.magisk317.smscode.xposed.hook.telephony
 
 import android.content.Intent
-import io.github.magisk317.smscode.runtime.common.sim.SmsRoutingIntentExtras
-import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
+import io.github.magisk317.xposed.runtime.contract.sim.SmsRoutingIntentExtras
+import io.github.magisk317.xposed.contract.sim.SmsRoutingMetadata
 import java.util.Collections
 import java.util.IdentityHashMap
 

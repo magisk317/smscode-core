@@ -3,7 +3,7 @@ package io.github.magisk317.smscode.runtime.common.utils
 import android.content.Context
 import android.util.Log
 import io.github.magisk317.xposed.logging.MagiskOtel
-import io.github.magisk317.smscode.rule.utils.BoundedTimestampMap
+import io.github.magisk317.xposed.contract.dedup.BoundedTimestampMap
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.LinkedHashMap

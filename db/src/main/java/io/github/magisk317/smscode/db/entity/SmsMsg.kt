@@ -6,10 +6,10 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import io.github.magisk317.smscode.runtime.common.sim.SmsRoutingIntentExtras
+import io.github.magisk317.xposed.runtime.contract.sim.SmsRoutingIntentExtras
 import io.github.magisk317.smscode.runtime.common.sms.SmsIntentDecoder
 import io.github.magisk317.smscode.runtime.contract.record.SmsMsgRecord
-import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
+import io.github.magisk317.xposed.contract.sim.SmsRoutingMetadata
 import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

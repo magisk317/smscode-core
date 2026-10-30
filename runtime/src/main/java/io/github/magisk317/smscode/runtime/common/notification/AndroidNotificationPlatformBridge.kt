@@ -6,8 +6,8 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import io.github.magisk317.smscode.runtime.contract.notification.NotificationDeliveryDiagnostics
-import io.github.magisk317.smscode.runtime.contract.notification.NotificationPlatformBridge
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationDeliveryDiagnostics
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationPlatformBridge
 
 /** Shared Android implementation for notification channel and delivery checks. */
 class AndroidNotificationPlatformBridge(

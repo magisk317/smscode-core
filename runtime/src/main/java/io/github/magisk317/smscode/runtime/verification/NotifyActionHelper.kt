@@ -3,8 +3,8 @@ package io.github.magisk317.smscode.runtime.verification
 import io.github.magisk317.smscode.verification.SmsMessage
 
 import android.content.Context
-import io.github.magisk317.smscode.runtime.contract.notification.NotificationDeliveryDiagnostics
-import io.github.magisk317.smscode.runtime.contract.notification.NotificationPlatformBridge
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationDeliveryDiagnostics
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationPlatformBridge
 import io.github.magisk317.xposed.logging.MagiskOtel
 import io.github.magisk317.xposed.logging.XLog
 

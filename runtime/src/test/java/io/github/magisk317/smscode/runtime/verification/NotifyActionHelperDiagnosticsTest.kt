@@ -4,8 +4,8 @@ import io.github.magisk317.smscode.verification.SmsMessage
 
 import android.app.NotificationManager
 import android.content.Context
-import io.github.magisk317.smscode.runtime.contract.notification.NotificationDeliveryDiagnostics
-import io.github.magisk317.smscode.runtime.contract.notification.NotificationPlatformBridge
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationDeliveryDiagnostics
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationPlatformBridge
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
