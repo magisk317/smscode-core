@@ -8,7 +8,7 @@ import io.github.magisk317.forward.sender.plugin.E2eePluginLoader
  *
  * The GitHub flavor ships no E2EE code at all: the matrix-rust-sdk runtime lives
  * in a separately versioned plugin APK (`features/matrix-e2ee-plugin`) published
- * to the GitLab generic package registry under `xinyi-e2ee-plugin/<sdkVersion>/`.
+ * to the host-configured generic package registry under `<prefix>/<sdkVersion>/`.
  * This loader downloads the plugin whose version matches
  * [BuildConfig.MATRIX_PLUGIN_SDK_VERSION], verifies its APK signature against the
  * host app (same release keystore), then loads it through a [android.database
@@ -18,9 +18,11 @@ import io.github.magisk317.forward.sender.plugin.E2eePluginLoader
  * the upstream matrix-rust-sdk is upgraded, so older app builds keep resolving
  * their own plugin version forever.
  */
-internal object GithubPluginFeatureLoader : MatrixE2eeAvailability {
+internal class GithubPluginFeatureLoader(
+    repository: E2eePluginRepository,
+) : MatrixE2eeAvailability {
 
-    private val loader = E2eePluginLoader()
+    private val loader = E2eePluginLoader(repository)
 
     override val isAvailable: Boolean
         get() = loader.state == E2eeModuleStatus.AVAILABLE

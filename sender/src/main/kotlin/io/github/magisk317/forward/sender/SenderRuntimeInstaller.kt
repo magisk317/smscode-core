@@ -18,9 +18,11 @@ object SenderRuntimeInstaller {
      * Install the OAuth2 service with the given credential store. Must be called
      * before [install] so that the service is available to senders.
      */
-    fun installEmailOAuth(context: Context) {
+    fun installEmailOAuth(context: Context, config: ForwardSenderHostConfig) {
         if (oauthService != null) return
-       oauthService = OAuth2Service(AndroidEmailOAuthCredentialStore(context))
+        oauthService = OAuth2Service(
+            AndroidEmailOAuthCredentialStore(context, config.oauthCredentials),
+        )
     }
 
     fun install(): SenderRuntimeServices {
@@ -68,9 +70,9 @@ object SenderRuntimeInstaller {
      * Initialize E2EE availability provider. Should be called early during app startup
      * so that the UI can query E2EE module status.
      */
-    fun initE2eeAvailability(context: Context) {
+    fun initE2eeAvailability(context: Context, config: ForwardSenderHostConfig) {
         MatrixE2eeHostProvider.install(SenderMatrixE2eeHost)
-        MatrixE2eeSetup.init(context)
+        MatrixE2eeSetup.init(context, config.e2eePluginRepository)
     }
 }
 

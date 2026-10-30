@@ -176,7 +176,7 @@ object MatrixUtils {
         }
     }
 
-    private fun newTransactionId(): String = "xinyi-${UUID.randomUUID()}"
+    private fun newTransactionId(): String = "forward-${UUID.randomUUID()}"
 
     private var cachedAuthToken: String? = null
     private var cachedAuthKey: String? = null

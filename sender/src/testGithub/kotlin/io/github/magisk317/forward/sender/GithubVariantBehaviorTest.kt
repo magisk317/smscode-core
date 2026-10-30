@@ -39,14 +39,22 @@ class GithubVariantBehaviorTest {
         server.close()
     }
 
+    private val pluginRepository = E2eePluginRepository(
+        baseUrl = "https://example.invalid/e2ee",
+        fileNamePrefix = "test-e2ee",
+    )
+
     @Test
     fun `plugin loader starts in NOT_INSTALLED state`() {
-        assertEquals(E2eeModuleStatus.NOT_INSTALLED, GithubPluginFeatureLoader.status)
+        assertEquals(
+            E2eeModuleStatus.NOT_INSTALLED,
+            GithubPluginFeatureLoader(pluginRepository).status,
+        )
     }
 
     @Test
     fun `plugin loader is not available before install`() {
-        assertFalse(GithubPluginFeatureLoader.isAvailable)
+        assertFalse(GithubPluginFeatureLoader(pluginRepository).isAvailable)
     }
 
     @Test

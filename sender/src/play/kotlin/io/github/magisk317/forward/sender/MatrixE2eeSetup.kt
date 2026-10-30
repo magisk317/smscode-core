@@ -7,7 +7,7 @@ import android.content.Context
  * The Play variant uses Dynamic Feature Module for E2EE delivery.
  */
 object MatrixE2eeSetup {
-    fun init(context: Context) {
+    fun init(context: Context, repository: E2eePluginRepository) {
         val loader = PlayFeatureLoader(context)
         MatrixE2eeAvailabilityProvider.install(loader)
         if (!MatrixE2eeVerificationProvider.isInstalled) {

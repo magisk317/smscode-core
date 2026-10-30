@@ -7,6 +7,7 @@ import android.os.Build
 import dalvik.system.DexClassLoader
 import io.github.magisk317.forward.sender.BuildConfig
 import io.github.magisk317.forward.sender.E2eeModuleStatus
+import io.github.magisk317.forward.sender.E2eePluginRepository
 import io.github.magisk317.forward.sender.MatrixE2eeSenderProvider
 import io.github.magisk317.forward.sender.MatrixE2eeVerificationManager
 import io.github.magisk317.forward.sender.MatrixE2eeVerificationProvider
@@ -32,7 +33,7 @@ import org.json.JSONObject
  * Downloads, verifies and DexClassLoader-loads the Matrix E2EE plugin APK.
  *
  * The plugin is published per upstream matrix-rust-sdk version under
- * `xinyi-e2ee-plugin/<sdkVersion>/` in the GitLab generic package registry, so
+ * `<prefix>/<sdkVersion>/` in the host-configured generic package registry, so
  * this loader only ever fetches the exact version the host app was built
  * against. Security model: the plugin APK must carry the same signing
  * certificate as the host app (release keystore), which is enforced before any
@@ -46,7 +47,7 @@ import org.json.JSONObject
  * resource the plugin APK does not carry). Re-activating the module after an
  * uninstall therefore reuses the resident loader instead of building a new one.
  */
-internal class E2eePluginLoader {
+internal class E2eePluginLoader(private val repository: E2eePluginRepository) {
 
     @Volatile
     private var currentState: E2eeModuleStatus = E2eeModuleStatus.NOT_INSTALLED
@@ -219,9 +220,8 @@ internal class E2eePluginLoader {
             return apk
         }
         val abi = supportedAbi()
-        val fileName = pluginFileName(version, abi)
-        downloadFile("$BASE_URL/$version/$fileName", apk, onProgress)
-        val checksumUrl = "$BASE_URL/$version/$fileName.sha256"
+        downloadFile(repository.fileUrl(version, abi), apk, onProgress)
+        val checksumUrl = repository.checksumUrl(version, abi)
         val checksumFile = dir.resolve("$PLUGIN_APK_NAME.sha256")
         val downloaded = runCatching { downloadToFile(checksumUrl, checksumFile) }.getOrDefault(false)
         if (downloaded) {
@@ -233,7 +233,7 @@ internal class E2eePluginLoader {
             }
         } else {
             checksumFile.delete()
-            SLog.w(TAG, "No .sha256 sidecar published for $fileName; relying on signature check")
+            SLog.w(TAG, "No .sha256 sidecar published for ${repository.fileName(version, abi)}; relying on signature check")
         }
         return apk
     }
@@ -552,11 +552,6 @@ internal class E2eePluginLoader {
 
         private const val MAX_CAUSE_DEPTH = 8
 
-        /** Public GitLab project (xinyi-relay) hosting the generic package. */
-        private const val PROJECT_ID = "84113188"
-        private const val BASE_URL =
-            "https://gitlab.com/api/v4/projects/$PROJECT_ID/packages/generic/xinyi-e2ee-plugin"
-
         private const val PLUGIN_APK_NAME = "plugin.apk"
         private const val PLUGIN_MANIFEST_ASSET = "assets/plugin-manifest.json"
         private const val PLUGIN_ENTRY_CLASS =
@@ -573,9 +568,6 @@ internal class E2eePluginLoader {
 
         /** ABIs the plugin publishes (mirrors the plugin module's splits). */
         private val PUBLISHED_ABIS = listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-
-        fun pluginFileName(version: String, abi: String): String =
-            "xinyi-e2ee-plugin_v${version}_${abi}.apk"
     }
 }
 

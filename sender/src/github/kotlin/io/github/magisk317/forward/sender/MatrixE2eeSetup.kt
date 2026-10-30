@@ -8,11 +8,12 @@ import android.content.Context
  * E2EE plugin APK at runtime; until then the plaintext stubs stay installed.
  */
 object MatrixE2eeSetup {
-    fun init(context: Context) {
-        MatrixE2eeAvailabilityProvider.install(GithubPluginFeatureLoader)
+    fun init(context: Context, repository: E2eePluginRepository) {
+        val loader = GithubPluginFeatureLoader(repository)
+        MatrixE2eeAvailabilityProvider.install(loader)
         if (!MatrixE2eeVerificationProvider.isInstalled) {
             MatrixE2eeVerificationProvider.install(MatrixE2eeVerificationManager)
         }
-        GithubPluginFeatureLoader.init(context)
+        loader.init(context)
     }
 }

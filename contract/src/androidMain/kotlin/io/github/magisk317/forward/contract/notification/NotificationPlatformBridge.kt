@@ -5,7 +5,7 @@ import io.github.magisk317.xposed.runtime.contract.notification.NotificationDeli
 import io.github.magisk317.xposed.runtime.contract.notification.NotificationPlatformBridge
 
 /**
- * xinyi-relay's notification bridge marker on top of the shared kit contract.
+ * Host-app notification bridge marker on top of the shared kit contract.
  * The marker exists so install points can require the product-specific bridge
  * without accepting a bare [NotificationPlatformBridge].
  */

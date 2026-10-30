@@ -15,7 +15,11 @@ import kotlinx.serialization.json.Json
  */
 class AndroidEmailOAuthCredentialStore(
     context: Context,
-    private val prefs: SharedPreferences = createDefaultPrefs(context),
+    namespace: OAuthCredentialNamespace,
+    private val prefs: SharedPreferences = context.getSharedPreferences(
+        namespace.prefsFile,
+        Context.MODE_PRIVATE,
+    ),
 ) : EmailOAuthCredentialStore {
 
     private val json = Json {
@@ -23,12 +27,12 @@ class AndroidEmailOAuthCredentialStore(
         encodeDefaults = true
     }
     private val cipher = AesGcmEnvelopeCipher(
-        keyProvider = AndroidKeystoreKeyProvider(EMAIL_OAUTH2_KEY_ALIAS),
+        keyProvider = AndroidKeystoreKeyProvider(namespace.keyAlias),
         envelopeVersion = "v1",
     )
     // Domain-separates ciphertexts so envelopes cannot be transplanted between
     // preference files or replayed for another purpose.
-    private val aad = "${context.packageName}|$PREFS_FILE|oauth2_cred|v1".toByteArray()
+    private val aad = "${context.packageName}|${namespace.prefsFile}|oauth2_cred|v1".toByteArray()
 
     override fun save(credentials: EmailOAuthCredentials) {
         prefs.edit()
@@ -75,11 +79,4 @@ class AndroidEmailOAuthCredentialStore(
 
     private fun keyFor(credentialId: String): String = "oauth2_cred_$credentialId"
 
-    companion object {
-        private const val PREFS_FILE = "xinyi_oauth2_credentials"
-        private const val EMAIL_OAUTH2_KEY_ALIAS = "io.github.magisk317.xinyi.relay.email_oauth2.v1"
-
-        fun createDefaultPrefs(context: Context): SharedPreferences =
-            context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
-    }
 }
