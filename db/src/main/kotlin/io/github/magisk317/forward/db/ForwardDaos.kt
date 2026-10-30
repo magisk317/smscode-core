@@ -69,7 +69,8 @@ interface ForwardEventDao {
     suspend fun getBySimSlotInRange(simSlot: Int, msgType: Int, dateFrom: Long, dateTo: Long): ForwardEventEntity?
 
     @Query(
-        "SELECT * FROM forward_event WHERE sms_code = :smsCode AND package_name = :packageName AND msg_type = :msgType AND date BETWEEN :dateFrom AND :dateTo LIMIT 1",
+        "SELECT * FROM forward_event WHERE sms_code = :smsCode AND package_name = :packageName " +
+            "AND msg_type = :msgType AND date BETWEEN :dateFrom AND :dateTo LIMIT 1",
     )
     suspend fun getByCodeAndPackageInRange(smsCode: String, packageName: String, msgType: Int, dateFrom: Long, dateTo: Long): ForwardEventEntity?
 
@@ -84,7 +85,9 @@ interface ForwardEventDao {
     suspend fun getByCodeInRange(smsCode: String, msgType: Int, dateFrom: Long, dateTo: Long): List<ForwardEventEntity>
 
     @Query(
-        "SELECT notify_channel_id FROM forward_event WHERE package_name = :packageName AND msg_type = :msgType AND notify_channel_id != '' GROUP BY notify_channel_id ORDER BY MAX(date) DESC LIMIT :limit",
+        "SELECT notify_channel_id FROM forward_event WHERE package_name = :packageName " +
+            "AND msg_type = :msgType AND notify_channel_id != '' " +
+            "GROUP BY notify_channel_id ORDER BY MAX(date) DESC LIMIT :limit",
     )
     fun observeRecentNotifyChannelIds(packageName: String, msgType: Int, limit: Int): Flow<List<String>>
 }
@@ -227,10 +230,20 @@ interface ForwardFilterRuleDao {
     @Query("SELECT * FROM forward_filter_rule")
     fun observeAll(): Flow<List<ForwardFilterRuleEntity>>
 
-    @Query("SELECT * FROM forward_filter_rule WHERE msg_type = :msgType AND scope_type = :scopeType AND (:scopeKey IS NULL OR scope_key = :scopeKey) AND (:senderId IS NULL OR sender_id = :senderId) ORDER BY update_time DESC")
+    @Query(
+        "SELECT * FROM forward_filter_rule WHERE msg_type = :msgType " +
+            "AND scope_type = :scopeType " +
+            "AND (:scopeKey IS NULL OR scope_key = :scopeKey) " +
+            "AND (:senderId IS NULL OR sender_id = :senderId) " +
+            "ORDER BY update_time DESC",
+    )
     fun observeByScope(msgType: String, scopeType: String, scopeKey: String?, senderId: Long?): Flow<List<ForwardFilterRuleEntity>>
 
-    @Query("SELECT * FROM forward_filter_rule WHERE msg_type = :msgType AND scope_type = :scopeType AND scope_key LIKE :scopeKeyPrefix || '%' ORDER BY update_time DESC")
+    @Query(
+        "SELECT * FROM forward_filter_rule WHERE msg_type = :msgType " +
+            "AND scope_type = :scopeType AND scope_key LIKE :scopeKeyPrefix || '%' " +
+            "ORDER BY update_time DESC",
+    )
     fun observeByScopePrefix(msgType: String, scopeType: String, scopeKeyPrefix: String): Flow<List<ForwardFilterRuleEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
