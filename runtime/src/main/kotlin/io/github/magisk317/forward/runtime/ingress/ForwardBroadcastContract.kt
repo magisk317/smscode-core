@@ -1,7 +1,7 @@
 package io.github.magisk317.forward.runtime.ingress
 
 import android.content.Intent
-import io.github.magisk317.smscode.runtime.common.sim.SmsRoutingIntentExtras
+import io.github.magisk317.xposed.runtime.contract.sim.SmsRoutingIntentExtras
 import kotlin.math.abs
 
 object ForwardBroadcastContract {

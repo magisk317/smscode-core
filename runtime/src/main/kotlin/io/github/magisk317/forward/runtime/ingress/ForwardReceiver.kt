@@ -5,9 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import io.github.magisk317.xposed.logging.XLog
-import io.github.magisk317.smscode.rule.utils.RecentEventDeduplicator
-import io.github.magisk317.smscode.rule.utils.SmsForwardDedupKeyFactory
-import io.github.magisk317.smscode.rule.utils.SmsForwardDedupSpec
+import io.github.magisk317.xposed.contract.dedup.RecentEventDeduplicator
+import io.github.magisk317.xposed.contract.dedup.SmsForwardDedupKeyFactory
+import io.github.magisk317.xposed.contract.dedup.SmsForwardDedupSpec
 import io.github.magisk317.xposed.runtime.ipc.IpcTokenMatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

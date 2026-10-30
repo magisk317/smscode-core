@@ -22,8 +22,7 @@ kotlin {
     api(libs.kotlinx.datetime)
         }
         androidMain.dependencies {
-            implementation(project(":smscode-core:contract"))
-            implementation(project(":smscode-core:runtime"))
+    implementation(project(":magisk-xposed-kit:contract"))
             implementation(libs.androidx.core.ktx)
         }
     }

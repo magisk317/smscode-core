@@ -1,41 +1,31 @@
 package io.github.magisk317.forward.contract.notification
 
 import android.content.Context
-import io.github.magisk317.smscode.runtime.contract.notification.NoopNotificationPlatformBridge as CoreNoopNotificationPlatformBridge
-import io.github.magisk317.smscode.runtime.contract.notification.NotificationDeliveryDiagnostics
-import io.github.magisk317.smscode.runtime.contract.notification.NotificationPlatformBridge
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationDeliveryDiagnostics
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationPlatformBridge
 
 /**
- * xinyi-relay's notification platform bridge.
- * Extends smscode-core's [NotificationPlatformBridge] interface.
+ * xinyi-relay's notification bridge marker on top of the shared kit contract.
+ * The marker exists so install points can require the product-specific bridge
+ * without accepting a bare [NotificationPlatformBridge].
  */
 interface RelayNotificationPlatformBridge : NotificationPlatformBridge
 
-/**
- * No-op implementation for xinyi-relay.
- * Forwards every member to smscode-core's [CoreNoopNotificationPlatformBridge];
- * kept as a distinct object only so it satisfies the [RelayNotificationPlatformBridge]
- * marker type used by the bridge install points.
- */
+/** No-op bridge used until the real Android bridge is installed. */
 object NoopRelayNotificationPlatformBridge : RelayNotificationPlatformBridge {
-
-    private val delegate: NotificationPlatformBridge = CoreNoopNotificationPlatformBridge
-
     override fun createNotificationChannel(
         context: Context,
         channelId: String,
         channelName: String,
         importance: Int,
-    ) = delegate.createNotificationChannel(context, channelId, channelName, importance)
+    ) = Unit
 
     override fun inspectDelivery(context: Context, channelId: String): NotificationDeliveryDiagnostics =
-        delegate.inspectDelivery(context, channelId)
+        NotificationDeliveryDiagnostics(
+            notificationsEnabled = false,
+            postNotificationsGranted = false,
+            channelImportance = null,
+        )
 
-    override fun hasPostNotificationsPermission(context: Context): Boolean =
-        delegate.hasPostNotificationsPermission(context)
+    override fun hasPostNotificationsPermission(context: Context): Boolean = false
 }
-
-// Type aliases for backward compatibility
-typealias NotificationDeliveryDiagnostics = NotificationDeliveryDiagnostics
-typealias NotificationPlatformBridge = NotificationPlatformBridge
-typealias NoopNotificationPlatformBridge = NoopRelayNotificationPlatformBridge

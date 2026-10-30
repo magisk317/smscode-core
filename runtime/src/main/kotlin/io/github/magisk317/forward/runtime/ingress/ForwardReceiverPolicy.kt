@@ -1,8 +1,8 @@
 package io.github.magisk317.forward.runtime.ingress
 
 import io.github.magisk317.forward.contract.constant.MessageType
-import io.github.magisk317.smscode.rule.utils.CodeRecordSimilarityUtils
-import io.github.magisk317.smscode.runtime.contract.sim.SmsRoutingMetadata
+import io.github.magisk317.xposed.contract.util.CodeRecordSimilarityUtils
+import io.github.magisk317.xposed.contract.sim.SmsRoutingMetadata
 import io.github.magisk317.xposed.logging.MagiskOtel
 import io.github.magisk317.forward.runtime.ingress.ForwardBroadcastContract
 
