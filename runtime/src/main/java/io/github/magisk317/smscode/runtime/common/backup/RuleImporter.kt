@@ -143,10 +143,6 @@ class RuleImporter(private val jsonStream: InputStream?) : Closeable {
                     packageName = obj["packageName"]?.jsonPrimitive?.contentOrNull,
                     msgType = obj["msgType"]?.jsonPrimitive?.intOrNull ?: 0,
                     callType = obj["callType"]?.jsonPrimitive?.intOrNull ?: 0,
-                    forwardStatus = obj["forwardStatus"]?.jsonPrimitive?.intOrNull ?: 0,
-                    forwardTarget = obj["forwardTarget"]?.jsonPrimitive?.contentOrNull,
-                    forwardMessage = obj["forwardMessage"]?.jsonPrimitive?.contentOrNull,
-                    forwardTime = obj["forwardTime"]?.jsonPrimitive?.longOrNull ?: 0L,
                 )
             }.getOrElse { e ->
                 skipped++

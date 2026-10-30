@@ -1,5 +1,6 @@
 package io.github.magisk317.smscode.runtime.contract.notification
 
+import io.github.magisk317.xposed.runtime.contract.notification.NotificationDeliveryDiagnostics
 import android.app.NotificationManager
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue

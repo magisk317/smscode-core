@@ -17,10 +17,6 @@ object SmsMsgCursorContract {
         "sub_id",
         "msg_type",
         "call_type",
-        "forward_status",
-        "forward_target",
-        "forward_message",
-        "forward_time",
     )
 
     fun valueFromRecord(record: SmsMsgRecord, column: String): Any? =
@@ -38,10 +34,6 @@ object SmsMsgCursorContract {
             "sub_id" -> record.subId
             "msg_type" -> record.msgType
             "call_type" -> record.callType
-            "forward_status" -> record.forwardStatus
-            "forward_target" -> record.forwardTarget
-            "forward_message" -> record.forwardMessage
-            "forward_time" -> record.forwardTime
             else -> null
         }
 }

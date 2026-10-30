@@ -14,10 +14,6 @@ interface SmsMsgRecord {
         get() = -1
     val subId: Int
         get() = 0
-    val forwardStatus: Int
-    val forwardTarget: String?
-    val forwardMessage: String?
-    val forwardTime: Long
     val msgType: Int
     val callType: Int
 }
