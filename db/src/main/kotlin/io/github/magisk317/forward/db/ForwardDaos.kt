@@ -103,7 +103,34 @@ interface SenderDispatchLogDao {
 
     @Query("SELECT COUNT(*) FROM forward_sender_dispatch_log")
     suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM forward_sender_dispatch_log WHERE created_at >= :fromMs")
+    suspend fun countTotalFrom(fromMs: Long): Long
+
+    @Query("SELECT COUNT(*) FROM forward_sender_dispatch_log WHERE created_at >= :fromMs AND success = 1")
+    suspend fun countSuccessFrom(fromMs: Long): Long
+
+    @Query("SELECT COUNT(*) FROM forward_sender_dispatch_log WHERE created_at >= :fromMs AND success = 0")
+    suspend fun countFailedFrom(fromMs: Long): Long
+
+    @Query(
+        "SELECT sender_type AS senderType, " +
+            "COUNT(*) AS sent, " +
+            "SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) AS success, " +
+            "SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS failed " +
+            "FROM forward_sender_dispatch_log " +
+            "WHERE created_at >= :fromMs " +
+            "GROUP BY sender_type",
+    )
+    suspend fun aggregateBySenderType(fromMs: Long): List<ForwardSenderDispatchStatRow>
 }
+
+data class ForwardSenderDispatchStatRow(
+    val senderType: Int,
+    val sent: Long,
+    val success: Long,
+    val failed: Long,
+)
 
 @Dao
 interface ForwardSenderDao {
@@ -128,8 +155,17 @@ interface ForwardSenderDao {
     @Update
     suspend fun update(sender: ForwardSenderEntity)
 
+    @Query("UPDATE forward_sender SET status = :status WHERE id IN (:ids)")
+    suspend fun updateStatusByIds(ids: List<Long>, status: Int)
+
+    @Query("UPDATE forward_sender SET priority = :priority WHERE id = :id")
+    suspend fun updatePriorityById(id: Long, priority: Int)
+
     @Delete
     suspend fun delete(sender: ForwardSenderEntity)
+
+    @Query("DELETE FROM forward_sender")
+    suspend fun clear()
 
     @Query("SELECT COUNT(*) FROM forward_sender")
     suspend fun count(): Int
@@ -143,6 +179,24 @@ interface ForwardRouteRuleDao {
     @Query("SELECT * FROM forward_route_rule")
     suspend fun all(): List<ForwardRouteRuleEntity>
 
+    @Query("SELECT sender_id FROM forward_route_rule WHERE scope = :scope AND package_name = :packageName")
+    fun observeSenderIdsByScopeAndPackage(scope: Int, packageName: String): Flow<List<Long>>
+
+    @Query("SELECT sender_id FROM forward_route_rule WHERE scope = :scope AND package_name = :packageName")
+    suspend fun getSenderIdsByScopeAndPackage(scope: Int, packageName: String): List<Long>
+
+    @Query("SELECT package_name FROM forward_route_rule WHERE scope = :scope AND sender_id = :senderId")
+    fun observePackageNamesByScopeAndSender(scope: Int, senderId: Long): Flow<List<String>>
+
+    @Query("SELECT sender_id FROM forward_route_rule WHERE scope = :scope AND sender_id IN (:senderIds)")
+    suspend fun getDistinctSenderIdsByScopeIn(scope: Int, senderIds: List<Long>): List<Long>
+
+    @Query("DELETE FROM forward_route_rule WHERE scope = :scope AND package_name = :packageName")
+    suspend fun deleteByScopeAndPackage(scope: Int, packageName: String): Int
+
+    @Query("DELETE FROM forward_route_rule WHERE scope IN (:scopes) AND sender_id = :senderId")
+    suspend fun deleteByScopesAndSender(scopes: List<Int>, senderId: Long): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(rule: ForwardRouteRuleEntity): Long
 
@@ -151,6 +205,9 @@ interface ForwardRouteRuleDao {
 
     @Delete
     suspend fun delete(rule: ForwardRouteRuleEntity)
+
+    @Query("DELETE FROM forward_route_rule")
+    suspend fun clear()
 
     @Query("SELECT COUNT(*) FROM forward_route_rule")
     suspend fun count(): Int
@@ -164,11 +221,35 @@ interface ForwardFilterRuleDao {
     @Query("SELECT * FROM forward_filter_rule")
     suspend fun all(): List<ForwardFilterRuleEntity>
 
+    @Query("SELECT * FROM forward_filter_rule WHERE msg_type = :msgType AND enabled = 1 ORDER BY id DESC")
+    suspend fun getEnabledByMsgType(msgType: String): List<ForwardFilterRuleEntity>
+
+    @Query("SELECT * FROM forward_filter_rule")
+    fun observeAll(): Flow<List<ForwardFilterRuleEntity>>
+
+    @Query("SELECT * FROM forward_filter_rule WHERE msg_type = :msgType AND scope_type = :scopeType AND (:scopeKey IS NULL OR scope_key = :scopeKey) AND (:senderId IS NULL OR sender_id = :senderId) ORDER BY update_time DESC")
+    fun observeByScope(msgType: String, scopeType: String, scopeKey: String?, senderId: Long?): Flow<List<ForwardFilterRuleEntity>>
+
+    @Query("SELECT * FROM forward_filter_rule WHERE msg_type = :msgType AND scope_type = :scopeType AND scope_key LIKE :scopeKeyPrefix || '%' ORDER BY update_time DESC")
+    fun observeByScopePrefix(msgType: String, scopeType: String, scopeKeyPrefix: String): Flow<List<ForwardFilterRuleEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(rule: ForwardFilterRuleEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(rules: List<ForwardFilterRuleEntity>)
+
+    @Update
+    suspend fun update(rule: ForwardFilterRuleEntity)
+
+    @Query("DELETE FROM forward_filter_rule WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("UPDATE forward_filter_rule SET enabled = :enabled, update_time = :updateTime WHERE id = :id")
+    suspend fun updateEnabledById(id: Long, enabled: Int, updateTime: Long)
+
+    @Query("DELETE FROM forward_filter_rule")
+    suspend fun clearAll()
 
     @Delete
     suspend fun delete(rule: ForwardFilterRuleEntity)
@@ -199,4 +280,39 @@ interface ForwardScheduledTaskDao {
 
     @Query("SELECT COUNT(*) FROM forward_scheduled_task")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM forward_scheduled_task ORDER BY id DESC")
+    fun getAllFlow(): Flow<List<ForwardScheduledTaskEntity>>
+
+    @Query("SELECT * FROM forward_scheduled_task")
+    suspend fun getAll(): List<ForwardScheduledTaskEntity>
+
+    @Query("SELECT * FROM forward_scheduled_task WHERE status = 1")
+    fun getActiveTasksFlow(): Flow<List<ForwardScheduledTaskEntity>>
+
+    @Query("SELECT * FROM forward_scheduled_task WHERE status = 1")
+    suspend fun getActiveTasks(): List<ForwardScheduledTaskEntity>
+
+    @Query("SELECT * FROM forward_scheduled_task WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): ForwardScheduledTaskEntity?
+
+    @Query(
+        "UPDATE forward_scheduled_task SET next_run_time = 0 " +
+            "WHERE id = :id AND status = 1 " +
+            "AND next_run_time > 0 AND next_run_time <= :dueBefore " +
+            "AND last_run_time <= :dedupeBefore",
+    )
+    suspend fun claimRunIfDue(id: Long, dueBefore: Long, dedupeBefore: Long): Int
+
+    @Query("UPDATE forward_scheduled_task SET last_run_time = :runTime WHERE id = :id")
+    suspend fun markRunSucceeded(id: Long, runTime: Long): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(task: ForwardScheduledTaskEntity): Long
+
+    @Update
+    suspend fun update(task: ForwardScheduledTaskEntity)
+
+    @Query("DELETE FROM forward_scheduled_task WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

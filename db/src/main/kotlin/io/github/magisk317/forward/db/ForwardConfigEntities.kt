@@ -72,4 +72,46 @@ data class ForwardScheduledTaskEntity(
     @ColumnInfo(name = "status", defaultValue = "1") var status: Int = 1,
     @ColumnInfo(name = "last_run_time", defaultValue = "0") var lastRunTime: Long = 0,
     @ColumnInfo(name = "next_run_time", defaultValue = "0") var nextRunTime: Long = 0,
+    @ColumnInfo(name = "created_at", defaultValue = "0") var createdAt: Long = 0,
+)
+
+/** Per-package forwarding preference, imported 1:1 from the legacy `AppInfo` table. */
+@Entity(tableName = "forward_app_info")
+data class ForwardAppInfoEntity(
+    @PrimaryKey @ColumnInfo(name = "package_name") val packageName: String,
+    @ColumnInfo(name = "label") val label: String? = null,
+    @ColumnInfo(name = "blocked") val blocked: Boolean = false,
+    @ColumnInfo(name = "forwarding") val forwarding: Boolean = false,
+    @ColumnInfo(name = "forwarding_configured") val forwardingConfigured: Boolean = false,
+    @ColumnInfo(name = "notify_template") val notifyTemplate: String = "",
+)
+
+/** Legacy forwarding rule, imported 1:1 from the `Rule` table. */
+@Entity(tableName = "forward_rule")
+@TypeConverters(ForwardDateConverter::class)
+data class ForwardRuleEntity(
+    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id") val id: Long = 0,
+    @ColumnInfo(name = "type", defaultValue = "sms") val type: String = "sms",
+    @ColumnInfo(name = "filed", defaultValue = "transpond_all") val filed: String = "transpond_all",
+    @ColumnInfo(name = "check", defaultValue = "is") val check: String = "is",
+    @ColumnInfo(name = "value", defaultValue = "") val value: String = "",
+    @ColumnInfo(name = "sender_id", defaultValue = "0") val senderId: Long = 0,
+    @ColumnInfo(name = "sms_template", defaultValue = "") val smsTemplate: String = "",
+    @ColumnInfo(name = "regex_replace", defaultValue = "") val regexReplace: String = "",
+    @ColumnInfo(name = "sim_slot", defaultValue = "ALL") val simSlot: String = "ALL",
+    @ColumnInfo(name = "status", defaultValue = "1") val status: Int = 1,
+    @ColumnInfo(name = "time") val time: Date = Date(),
+    @ColumnInfo(name = "sender_list_json", defaultValue = "[]") val senderListJson: String = "[]",
+    @ColumnInfo(name = "sender_logic", defaultValue = "ALL") val senderLogic: String = "ALL",
+    @ColumnInfo(name = "silent_period_start", defaultValue = "0") val silentPeriodStart: Int = 0,
+    @ColumnInfo(name = "silent_period_end", defaultValue = "0") val silentPeriodEnd: Int = 0,
+    @ColumnInfo(name = "silent_day_of_week", defaultValue = "") val silentDayOfWeek: String = "",
+    @ColumnInfo(name = "title", defaultValue = "") val title: String = "",
+)
+
+/** Key/value bookkeeping for one-time forward database maintenance. */
+@Entity(tableName = "forward_meta")
+data class ForwardMetaEntity(
+    @PrimaryKey @ColumnInfo(name = "key") val key: String,
+    @ColumnInfo(name = "value") val value: String,
 )
