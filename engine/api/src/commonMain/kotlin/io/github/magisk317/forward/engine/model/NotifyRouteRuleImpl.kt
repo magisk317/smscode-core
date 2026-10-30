@@ -3,9 +3,10 @@ package io.github.magisk317.forward.engine.model
 /**
  * Domain implementation of [NotifyRouteRuleData].
  *
- * The Room entity lives in the shared `:smscode-core:db` module, which must not depend on
- * `:relay:engine:api` (that would create a dependency cycle). This class bridges the two;
- * see `ConfigMapper` for the entity <-> domain conversions.
+ * The Room entity lives in the consuming product's database module; forward-core must not
+ * depend on it (that would couple the shared engine to one product and create a dependency
+ * cycle). This class bridges the two; see `ConfigMapper` for the entity <-> domain
+ * conversions.
  */
 data class NotifyRouteRuleImpl(
     override val id: Long = 0L,
