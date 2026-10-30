@@ -32,6 +32,21 @@ interface ForwardEventDao {
     @Query("SELECT COUNT(*) FROM forward_event")
     suspend fun count(): Int
 
+    @Query("SELECT COUNT(*) FROM forward_event WHERE msg_type = 0")
+    suspend fun countSms(): Long
+
+    @Query("SELECT COUNT(*) FROM forward_event WHERE date >= :fromMs")
+    suspend fun countFrom(fromMs: Long): Long
+
+    @Query(
+        "SELECT COUNT(*) FROM forward_event " +
+            "WHERE msg_type = :msgType AND sms_code IS NOT NULL AND sms_code != '' AND date >= :fromMs",
+    )
+    suspend fun countCodeSmsFrom(fromMs: Long, msgType: Int): Long
+
+    @Query("SELECT * FROM forward_event WHERE msg_type = 0 ORDER BY date DESC LIMIT 1")
+    suspend fun latestSms(): ForwardEventEntity?
+
     @Query("SELECT COUNT(*) FROM forward_event")
     fun countFlow(): Flow<Long>
 
@@ -106,6 +121,15 @@ interface SenderDispatchLogDao {
 
     @Query("SELECT COUNT(*) FROM forward_sender_dispatch_log")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM forward_sender_dispatch_log ORDER BY created_at DESC, id DESC")
+    suspend fun all(): List<SenderDispatchLogEntity>
+
+    @Query("SELECT * FROM forward_sender_dispatch_log ORDER BY created_at DESC, id DESC LIMIT 1")
+    suspend fun latest(): SenderDispatchLogEntity?
+
+    @Query("DELETE FROM forward_sender_dispatch_log")
+    suspend fun clearAll()
 
     @Query("SELECT COUNT(*) FROM forward_sender_dispatch_log WHERE created_at >= :fromMs")
     suspend fun countTotalFrom(fromMs: Long): Long
