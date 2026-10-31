@@ -36,6 +36,14 @@ data class BackupManagerConfig(
     val backupFileNamePrefix: String,
     val databaseFileName: String,
     val fileProviderAuthority: String,
+    /**
+     * Additional product databases carried in the same archive (each with its
+     * own -wal/-shm siblings). The primary [databaseFileName] stays mandatory:
+     * exports require it and restores only succeed when it is present. Extra
+     * databases are best-effort on both sides so archives produced before a
+     * database existed keep restoring.
+     */
+    val extraDatabaseFileNames: List<String> = emptyList(),
 )
 
 data class BackupDatabaseHooks(
@@ -435,11 +443,15 @@ object BackupManagerCore {
         context.startActivity(Intent.createChooser(intent, null))
     }
 
-    internal fun normalizeBackupDbName(config: BackupManagerConfig, baseName: String): String? = when {
-        baseName == config.databaseFileName -> config.databaseFileName
-        baseName == "${config.databaseFileName}-wal" -> "${config.databaseFileName}-wal"
-        baseName == "${config.databaseFileName}-shm" -> "${config.databaseFileName}-shm"
-        else -> null
+    internal fun normalizeBackupDbName(config: BackupManagerConfig, baseName: String): String? {
+        databaseNames(config).forEach { name ->
+            when (baseName) {
+                name -> return name
+                "$name-wal" -> return "$name-wal"
+                "$name-shm" -> return "$name-shm"
+            }
+        }
+        return null
     }
 
     private fun resolveWarning(backupAppVersion: String, currentAppVersion: String): ImportWarning? {
@@ -496,11 +508,7 @@ object BackupManagerCore {
     }
 
     private fun collectDatabaseFiles(context: Context, config: BackupManagerConfig): List<Pair<String, File>> {
-        val normalizedNames = listOf(
-            config.databaseFileName,
-            "${config.databaseFileName}-wal",
-            "${config.databaseFileName}-shm",
-        )
+        val normalizedNames = allDatabaseFileNames(config)
         return normalizedNames.mapNotNull { normalized ->
             val primary = context.getDatabasePath(normalized)
             if (primary.exists() && primary.isFile && primary.canRead()) {
@@ -542,10 +550,9 @@ object BackupManagerCore {
         return null
     }
 
+    private fun databaseNames(config: BackupManagerConfig): List<String> =
+        listOf(config.databaseFileName) + config.extraDatabaseFileNames
+
     private fun allDatabaseFileNames(config: BackupManagerConfig): List<String> =
-        listOf(
-            config.databaseFileName,
-            "${config.databaseFileName}-wal",
-            "${config.databaseFileName}-shm",
-        )
+        databaseNames(config).flatMap { name -> listOf(name, "$name-wal", "$name-shm") }
 }
