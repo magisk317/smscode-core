@@ -6,8 +6,8 @@ import android.content.Intent
 import android.os.Build
 import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.contract.dedup.RecentEventDeduplicator
-import io.github.magisk317.xposed.contract.dedup.SmsForwardDedupKeyFactory
-import io.github.magisk317.xposed.contract.dedup.SmsForwardDedupSpec
+import io.github.magisk317.xposed.contract.dedup.CapturedEventDedupKeyFactory
+import io.github.magisk317.xposed.contract.dedup.CapturedEventDedupSpec
 import io.github.magisk317.xposed.runtime.ipc.IpcTokenMatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -143,8 +143,8 @@ open class ForwardReceiver : BroadcastReceiver() {
                     msgTypeStr == ForwardBroadcastContract.MSG_TYPE_SMS &&
                     forwardSource == ForwardBroadcastContract.SOURCE_SMS_HOOK
                 ) {
-                    val dedupKey = SmsForwardDedupKeyFactory.build(
-                        SmsForwardDedupSpec(
+                    val dedupKey = CapturedEventDedupKeyFactory.build(
+                        CapturedEventDedupSpec(
                             eventId = eventId,
                             sender = normalizedSender,
                             body = normalizedBody,
