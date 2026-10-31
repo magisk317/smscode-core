@@ -5,7 +5,7 @@ import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.Serializable
 
 /**
- * Domain implementation of [SmsCodeRuleData].
+ * Domain implementation of [AppCodeRuleData].
  *
  * The Room entity lives in the consuming product's database module; forward-core must not
  * depend on it (that would couple the shared engine to one product and create a dependency
@@ -14,9 +14,9 @@ import kotlinx.serialization.Serializable
  */
 @Parcelize
 @Serializable
-data class SmsCodeRuleImpl(
+data class AppCodeRuleImpl(
     override val id: Long = 0L,
     override val company: String? = null,
     override val codeKeyword: String = "",
     override val codeRegex: String = "",
-) : Parcelable, SmsCodeRuleData
+) : Parcelable, AppCodeRuleData

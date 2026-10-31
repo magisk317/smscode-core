@@ -5,7 +5,7 @@ import io.github.magisk317.forward.engine.model.ForwardFilterRule
 import io.github.magisk317.forward.engine.model.NotifyRouteRuleData
 import io.github.magisk317.forward.engine.model.Rule
 import io.github.magisk317.forward.engine.model.Sender
-import io.github.magisk317.forward.engine.model.SmsCodeRuleData
+import io.github.magisk317.forward.engine.model.AppCodeRuleData
 import kotlinx.coroutines.flow.Flow
 
 interface AppConfigRepository {
@@ -52,12 +52,12 @@ interface AppConfigRepository {
     suspend fun clearAllForwardFilterRules()
 
     // SmsCodeRule (abstract type)
-    fun observeSmsCodeRulesFlow(): Flow<List<SmsCodeRuleData>>
-    suspend fun getAllSmsCodeRules(): List<SmsCodeRuleData>
-    suspend fun getSmsCodeRuleById(id: Long): SmsCodeRuleData?
-    suspend fun upsertSmsCodeRule(rule: SmsCodeRuleData): Long
-    suspend fun deleteSmsCodeRule(rule: SmsCodeRuleData)
-    suspend fun insertSmsCodeRules(rules: List<SmsCodeRuleData>)
+    fun observeSmsCodeRulesFlow(): Flow<List<AppCodeRuleData>>
+    suspend fun getAllSmsCodeRules(): List<AppCodeRuleData>
+    suspend fun getSmsCodeRuleById(id: Long): AppCodeRuleData?
+    suspend fun upsertSmsCodeRule(rule: AppCodeRuleData): Long
+    suspend fun deleteSmsCodeRule(rule: AppCodeRuleData)
+    suspend fun insertSmsCodeRules(rules: List<AppCodeRuleData>)
     suspend fun clearAllSmsCodeRules()
 
     // AppInfo (abstract type)

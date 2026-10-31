@@ -1,6 +1,6 @@
 package io.github.magisk317.forward.engine.model
 
-interface SmsCodeRuleData {
+interface AppCodeRuleData {
     val id: Long
     val company: String?
     val codeKeyword: String
