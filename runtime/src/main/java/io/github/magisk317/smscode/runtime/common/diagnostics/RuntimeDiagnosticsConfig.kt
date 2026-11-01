@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
 import io.github.magisk317.xposed.runtime.state.RuntimeDiagnosticsSnapshot
+import io.github.magisk317.xposed.runtime.state.RuntimeStateStore
 import io.github.magisk317.xposed.runtime.state.RuntimeStatusInputs
 import io.github.magisk317.xposed.diagnostics.DiagnosticBundleIdentity
 import io.github.magisk317.xposed.diagnostics.DiagnosticBundleNames
@@ -35,6 +36,13 @@ object RuntimeDiagnosticsEnvironment {
 
     fun install(newConfig: RuntimeDiagnosticsConfig) {
         config = newConfig
+        // The kit store owns the activation status. Without this hand-over it could only fall back
+        // to what the hook wrote into the app, which is exactly the signal that disappears when the
+        // system refuses to start the app's content provider.
+        RuntimeStateStore.installActivationSource(
+            runtimeConnectedProvider = newConfig.runtimeConnectedProvider,
+            activationStatusResolver = newConfig.activationStatusResolver,
+        )
     }
 
     fun current(): RuntimeDiagnosticsConfig = config
