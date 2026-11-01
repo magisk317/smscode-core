@@ -4,9 +4,9 @@ import android.annotation.SuppressLint
 import io.github.magisk317.xposed.logging.MagiskOtel
 import android.app.Application
 import android.content.Context
-import android.net.Uri
 import android.os.Build
 import android.util.Log
+import io.github.magisk317.xposed.runtime.RuntimeStateProviderAddress
 import io.github.magisk317.xposed.runtime.RuntimeStateProviderContract
 import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import io.github.magisk317.xposed.logging.DailyJsonlLogStore
@@ -540,16 +540,18 @@ object RuntimeLogStore {
     }
 
     private fun readConfiguredRetentionDays(context: Context): Int {
+        val config = RuntimeDiagnosticsEnvironment.current()
+        // The provider lives in the MODULE's app process: the hook process carries another
+        // package's context, so addressing the provider by context.packageName would reach a
+        // provider that does not exist.
+        val applicationId = config.applicationId.ifBlank { context.packageName }
         // Try Provider first — works in hook process across UIDs where direct
         // SharedPreferences access fails with a ContextImpl warning.
-        val providerBundle = runCatching {
-            context.contentResolver.call(
-                Uri.parse("content://${context.packageName}.db.provider"),
-                RuntimeStateProviderContract.METHOD_GET_RETENTION_DAYS,
-                null,
-                null,
-            )
-        }.getOrNull()
+        val providerBundle = RuntimeStateProviderAddress.call(
+            context = context,
+            applicationId = applicationId,
+            method = RuntimeStateProviderContract.METHOD_GET_RETENTION_DAYS,
+        )
         if (providerBundle != null) {
             return MagiskLogPolicy.retentionDays(
                 providerBundle.getInt(
@@ -560,7 +562,6 @@ object RuntimeLogStore {
         }
 
         // Fallback to direct read (works in app process).
-        val config = RuntimeDiagnosticsEnvironment.current()
         return MagiskLogPolicy.retentionDays(
             config.logRetentionDaysProvider?.invoke(context)
                 ?: MagiskLogPolicy.DEFAULT_LOG_RETENTION_DAYS,
