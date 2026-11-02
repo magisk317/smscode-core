@@ -24,6 +24,7 @@ class ObservedInboxScanner(
     private val inboxRowLoader: (Long, Long?) -> List<InboxRow> = { cutoff, triggeredSmsId ->
         loadRecentInboxRows(phoneContext, cutoff, triggeredSmsId)
     },
+    private val currentTimeMillis: () -> Long = System::currentTimeMillis,
 ) {
     data class InboxRow(
         val smsId: Long,
@@ -72,11 +73,21 @@ class ObservedInboxScanner(
         recentSmsWindowMs: Long,
         requireCode: Boolean,
     ): List<ObservedInboxScanRecord> {
-        val cutoff = System.currentTimeMillis() - recentSmsWindowMs
+        val now = currentTimeMillis()
+        val cutoff = now - recentSmsWindowMs
         val resolvedTriggerUri = triggerUri.ifBlank { DEFAULT_SMS_TRIGGER_URI }
         val triggeredSmsId = parseTriggeredSmsId(triggerUri)
         return runCatching {
             inboxRowLoader(cutoff, triggeredSmsId).mapNotNull { row ->
+                if (isOutsideRecentWindow(row.date, now, recentSmsWindowMs)) {
+                    XLog.w(
+                        message = "Diag SMS stale row rejected: sms_id=%d age_ms=%d window_ms=%d",
+                        row.smsId,
+                        now - row.date,
+                        recentSmsWindowMs,
+                    )
+                    return@mapNotNull null
+                }
                 if (!smsIdTracker.markSeen(row.smsId)) {
                     return@mapNotNull null
                 }
@@ -226,6 +237,27 @@ class ObservedInboxScanner(
                     ?.getOrNull(1)
                     ?.toLongOrNull()
         }
+
+        /**
+         * Enforces the caller's recency window on every returned row.
+         *
+         * A trigger URI that names a single row is queried by id without a date
+         * floor, so an update to any stored row -- a months-old unread message
+         * included -- can arrive here and would otherwise reach the automated
+         * actions. The window is therefore checked once, after loading, for both
+         * branches; the general branch keeps its SQL cutoff only as a pre-filter.
+         *
+         * Two allowances are deliberate. A date that is zero or negative is unknown
+         * rather than expired, matching the `date > 0` fallback this path uses when it
+         * builds event ids and records, and a future-dated row is by definition not
+         * older than the window, so a device clock shift cannot silently disable
+         * delivery of a message that just arrived.
+         */
+        private fun isOutsideRecentWindow(
+            date: Long,
+            now: Long,
+            recentSmsWindowMs: Long,
+        ): Boolean = date > 0 && now - date >= recentSmsWindowMs
 
         private fun resolveSlotIndex(subId: Int): Int {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return -1
