@@ -135,7 +135,7 @@ object RuntimeLogStore {
     fun initialize(context: Context, enableDetailedLogs: Boolean) {
         val resolvedContext = resolveModuleContext(context)
         appContext = resolvedContext.takeIf { isModuleContext(it) }
-        enabled = enableDetailedLogs
+        enabled = enableDetailedLogs && MagiskLogPolicy.current().verboseLogging
         setRetentionDays(readConfiguredRetentionDays(appContext ?: context))
         flushPendingIfPossible()
     }
@@ -158,7 +158,7 @@ object RuntimeLogStore {
         route: String? = null,
         throwable: String? = null,
     ) {
-        if (!enabled && !force) return
+        if (!enabled) return
         runCatching {
             val normalizedRoute = normalizeRoute(route)
             val thread = Thread.currentThread()
