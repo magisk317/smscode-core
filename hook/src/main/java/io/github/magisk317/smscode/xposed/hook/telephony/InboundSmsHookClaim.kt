@@ -19,9 +19,11 @@ class InboundSmsHookClaim(
     private val clock: () -> Long = System::currentTimeMillis,
     private val propertyReader: (String) -> String? = System::getProperty,
     private val propertyWriter: (String, String) -> Unit = { key, value -> System.setProperty(key, value) },
+    private val propertyClearer: (String) -> Unit = System::clearProperty,
     private val pid: Int = Process.myPid(),
 ) {
     private val installedKeys = mutableSetOf<String>()
+    private val claimedPropertyKeys = mutableSetOf<String>()
 
     /**
      * Claims [key] for this process.
@@ -36,6 +38,7 @@ class InboundSmsHookClaim(
             return now - last
         }
         propertyWriter(key, now.toString())
+        claimedPropertyKeys += key
         null
     }
 
@@ -60,6 +63,13 @@ class InboundSmsHookClaim(
      * Returns true the first time it sees [key].
      */
     fun markInstalled(key: String): Boolean = synchronized(lock) { installedKeys.add(key) }
+
+    /** Releases this classloader's install state before libxposed swaps it during hot reload. */
+    fun reset() = synchronized(lock) {
+        claimedPropertyKeys.forEach(propertyClearer)
+        claimedPropertyKeys.clear()
+        installedKeys.clear()
+    }
 
     /**
      * Two-tier install protocol shared by every telephony hook entry: a cross-process

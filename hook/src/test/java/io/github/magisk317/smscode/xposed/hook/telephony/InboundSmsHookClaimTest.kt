@@ -108,4 +108,26 @@ class InboundSmsHookClaimTest {
         now = 4_999L
         assertNotNull(claim.claim("k"))
     }
+
+    @Test
+    fun reset_releasesPropertyAndInstallMarkForHotReload() {
+        val store = mutableMapOf<String, String>()
+        val claim = InboundSmsHookClaim(
+            windowMs = 5_000L,
+            clock = { 1_000L },
+            propertyReader = { store[it] },
+            propertyWriter = { k, v -> store[k] = v },
+            propertyClearer = { store.remove(it) },
+            pid = 42,
+        )
+
+        val first = claim.claimInstall("com.android.phone", "com.android.phone")
+        assertTrue(first is HookInstallClaim.Proceed)
+        assertTrue(store.isNotEmpty())
+
+        claim.reset()
+
+        assertTrue(store.isEmpty())
+        assertTrue(claim.claimInstall("com.android.phone", "com.android.phone") is HookInstallClaim.Proceed)
+    }
 }
