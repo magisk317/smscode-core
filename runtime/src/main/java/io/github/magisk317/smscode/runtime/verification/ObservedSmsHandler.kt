@@ -123,7 +123,14 @@ class ObservedSmsHandler<M : SmsMessage>(
 
         roleStateLogger(eventId)
 
-        val smsMsg = smsEnricher(phoneContext, record)
+        // A scanned record can carry date<=0 on some ROMs; normalize before enriching so
+        // every host sees the same wall-clock substitution instead of per-host policies.
+        val normalizedRecord = if (record.date > 0) {
+            record
+        } else {
+            record.copy(date = System.currentTimeMillis())
+        }
+        val smsMsg = smsEnricher(phoneContext, normalizedRecord)
 
         if (decision.autoInputEnabled) {
             XLog.i(
