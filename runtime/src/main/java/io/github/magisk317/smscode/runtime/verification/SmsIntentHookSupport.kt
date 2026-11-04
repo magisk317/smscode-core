@@ -26,14 +26,36 @@ object SmsIntentHookSupport {
             action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION
     }
 
-    fun ensureEventId(intent: Intent): String {
-        val existing = intent.getStringExtra(EVENT_ID_EXTRA).orEmpty().trim()
+    fun ensureEventId(intent: Intent): String = ensureEventId(intent, EVENT_ID_EXTRA, null)
+
+    /**
+     * Ensures the intent carries an event id under [extraKey]. [stableIdFactory] lets a
+     * host supply its own id strategy (e.g. a stable pdu-hash id); the default is the
+     * time-based id both products have historically used.
+     */
+    fun ensureEventId(
+        intent: Intent,
+        extraKey: String = EVENT_ID_EXTRA,
+        stableIdFactory: (() -> String)? = null,
+    ): String {
+        val existing = intent.getStringExtra(extraKey).orEmpty().trim()
         if (existing.isNotEmpty()) {
             return existing
         }
-        val generated = "sms_${System.currentTimeMillis().toString(36)}_${abs(intent.hashCode()).toString(36)}"
-        intent.putExtra(EVENT_ID_EXTRA, generated)
+        val generated = stableIdFactory?.invoke()
+            ?: "sms_${System.currentTimeMillis().toString(36)}_${abs(intent.hashCode()).toString(36)}"
+        intent.putExtra(extraKey, generated)
         return generated
+    }
+
+    /**
+     * Stable content-hash event id shared by both products so a future format fix lands
+     * in one place. [stableParts] are the content-derived components; [fallbackSeed] is
+     * used when no stable part is available.
+     */
+    fun stableSmsEventId(stableParts: List<String>, fallbackSeed: String, radix: Int = 36): String {
+        val seed = stableParts.takeIf { it.isNotEmpty() }?.joinToString("|") ?: fallbackSeed
+        return "sms_${Integer.toUnsignedString(seed.hashCode(), radix)}"
     }
 
     fun markDispatchHandled(
