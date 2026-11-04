@@ -14,6 +14,12 @@ class SmsBlockEvaluator<M : SmsMessage>(
     private val blacklistMatcher: (Context, String?, String?) -> BlacklistMatchResult,
     private val blockSmsEnabledReader: (Context) -> Boolean,
     private val smsCodeParser: suspend (Context, String) -> String?,
+    /**
+     * Optional entitlement gate applied once to the evaluated outcome. When provided and
+     * it returns false, block reasons and blacklist-delete-only results are withheld so a
+     * product without mobile entitlement never acts on the evaluation.
+     */
+    private val entitlementReader: ((Context) -> Boolean)? = null,
 ) {
     data class Result<M : SmsMessage>(
         val smsMsg: M?,
@@ -51,6 +57,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
         }
 
         val smsMsg = runCatching { incomingSmsParser(intent) }.getOrNull()
+        val entitlementAllowed = entitlementReader?.invoke(pluginContext) ?: true
         val blacklistResult = blacklistMatcher(pluginContext, smsMsg?.sender, smsMsg?.body)
         if (blacklistResult.matched) {
             XLog.w(
@@ -83,7 +90,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
                 emit(result = "ok", reason = "pref_block", codeLength = smsCode.length)
                 return Result(
                     smsMsg = smsMsg,
-                    blockReason = SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK,
+                    blockReason = if (entitlementAllowed) SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK else null,
                     blacklistDeleteOnly = false,
                     blacklistResult = blacklistResult,
                 )
@@ -91,7 +98,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
             emit(result = "ok", reason = "blacklist_block")
             return Result(
                 smsMsg = smsMsg,
-                blockReason = SmsHandlerDispatchDecision.BlockReason.BLACKLIST,
+                blockReason = if (entitlementAllowed) SmsHandlerDispatchDecision.BlockReason.BLACKLIST else null,
                 blacklistDeleteOnly = false,
                 blacklistResult = blacklistResult,
             )
@@ -105,7 +112,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
             return Result(
                 smsMsg = smsMsg,
                 blockReason = null,
-                blacklistDeleteOnly = deleteOnlyBlacklist,
+                blacklistDeleteOnly = deleteOnlyBlacklist && entitlementAllowed,
                 blacklistResult = blacklistResult,
             )
         }
@@ -115,7 +122,7 @@ class SmsBlockEvaluator<M : SmsMessage>(
             return Result(
                 smsMsg = smsMsg,
                 blockReason = null,
-                blacklistDeleteOnly = deleteOnlyBlacklist,
+                blacklistDeleteOnly = deleteOnlyBlacklist && entitlementAllowed,
                 blacklistResult = blacklistResult,
             )
         }
@@ -129,8 +136,8 @@ class SmsBlockEvaluator<M : SmsMessage>(
         emit(result = "ok", reason = "pref_block", codeLength = smsCode.length)
         return Result(
             smsMsg = smsMsg,
-            blockReason = SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK,
-            blacklistDeleteOnly = deleteOnlyBlacklist,
+            blockReason = if (entitlementAllowed) SmsHandlerDispatchDecision.BlockReason.PREF_BLOCK else null,
+            blacklistDeleteOnly = deleteOnlyBlacklist && entitlementAllowed,
             blacklistResult = blacklistResult,
         )
     }
