@@ -166,7 +166,11 @@ object SharedRuntimeGate {
         val length = raf.length()
         if (length <= 0L) return entries
         if (length > MAX_STORED_BYTES) {
-            runCatching { Log.w(LOG_TAG, "Runtime gate snapshot too large, resetting: bytes=$length") }
+            try {
+                Log.w(LOG_TAG, "Runtime gate snapshot too large, resetting: bytes=$length")
+            } catch (_: Throwable) {
+                // android.jar stubs throw in local JVM tests; logging must not change fail-open.
+            }
             return entries
         }
         val bytes = ByteArray(length.toInt())
