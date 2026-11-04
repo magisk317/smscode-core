@@ -261,7 +261,7 @@ object SharedRuntimeGate {
         val digest = MessageDigest.getInstance("SHA-256").digest(key.toByteArray(Charsets.UTF_8))
         return buildString(REDACTED_PREFIX.length + digest.size * 2) {
             append(REDACTED_PREFIX)
-            digest.forEach { byte -> append("%02x".format(byte.toInt() and 0xff)) }
+            digest.forEach { byte -> append("%02x".format(byte.toInt() and BYTE_MASK)) }
         }
     }
 
@@ -269,6 +269,7 @@ object SharedRuntimeGate {
     private const val MODE_PLAINTEXT = "plaintext"
     private const val MODE_REDACTED = "redacted"
     private const val REDACTED_PREFIX = "sha256:"
+    private const val BYTE_MASK = 0xff
     private const val MAX_STORED_BYTES = 1024L * 1024L
     private val JSON = Json { ignoreUnknownKeys = true }
 

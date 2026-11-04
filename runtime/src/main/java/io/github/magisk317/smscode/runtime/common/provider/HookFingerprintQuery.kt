@@ -8,6 +8,7 @@ import io.github.magisk317.smscode.verification.SmsDuplicateCheckResult
 object HookFingerprintQuery {
     const val FINGERPRINT_SELECTION = "msg_type = ? AND sender = ? AND body = ? AND date = ?"
 
+    @Suppress("TooGenericExceptionCaught")
     fun query(
         context: Context,
         uri: Uri,
