@@ -15,7 +15,7 @@ import android.os.Process
  * immediately.
  */
 class InboundSmsHookClaim(
-    private val windowMs: Long = DEFAULT_WINDOW_MS,
+    private val windowMs: Long = DEFAULT_CLAIM_WINDOW_MS,
     private val clock: () -> Long = System::currentTimeMillis,
     private val propertyReader: (String) -> String? = System::getProperty,
     private val propertyWriter: (String, String) -> Unit = { key, value -> System.setProperty(key, value) },
@@ -61,8 +61,39 @@ class InboundSmsHookClaim(
      */
     fun markInstalled(key: String): Boolean = synchronized(lock) { installedKeys.add(key) }
 
-    private companion object {
-        val lock = Any()
-        const val DEFAULT_WINDOW_MS = 5 * 60 * 1000L
+    /**
+     * Two-tier install protocol shared by every telephony hook entry: a cross-process
+     * window claim guards concurrent process initialisation, and a separate in-process
+     * install mark guards duplicate loads inside one classloader.
+     */
+    fun claimInstall(
+        packageName: String,
+        processName: String,
+        windowMs: Long = DEFAULT_CLAIM_WINDOW_MS,
+        initPrefix: String = "hook_init",
+        installPrefix: String = "hook_install",
+    ): HookInstallClaim {
+        val initKey = key(initPrefix, packageName, processName)
+        claim(initKey, windowMs)?.let { return HookInstallClaim.AlreadyClaimed(it) }
+        val installKey = key(installPrefix, packageName, processName)
+        if (!markInstalled(installKey)) return HookInstallClaim.AlreadyInstalled
+        return HookInstallClaim.Proceed(installKey)
     }
+
+    companion object {
+        val lock = Any()
+        const val DEFAULT_CLAIM_WINDOW_MS = 5 * 60 * 1000L
+    }
+}
+
+/** Outcome of [InboundSmsHookClaim.claimInstall]. */
+sealed interface HookInstallClaim {
+    /** Another process claimed initialisation inside the window; do not install. */
+    data class AlreadyClaimed(val ageMs: Long) : HookInstallClaim
+
+    /** This classloader already installed the hook; do not install again. */
+    data object AlreadyInstalled : HookInstallClaim
+
+    /** Claim acquired; installation may proceed. */
+    data class Proceed(val installKey: String) : HookInstallClaim
 }
