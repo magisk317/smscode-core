@@ -46,5 +46,6 @@ dependencies {
     compileOnly(libs.androidx.annotation)
     testImplementation(libs.libxposed.api)
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.mockk)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
