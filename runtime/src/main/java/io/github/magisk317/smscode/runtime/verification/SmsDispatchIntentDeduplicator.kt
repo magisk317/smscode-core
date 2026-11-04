@@ -20,6 +20,29 @@ class SmsDispatchIntentDeduplicator(
     private val memoryLock = Any()
     private val memoryHistory = BoundedTimestampMap<String>(windowMs, maxEntries)
 
+    /** Transport-neutral outcome of one shared-store claim attempt. */
+    data class SharedClaimResult(val claimed: Boolean, val ageMs: Long? = null)
+
+    /**
+     * In-memory layer first, then the shared (provider-backed) store via [claimShared].
+     * Both products run the same two layers; hosts only supply their gate transport.
+     */
+    fun shouldSkipEverywhere(
+        eventId: String,
+        action: String?,
+        claimShared: (key: String, windowMs: Long, maxEntries: Int) -> SharedClaimResult,
+    ): Result {
+        val memory = shouldSkipInMemory(eventId, action)
+        if (memory.shouldSkip) return memory
+        val key = memory.key ?: return memory
+        val shared = claimShared(key, windowMs, maxEntries)
+        return if (shared.claimed) {
+            Result(shouldSkip = false, key = key, timestampMs = memory.timestampMs)
+        } else {
+            Result(shouldSkip = true, ageMs = shared.ageMs, key = key, timestampMs = memory.timestampMs)
+        }
+    }
+
     fun shouldSkipInMemory(eventId: String, action: String?): Result {
         val key = buildKeyOrNull(eventId, action) ?: return Result(shouldSkip = false)
         val now = timeProvider()
