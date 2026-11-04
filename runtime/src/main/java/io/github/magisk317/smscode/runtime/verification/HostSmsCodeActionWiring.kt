@@ -129,7 +129,7 @@ class HostSmsCodeActionWiring<M : SmsMessage>(
                 plan.autoCancelDelayMs ?: 0L,
             )()
         }.onFailure { error ->
-            XLog.e(message = "scheduleNotification() failed: %s", error)
+            XLog.e(message = "scheduleNotification() failed", error)
         }
     }
 
