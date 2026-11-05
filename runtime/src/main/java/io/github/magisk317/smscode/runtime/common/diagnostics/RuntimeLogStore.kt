@@ -1,21 +1,23 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.annotation.SuppressLint
-import io.github.magisk317.xposed.logging.MagiskOtel
 import android.app.Application
 import android.content.Context
 import android.os.Build
-import android.util.Log
-import io.github.magisk317.xposed.runtime.RuntimeStateProviderAddress
-import io.github.magisk317.xposed.runtime.RuntimeStateProviderContract
-import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
+import io.github.magisk317.smscode.runtime.common.BuildConfig
+import io.github.magisk317.smscode.runtime.common.utils.BuildChannelLog as Log
+import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import io.github.magisk317.xposed.logging.DailyJsonlLogStore
+import io.github.magisk317.xposed.logging.DefaultLogSanitizer
 import io.github.magisk317.xposed.logging.LogEvent
 import io.github.magisk317.xposed.logging.LogLevel
 import io.github.magisk317.xposed.logging.LogSanitizer
+import io.github.magisk317.xposed.logging.MagiskOtel
 import io.github.magisk317.xposed.logging.MagiskLogPolicy
 import io.github.magisk317.xposed.logging.NoopLogSanitizer
-import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
+import io.github.magisk317.xposed.runtime.RuntimeStateProviderAddress
+import io.github.magisk317.xposed.runtime.RuntimeStateProviderContract
+import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -69,6 +71,7 @@ data class RuntimeLogFileContent(
 )
 
 object RuntimeLogStore {
+    private val BUILD_LOGGING_ENABLED = BuildConfig.DEBUG || BuildConfig.IS_CI_BUILD
     private const val INTERNAL_TAG = "RuntimeLogStore"
     private const val LOG_FILE_NAME = "runtime.jsonl"
     private const val MAX_BUFFER_SIZE = 1200
@@ -135,13 +138,13 @@ object RuntimeLogStore {
     fun initialize(context: Context, enableDetailedLogs: Boolean) {
         val resolvedContext = resolveModuleContext(context)
         appContext = resolvedContext.takeIf { isModuleContext(it) }
-        enabled = enableDetailedLogs && MagiskLogPolicy.current().verboseLogging
+        enabled = BUILD_LOGGING_ENABLED && enableDetailedLogs && MagiskLogPolicy.current().verboseLogging
         setRetentionDays(readConfiguredRetentionDays(appContext ?: context))
         flushPendingIfPossible()
     }
 
     fun setEnabled(on: Boolean) {
-        enabled = on
+        enabled = BUILD_LOGGING_ENABLED && on && MagiskLogPolicy.current().loggingEnabled
     }
 
     fun isEnabled(): Boolean = enabled
@@ -158,7 +161,7 @@ object RuntimeLogStore {
         route: String? = null,
         throwable: String? = null,
     ) {
-        if (!enabled) return
+        if (!BUILD_LOGGING_ENABLED || !enabled) return
         runCatching {
             val normalizedRoute = normalizeRoute(route)
             val thread = Thread.currentThread()
@@ -166,14 +169,14 @@ object RuntimeLogStore {
                 timestamp = System.currentTimeMillis(),
                 priority = priority,
                 tag = tag,
-                message = message,
+                message = DefaultLogSanitizer.limitForLog(message),
                 route = normalizedRoute,
                 processName = currentProcessName(),
                 pid = android.os.Process.myPid(),
                 uid = android.os.Process.myUid(),
                 threadName = thread.name.orEmpty(),
                 threadId = currentThreadId(thread),
-                throwable = throwable.orEmpty(),
+                throwable = DefaultLogSanitizer.limitForLog(throwable.orEmpty()),
             )
             synchronized(lock) {
                 buffer.addLast(entry)

@@ -6,7 +6,7 @@ import io.github.magisk317.smscode.runtime.contract.backup.BackupParseResult
 import io.github.magisk317.smscode.runtime.contract.backup.BackupRule
 import io.github.magisk317.smscode.runtime.contract.backup.BackupSmsRecord
 
-import android.util.Log
+import io.github.magisk317.smscode.runtime.common.utils.BuildChannelLog as Log
 import io.github.magisk317.smscode.runtime.common.utils.JsonUtils
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject

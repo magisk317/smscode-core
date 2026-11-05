@@ -1,7 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.utils
 
 import android.content.Context
-import android.util.Log
+import io.github.magisk317.smscode.runtime.common.utils.BuildChannelLog as Log
 import io.github.magisk317.xposed.logging.MagiskOtel
 import io.github.magisk317.xposed.logging.MagiskLogPolicy
 import io.github.magisk317.xposed.contract.dedup.BoundedTimestampMap

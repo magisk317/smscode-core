@@ -1,6 +1,7 @@
 package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import android.content.Context
+import io.github.magisk317.smscode.runtime.common.BuildConfig
 import io.github.magisk317.smscode.runtime.common.utils.StorageUtils
 import io.github.magisk317.xposed.logging.CrashLogRecorder
 import io.github.magisk317.xposed.logging.MagiskLogPolicy
@@ -14,6 +15,7 @@ import io.github.magisk317.xposed.logging.MagiskLogPolicy
  */
 object RuntimeCrashLogs {
     fun install(context: Context) {
+        if (!BuildConfig.DEBUG && !BuildConfig.IS_CI_BUILD) return
         val dir = StorageUtils.getCrashLogDir(context) ?: return
         CrashLogRecorder.install(
             dirProvider = { dir },

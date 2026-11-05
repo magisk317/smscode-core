@@ -19,12 +19,12 @@ class SharedRuntimeGateTest {
 
     @BeforeEach
     fun installDebugPolicy() {
-        MagiskLogPolicy.install(isDebugBuild = true)
+        MagiskLogPolicy.install(isDiagnosticBuild = true)
     }
 
     @AfterEach
     fun restoreReleaseSafePolicy() {
-        MagiskLogPolicy.install(isDebugBuild = false)
+        MagiskLogPolicy.install(isDiagnosticBuild = false)
     }
 
     @Test
@@ -74,7 +74,7 @@ class SharedRuntimeGateTest {
 
     @Test
     fun `release storage redacts raw keys but preserves exact deduplication`() {
-        MagiskLogPolicy.install(isDebugBuild = false)
+        MagiskLogPolicy.install(isDiagnosticBuild = false)
         val file = File(tempDir, "gate")
         val key = "sender=13800138000|body=验证码 064555"
 
@@ -97,7 +97,7 @@ class SharedRuntimeGateTest {
         assertTrue(SharedRuntimeGate.claimWithinWindow(file, key, 60_000L).claimed)
         assertTrue(file.readText().contains(key))
 
-        MagiskLogPolicy.install(isDebugBuild = false)
+        MagiskLogPolicy.install(isDiagnosticBuild = false)
         assertTrue(SharedRuntimeGate.claimWithinWindow(file, key, 60_000L).claimed)
         assertFalse(file.readText().contains(key))
         assertFalse(SharedRuntimeGate.claimWithinWindow(file, key, 60_000L).claimed)

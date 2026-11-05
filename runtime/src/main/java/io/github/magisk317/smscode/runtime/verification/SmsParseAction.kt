@@ -19,10 +19,6 @@ class SmsParseAction<M>(
     private val smsIntent: Intent?,
     private val deduplicateEnabled: Boolean,
     private val incomingSmsParser: (Intent) -> M,
-    private val sensitiveDebugLogReader: (Context) -> Boolean,
-    private val summarizeSender: (Boolean, String?) -> String,
-    private val summarizeBody: (Boolean, String?) -> String,
-    private val summarizeCode: (Boolean, String?) -> String,
     private val duplicateChecker: suspend (String?, String, Long) -> SmsDuplicateCheckResult,
     private val preparedSmsResolver: suspend (Context, Context, M, Intent, Long) -> M?,
     // Per-step soft timeout for the suspending duplicate check / prepared-SMS resolution. Kept well
@@ -74,10 +70,6 @@ class SmsParseAction<M>(
 
         val sender = smsMsg.sender
         val msgBody = smsMsg.body
-        val sensitiveDebugLog = sensitiveDebugLogReader(pluginContext)
-
-        XLog.d(message = "Sender: %s", summarizeSender(sensitiveDebugLog, sender))
-        XLog.d(message = "Body: %s", summarizeBody(sensitiveDebugLog, msgBody))
 
         if (sender.isNullOrBlank() || msgBody.isNullOrBlank()) {
             XLog.w("Diag SMS parse aborted: sender/body is empty")
@@ -86,8 +78,6 @@ class SmsParseAction<M>(
         }
 
         val timestamp = if (smsMsg.date > 0) smsMsg.date else System.currentTimeMillis()
-        XLog.d(message = "Diag SMS body: %s", summarizeBody(sensitiveDebugLog, msgBody))
-
         if (deduplicateEnabled) {
             val duplicateResult = runCancellable(
                 "duplicateChecker",
@@ -120,8 +110,8 @@ class SmsParseAction<M>(
             )
         } ?: run {
             XLog.d(
-                message = "Diag SMS parsed but no code matched, body=%s",
-                summarizeBody(sensitiveDebugLog, msgBody),
+                message = "Diag SMS parsed but no code matched: body=%s",
+                msgBody,
             )
             emit(result = "skip", extra = mapOf("reason" to "no_code_match"))
             return null
@@ -129,11 +119,9 @@ class SmsParseAction<M>(
 
         val smsCode = resolvedSmsMsg.smsCode.orEmpty()
         XLog.i(
-            message = "Diag SMS code matched: companyPresent=%s, codeLength=%d, code=%s, body=%s simSlot=%d subId=%d",
+            message = "Diag SMS code matched: companyPresent=%s codeLength=%d simSlot=%d subId=%d",
             !resolvedSmsMsg.company.isNullOrBlank(),
             smsCode.length,
-            summarizeCode(sensitiveDebugLog, smsCode),
-            summarizeBody(sensitiveDebugLog, msgBody),
             resolvedSmsMsg.simSlot,
             resolvedSmsMsg.subId,
         )

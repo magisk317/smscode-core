@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.common.diagnostics
 
 import io.github.magisk317.xposed.diagnostics.DiagnosticBuildStamps
 import io.github.magisk317.xposed.diagnostics.DiagnosticBundleIdentity
+import io.github.magisk317.xposed.logging.MagiskLogPolicy
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -16,6 +17,22 @@ import java.io.File
 class LogBundleExporterTest {
     @TempDir
     lateinit var tempDir: File
+
+    @Test
+    fun releasePolicy_cannotBeOverriddenByRuntimeEnable() {
+        try {
+            MagiskLogPolicy.install(isDiagnosticBuild = false)
+            RuntimeLogStore.setEnabled(true)
+            assertFalse(RuntimeLogStore.isEnabled())
+
+            MagiskLogPolicy.install(isDiagnosticBuild = true)
+            RuntimeLogStore.setEnabled(true)
+            assertTrue(RuntimeLogStore.isEnabled())
+        } finally {
+            MagiskLogPolicy.install(isDiagnosticBuild = false)
+            RuntimeLogStore.setEnabled(false)
+        }
+    }
 
     @Test
     fun redundantRoutedRuntimeLog_isDetectedByDailyRouteNameOnly() {

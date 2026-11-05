@@ -4,7 +4,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
-import android.util.Log
+import io.github.magisk317.smscode.runtime.common.utils.BuildChannelLog as Log
 
 object ClipboardUtils {
     private const val LOG_TAG = "runtime-common"

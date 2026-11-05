@@ -85,26 +85,26 @@ object StorageUtils {
     fun ensureExternalAppDataPermissions(context: Context): Boolean {
         val externalFilesDir = runCatching { context.getExternalFilesDir(null) }.getOrNull()
             ?: run {
-                android.util.Log.e("XSmsCode", "ensureExternalAppDataPermissions: getExternalFilesDir returned null")
+                BuildChannelLog.e("XSmsCode", "ensureExternalAppDataPermissions: getExternalFilesDir returned null")
                 return false
             }
         val packageDir = externalFilesDir.parentFile ?: run {
-            android.util.Log.e("XSmsCode", "ensureExternalAppDataPermissions: parentFile is null")
+            BuildChannelLog.e("XSmsCode", "ensureExternalAppDataPermissions: parentFile is null")
             return false
         }
         if (!isAndroidAppDataPath(packageDir) || externalFilesDir.name != "files") {
-            android.util.Log.w("XSmsCode", "ensureExternalAppDataPermissions: not AndroidAppDataPath or not files: ${packageDir.absolutePath}")
+            BuildChannelLog.w("XSmsCode", "ensureExternalAppDataPermissions: not AndroidAppDataPath or not files: ${packageDir.absolutePath}")
             return false
         }
 
         val pkgExpected = isExpectedMode(packageDir, DIRECTORY_MODE)
         val filesExpected = isExpectedMode(externalFilesDir, DIRECTORY_MODE)
         if (pkgExpected && filesExpected) {
-            android.util.Log.i("XSmsCode", "ensureExternalAppDataPermissions: already 02770, skipping repair")
+            BuildChannelLog.i("XSmsCode", "ensureExternalAppDataPermissions: already 02770, skipping repair")
             return true
         }
 
-        android.util.Log.w("XSmsCode", "ensureExternalAppDataPermissions: unexpected modes (pkg=$pkgExpected, files=$filesExpected), triggering repair")
+        BuildChannelLog.w("XSmsCode", "ensureExternalAppDataPermissions: unexpected modes (pkg=$pkgExpected, files=$filesExpected), triggering repair")
         return repairExternalAppDataPermissions(context)
     }
 
@@ -134,14 +134,14 @@ object StorageUtils {
         // attempt root repair as a fallback if root access is available.
         if (!isExpectedMode(packageDir, DIRECTORY_MODE) || !isExpectedMode(externalFilesDir, DIRECTORY_MODE)) {
             val rootOk = tryRootRepair(packageDir, externalFilesDir)
-            android.util.Log.i(
+            BuildChannelLog.i(
                 "XSmsCode",
                 "repairExternalAppDataPermissions: in-process missing setgid, tried root repair result=$rootOk",
             )
             return rootOk
         }
 
-        android.util.Log.i("XSmsCode", "repairExternalAppDataPermissions: done. treeRepaired=$treeRepaired, pkgRepaired=$pkgRepaired")
+        BuildChannelLog.i("XSmsCode", "repairExternalAppDataPermissions: done. treeRepaired=$treeRepaired, pkgRepaired=$pkgRepaired")
         return pkgRepaired && treeRepaired
     }
 
@@ -168,13 +168,13 @@ object StorageUtils {
         val exitCode = process.waitFor()
         val pkgOk = isExpectedMode(packageDir, DIRECTORY_MODE)
         val filesOk = isExpectedMode(externalFilesDir, DIRECTORY_MODE)
-        android.util.Log.i(
+        BuildChannelLog.i(
             "XSmsCode",
             "tryRootRepair executed: exitCode=$exitCode pkgOk=$pkgOk filesOk=$filesOk",
         )
         exitCode == 0 && pkgOk && filesOk
     }.getOrElse { e ->
-        android.util.Log.w("XSmsCode", "tryRootRepair failed with exception: ${e.message}")
+        BuildChannelLog.w("XSmsCode", "tryRootRepair failed with exception: ${e.message}")
         false
     }
 

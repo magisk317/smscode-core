@@ -119,7 +119,6 @@ class SmsInboxObserver(
             recentSmsWindowMs = RECENT_SMS_WINDOW_MS,
         ).forEach { record ->
             handled += 1
-            val sensitive = capabilities.isSensitiveDebugLogMode(pluginContext)
             XLog.w(
                 message = "Diag SMS provider observed: sms_id=%d trigger_uri=%s sender_hash=%s date=%d read=%s simSlot=%d subId=%d code=%s body=%s",
                 record.smsId,
@@ -129,8 +128,8 @@ class SmsInboxObserver(
                 record.read,
                 record.simSlot,
                 record.subId,
-                if (sensitive) capabilities.escapeCode(record.code) else capabilities.summarizeCode(record.code),
-                if (sensitive) capabilities.escapeBody(record.body) else capabilities.summarizeBody(record.body),
+                capabilities.escapeCode(record.code),
+                capabilities.escapeBody(record.body),
             )
             logSmsRoleStateForSms(record.smsId, record.triggerUri)
             recordHandler(record)

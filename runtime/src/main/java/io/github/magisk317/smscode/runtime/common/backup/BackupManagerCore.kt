@@ -14,7 +14,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
-import android.util.Log
+import io.github.magisk317.smscode.runtime.common.utils.BuildChannelLog as Log
 import androidx.core.content.FileProvider
 import io.github.magisk317.smscode.runtime.common.utils.JsonUtils
 import java.io.BufferedInputStream

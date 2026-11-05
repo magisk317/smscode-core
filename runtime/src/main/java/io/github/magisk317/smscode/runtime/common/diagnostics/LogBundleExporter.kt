@@ -3,7 +3,7 @@ package io.github.magisk317.smscode.runtime.common.diagnostics
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
 import io.github.magisk317.xposed.logging.MagiskOtel
-import android.util.Log
+import io.github.magisk317.smscode.runtime.common.utils.BuildChannelLog as Log
 import io.github.magisk317.xposed.diagnostics.DiagnosticBundleIdentity
 import io.github.magisk317.xposed.diagnostics.DiagnosticBundleNames
 import io.github.magisk317.xposed.diagnostics.DiagnosticBuildStamps
