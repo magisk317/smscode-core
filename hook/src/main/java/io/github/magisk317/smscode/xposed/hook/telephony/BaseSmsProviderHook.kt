@@ -23,6 +23,15 @@ interface SmsProviderHookHost {
     val capabilities: SmsHookCapabilities
 
     /**
+     * Optional process-scoped context lifecycle shared with the other SMS hooks.
+     *
+     * When present, the hook resolves the plugin context once and reuses it for every
+     * write instead of rebuilding it through PackageManager on each callback.
+     */
+    val runtimeSession: SmsHookRuntimeSession?
+        get() = null
+
+    /**
      * Called once per hooked process after the plugin context becomes available,
      * before any SMS write is observed. Hosts use it to install per-process
      * runtime state (e.g. binding the log context).
@@ -131,22 +140,39 @@ abstract class BaseSmsProviderHook(
 
     private fun handleWrite(call: SmsProviderHookInstaller.WriteCall) {
         val context = call.context
-        val pluginContext = runCatching {
-            context?.createPackageContext(host.applicationId, Context.CONTEXT_IGNORE_SECURITY)
-        }.getOrNull()
-        if (pluginContext != null && context != null) {
-            host.onPluginContextReady(pluginContext, context)
-            host.recordHeartbeat(
-                pluginContext = pluginContext,
-                phoneContext = context,
-                processName = context.applicationInfo?.processName
-                    ?: SmsProviderHookInstaller.TARGET_PACKAGE,
-                source = "sms_provider_${call.methodName}",
-            )
+        val source = "sms_provider_${call.methodName}"
+        val session = host.runtimeSession
+        val runtime = if (session != null && context != null) session.initialize(context) else null
+
+        val pluginContext: Context?
+        val phoneContext: Context?
+        if (runtime != null && session != null) {
+            // The session owns process init and heartbeat through its recorder, so the
+            // per-write callback only refreshes the heartbeat.
+            pluginContext = runtime.pluginContext
+            phoneContext = runtime.phoneContext
+            session.recordHeartbeat(source)
+        } else {
+            // Hosts without a session (and transient session failures) keep the legacy
+            // path so blacklist enforcement never loses its plugin context.
+            phoneContext = context
+            pluginContext = runCatching {
+                context?.createPackageContext(host.applicationId, Context.CONTEXT_IGNORE_SECURITY)
+            }.getOrNull()
+            if (pluginContext != null && phoneContext != null) {
+                host.onPluginContextReady(pluginContext, phoneContext)
+                host.recordHeartbeat(
+                    pluginContext = pluginContext,
+                    phoneContext = phoneContext,
+                    processName = phoneContext.applicationInfo?.processName
+                        ?: SmsProviderHookInstaller.TARGET_PACKAGE,
+                    source = source,
+                )
+            }
         }
         val verboseDiag = pluginContext != null && host.isVerboseLogMode(pluginContext)
         SmsProviderHookInstaller.logWriteDiag(call, verbose = verboseDiag)
-        maybeBlockInboundWrite(call, pluginContext, context)
+        maybeBlockInboundWrite(call, pluginContext, phoneContext)
     }
 
     /**
