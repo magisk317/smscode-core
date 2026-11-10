@@ -5,13 +5,28 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") apply false
 }
 
-val boundaryModuleNames = listOf("domain", "rule", "contract", "verification", "runtime", "hook")
+val boundaryModuleNames = listOf("domain", "rule", "contract", "verification", "runtime", "verification-runtime", "hook")
+
+val runtimeDependencyViolations = objects.listProperty(String::class.java)
+gradle.projectsEvaluated {
+    val independentModules = listOf("runtime", "verification-runtime")
+    runtimeDependencyViolations.set(independentModules.flatMap { moduleName ->
+        val moduleProject = project.childProjects.getValue(moduleName)
+        val forbiddenModule = independentModules.single { it != moduleName }
+        moduleProject.configurations.flatMap { configuration ->
+            configuration.dependencies.withType(org.gradle.api.artifacts.ProjectDependency::class.java)
+                .filter { it.path == "${moduleProject.path.substringBeforeLast(':')}:$forbiddenModule" }
+                .map { "$moduleName must not depend on $forbiddenModule" }
+        }
+    }.distinct())
+}
 
 val verifyModuleBoundaries = tasks.register("verifyModuleBoundaries") {
     group = "verification"
     description = "Verify pure Kotlin/JVM and Android module ownership boundaries."
 
     val moduleRoot = project.layout.projectDirectory.asFile
+    inputs.property("runtimeDependencyViolations", runtimeDependencyViolations)
     inputs.files(
         boundaryModuleNames.flatMap { moduleName ->
             listOf(
@@ -23,7 +38,7 @@ val verifyModuleBoundaries = tasks.register("verifyModuleBoundaries") {
 
     doLast {
         val pureJvmModules = listOf("domain", "rule", "contract", "verification")
-        val androidModules = listOf("runtime", "hook")
+        val androidModules = listOf("runtime", "verification-runtime", "hook")
         val violations = mutableListOf<String>()
         val androidImport = Regex("""^\s*import\s+(android|androidx)\.""")
         val forbiddenPurePluginMarkers = listOf(
@@ -35,8 +50,10 @@ val verifyModuleBoundaries = tasks.register("verifyModuleBoundaries") {
             "libs.androidx.",
             "project(\":runtime\")",
             "project(\":hook\")",
+            "project(\":verification-runtime\")",
             "project(\":smscode-core:runtime\")",
             "project(\":smscode-core:hook\")",
+            "project(\":smscode-core:verification-runtime\")",
         )
 
         pureJvmModules.forEach { moduleName ->
@@ -72,6 +89,15 @@ val verifyModuleBoundaries = tasks.register("verifyModuleBoundaries") {
             if (!buildText.contains("id(\"magisk.android.library\")")) {
                 violations += "$moduleName must apply magisk.android.library"
             }
+        }
+
+        violations += runtimeDependencyViolations.get()
+        val verificationPackagePath = "src/main/java/io/github/magisk317/smscode/runtime/verification"
+        if (moduleRoot.resolve("runtime/$verificationPackagePath").walkTopDown().any { it.isFile }) {
+            violations += "Android verification execution belongs to verification-runtime"
+        }
+        if (!moduleRoot.resolve("verification-runtime/$verificationPackagePath").walkTopDown().any { it.extension == "kt" }) {
+            violations += "verification-runtime must own Android verification execution"
         }
 
         if (violations.isNotEmpty()) {

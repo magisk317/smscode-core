@@ -40,16 +40,20 @@ Recommended public surface:
 Recommended public surface:
 - `io.github.magisk317.smscode.verification`
 
+### `verification-runtime`
+- Shared Android SMS verification execution: receivers, notification/accessibility/provider actions,
+  scheduling, process coordination, and diagnostics wiring.
+- Consumes pure `verification` values and xposed-kit infrastructure independently of `runtime`.
+- Keeps the stable `io.github.magisk317.smscode.runtime.verification` public packages.
+
 ### `runtime`
 - Shared Android runtime adapters whose policy is supplied by parent repositories or pure modules.
-- Owns `io.github.magisk317.smscode.runtime.verification`: Android verification receivers, notification/accessibility/provider actions, scheduling, process coordination, and telemetry wiring.
 - Owns rule-catalog network, Asset, file-cache, and refresh-state adapters; catalog document models and merge policy belong to `rule`.
 - Owns Android SMS `Intent` decoding through `SmsIntentDecoder`, which exposes a platform-neutral sender/body/timestamp result and a `decodeBody(Intent)` convenience API.
 - Owns SharedPreferences/ContentResolver adapters, preference resolution and telemetry-backed commit coordination; typed specs and atomic change contracts belong to `contract`.
 - Preference keys/defaults, DataStore adapters, cache invalidation, and cross-process publication stay in each parent repository.
 
 Recommended public surface:
-- `io.github.magisk317.smscode.runtime.verification`
 - `io.github.magisk317.smscode.runtime.common.sms`
 - `io.github.magisk317.smscode.runtime.common.prefs`
 
@@ -72,12 +76,13 @@ Consumers should treat the modules as layered APIs instead of a bag of source fi
 2. Prefer `domain` for platform-neutral SMS message parts and assembly.
 3. Prefer `contract` for DTOs, wire constants, typed preference contracts, and other cross-module protocols.
 4. Prefer `verification` for platform-neutral SMS verification values and decisions.
-5. Prefer `runtime` for Android verification adapters and other shared platform mechanisms.
+5. Prefer `verification-runtime` for Android verification execution and `runtime` for general shared platform mechanisms.
 6. Prefer `hook` for hook/runtime infrastructure only; its public packages intentionally remain under `io.github.magisk317.smscode.xposed`.
 
 Boundary rules:
 - Do not import `io.github.magisk317.smscode.xposed` packages from pure UI modules unless the code is genuinely hook/runtime facing.
-- Keep Android verification orchestration in `runtime.verification`; keep only platform-neutral decisions and values in `verification`.
+- Keep Android verification orchestration in `verification-runtime`; keep only platform-neutral decisions and values in `verification`.
+- Keep `runtime` and `verification-runtime` independent; consumers select each required module explicitly.
 - Keep Android process/runtime side effects out of `domain`, `rule`, `contract`, and `verification`.
 - Parent repositories must install `CorePrefsAccess` before shared hooks read module settings.
 

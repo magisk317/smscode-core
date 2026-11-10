@@ -33,11 +33,17 @@ dependencies {
     } else {
         ":verification"
     }
+    val verificationRuntimeProjectPath = if (project.path.startsWith(":smscode-core:")) {
+        ":smscode-core:verification-runtime"
+    } else {
+        ":verification-runtime"
+    }
     val xposedKitProjectPath = ":magisk-xposed-kit"
     api(project(runtimeContractProjectPath))
     implementation(project(domainProjectPath))
     implementation(project(ruleProjectPath))
     implementation(project(runtimeProjectPath))
+    implementation(project(verificationRuntimeProjectPath))
     implementation(project(verificationProjectPath))
     api(project(xposedKitProjectPath))
     api(project(":magisk-xposed-kit:runtime"))
