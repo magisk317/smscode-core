@@ -142,7 +142,13 @@ abstract class BaseSmsProviderHook(
         val context = call.context
         val source = "sms_provider_${call.methodName}"
         val session = host.runtimeSession
-        val runtime = if (session != null && context != null) session.initialize(context) else null
+        val runtime = if (session != null && context != null) {
+            runCatching { session.initialize(context) }
+                .onFailure { XLog.w("SmsProviderHook: session initialization failed: %s", it) }
+                .getOrNull()
+        } else {
+            null
+        }
 
         val pluginContext: Context?
         val phoneContext: Context?
@@ -151,7 +157,8 @@ abstract class BaseSmsProviderHook(
             // per-write callback only refreshes the heartbeat.
             pluginContext = runtime.pluginContext
             phoneContext = runtime.phoneContext
-            session.recordHeartbeat(source)
+            runCatching { session.recordHeartbeat(source) }
+                .onFailure { XLog.w("SmsProviderHook: session heartbeat failed: %s", it) }
         } else {
             // Hosts without a session (and transient session failures) keep the legacy
             // path so blacklist enforcement never loses its plugin context.
@@ -160,18 +167,24 @@ abstract class BaseSmsProviderHook(
                 context?.createPackageContext(host.applicationId, Context.CONTEXT_IGNORE_SECURITY)
             }.getOrNull()
             if (pluginContext != null && phoneContext != null) {
-                host.onPluginContextReady(pluginContext, phoneContext)
-                host.recordHeartbeat(
-                    pluginContext = pluginContext,
-                    phoneContext = phoneContext,
-                    processName = phoneContext.applicationInfo?.processName
-                        ?: SmsProviderHookInstaller.TARGET_PACKAGE,
-                    source = source,
-                )
+                runCatching { host.onPluginContextReady(pluginContext, phoneContext) }
+                    .onFailure { XLog.w("SmsProviderHook: legacy initialization failed: %s", it) }
+                runCatching {
+                    host.recordHeartbeat(
+                        pluginContext = pluginContext,
+                        phoneContext = phoneContext,
+                        processName = phoneContext.applicationInfo?.processName
+                            ?: SmsProviderHookInstaller.TARGET_PACKAGE,
+                        source = source,
+                    )
+                }.onFailure { XLog.w("SmsProviderHook: legacy heartbeat failed: %s", it) }
             }
         }
-        val verboseDiag = pluginContext != null && host.isVerboseLogMode(pluginContext)
-        SmsProviderHookInstaller.logWriteDiag(call, verbose = verboseDiag)
+        // Diagnostics must not prevent an otherwise available blacklist decision.
+        runCatching {
+            val verboseDiag = pluginContext != null && host.isVerboseLogMode(pluginContext)
+            SmsProviderHookInstaller.logWriteDiag(call, verbose = verboseDiag)
+        }.onFailure { XLog.w("SmsProviderHook: write diagnostics failed: %s", it) }
         maybeBlockInboundWrite(call, pluginContext, phoneContext)
     }
 
