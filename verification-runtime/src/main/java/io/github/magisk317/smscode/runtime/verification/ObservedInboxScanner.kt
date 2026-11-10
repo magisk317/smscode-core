@@ -26,6 +26,8 @@ class ObservedInboxScanner(
     },
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
 ) {
+    private val observationStartedAt = currentTimeMillis()
+
     data class InboxRow(
         val smsId: Long,
         val sender: String,
@@ -35,6 +37,9 @@ class ObservedInboxScanner(
         val simSlot: Int = -1,
         val subId: Int = 0,
     )
+
+    /** Queue admission failed; a later provider notification must be allowed to revisit this row. */
+    fun release(record: ObservedInboxScanRecord) = smsIdTracker.forget(record.smsId)
 
     fun scan(triggerUri: String, recentSmsWindowMs: Long): List<ObservedInboxScanRecord> {
         val records = scanRows(triggerUri, recentSmsWindowMs, requireCode = true)
@@ -88,17 +93,18 @@ class ObservedInboxScanner(
                     )
                     return@mapNotNull null
                 }
-                if (!smsIdTracker.markSeen(row.smsId)) {
-                    return@mapNotNull null
-                }
                 val code = if (requireCode) {
-                    runBlocking { smsCodeParser(pluginContext, row.body) }.orEmpty()
+                    runCatching { runBlocking { smsCodeParser(pluginContext, row.body) } }.getOrElse { error ->
+                        XLog.w("Observer parser failed: type=%s", error.javaClass.simpleName)
+                        return@mapNotNull null
+                    }
                 } else {
                     ""
                 }
                 if (requireCode && code.isBlank()) {
                     return@mapNotNull null
                 }
+                if (!smsIdTracker.markSeen(row.smsId)) return@mapNotNull null
                 ObservedInboxScanRecord(
                     smsId = row.smsId,
                     triggerUri = resolvedTriggerUri,
@@ -109,6 +115,7 @@ class ObservedInboxScanner(
                     code = code,
                     simSlot = row.simSlot,
                     subId = row.subId,
+                    receivedDuringObservation = row.date > 0 && row.date >= observationStartedAt && row.date <= now,
                 )
             }
         }.getOrElse {

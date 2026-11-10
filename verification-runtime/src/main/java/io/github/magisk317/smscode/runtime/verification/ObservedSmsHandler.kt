@@ -5,6 +5,7 @@ import io.github.magisk317.smscode.verification.SmsInboxObserverDecision
 import io.github.magisk317.smscode.verification.SmsMessage
 import io.github.magisk317.smscode.verification.SmsMessageDedupKeys
 import io.github.magisk317.smscode.verification.SmsDuplicateCheckResult
+import io.github.magisk317.smscode.verification.SmsProcessingClaims
 
 import android.content.Context
 import io.github.magisk317.xposed.logging.MagiskOtel
@@ -30,6 +31,7 @@ class ObservedSmsHandler<M : SmsMessage>(
         SmsCodePostParseCoordinator.ObservedSmsPlan,
     ) -> Unit,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
+    private val processingClaims: SmsProcessingClaims = SmsProcessingState.claims,
 ) {
     data class ClaimResult(
         val claimed: Boolean,
@@ -40,119 +42,110 @@ class ObservedSmsHandler<M : SmsMessage>(
         val eventId: String,
         val decision: SmsInboxObserverDecision.Decision,
         val dispatched: Boolean,
+        val retryable: Boolean = false,
     )
 
-    fun handle(record: ObservedInboxScanRecord): Outcome {
-        val startedAt = System.nanoTime()
-        fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
-            val durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L)
-            val attrs = mutableMapOf(
-                "result" to result,
-                "duration_ms" to durationMs.toString(),
-                "process" to "hook",
-                "body_length" to record.body.length.toString(),
-            )
-            if (reason != null) attrs["reason"] = reason
-            MagiskOtel.event(name = "sms.observe", attributes = attrs, statusOk = statusOk)
-        }
+    // Retain an acquired provider gate across a local scheduling failure. The provider has no
+    // release operation; reacquiring immediately would mistake our own reservation for delivery.
+    // Entries are bounded and live no longer than that provider gate's 30-second window.
+    private val acceptedSharedClaims = LinkedHashMap<String, Long>()
 
+    fun handle(record: ObservedInboxScanRecord): Outcome {
         val settings = settingsLoader(pluginContext)
         val plan = planFactory(settings)
         val eventId = buildObservedEventId(record.smsId, record.date)
-        val duplicateResult = if (plan.deduplicateSmsEnabled) {
-            duplicateChecker(
-                settings,
-                record.sender,
-                record.body,
-                record.date,
-            )
-        } else {
-            SmsDuplicateCheckResult.NOT_DUPLICATE
-        }
         val decision = SmsInboxObserverDecision.evaluate(
             moduleEnabled = moduleEnabledReader(pluginContext),
             suppressedByRelay = conflictSuppressor(phoneContext, OBSERVER_CONFLICT_SOURCE),
-            duplicateCheckResult = duplicateResult,
+            duplicateCheckResult = SmsDuplicateCheckResult.NOT_DUPLICATE,
             autoInputEnabled = plan.autoInputEnabled,
             shouldRecord = plan.shouldRecord,
             deduplicateSmsEnabled = plan.deduplicateSmsEnabled,
         )
-
-        when (decision.skipReason) {
-            SmsInboxObserverDecision.SkipReason.CONFLICT_SUPPRESSED -> {
-                XLog.w(message = "Diag observer conflict skip: event_id=%s sms_id=%d", eventId, record.smsId)
-                emit(result = "skip", reason = "conflict_suppressed")
-                return Outcome(eventId = eventId, decision = decision, dispatched = false)
-            }
-
-            SmsInboxObserverDecision.SkipReason.MODULE_DISABLED -> {
-                XLog.w(message = "Diag observer skip: module disabled event_id=%s", eventId)
-                emit(result = "skip", reason = "module_disabled")
-                return Outcome(eventId = eventId, decision = decision, dispatched = false)
-            }
-
-            SmsInboxObserverDecision.SkipReason.DUPLICATED -> {
-                XLog.d(message = "Diag observer duplicate skip: event_id=%s", eventId)
-                emit(result = "skip", reason = "duplicate")
-                return Outcome(eventId = eventId, decision = decision, dispatched = false)
-            }
-
-            SmsInboxObserverDecision.SkipReason.DUPLICATE_CHECK_UNAVAILABLE -> {
-                XLog.w(message = "Diag observer duplicate check unavailable: event_id=%s", eventId)
-                emit(result = "skip", reason = "duplicate_check_unavailable")
-                return Outcome(eventId = eventId, decision = decision, dispatched = false)
-            }
-
-            null -> Unit
+        if (!decision.shouldProceed || record.read) {
+            return Outcome(eventId, decision, dispatched = false)
         }
-
-        if (record.read) {
-            XLog.d(
-                message = "Diag observer skip: sms already read event_id=%s sms_id=%d uri=%s",
-                eventId,
-                record.smsId,
-                record.triggerUri,
+        val claim = processingClaims.claim(record.sender, record.body, record.date)
+        val lease = when (claim) {
+            is SmsProcessingClaims.ClaimResult.Acquired -> claim.lease
+            SmsProcessingClaims.ClaimResult.Completed -> return Outcome(
+                eventId, decision.copy(skipReason = SmsInboxObserverDecision.SkipReason.DUPLICATED), false,
             )
-            emit(result = "skip", reason = "already_read")
-            return Outcome(eventId = eventId, decision = decision, dispatched = false)
+            SmsProcessingClaims.ClaimResult.InFlight,
+            SmsProcessingClaims.ClaimResult.CapacityExceeded,
+            -> return Outcome(eventId, decision, dispatched = false, retryable = true)
         }
-        if (!claimObservedSms(eventId, record)) {
-            emit(result = "skip", reason = "claim_failed")
-            return Outcome(eventId = eventId, decision = decision, dispatched = false)
+        return handleClaimed(record, eventId, settings, plan, decision, lease)
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun handleClaimed(
+        record: ObservedInboxScanRecord,
+        eventId: String,
+        settings: SmsCodePostParseCoordinator.Settings,
+        plan: SmsCodePostParseCoordinator.ObservedSmsPlan,
+        decision: SmsInboxObserverDecision.Decision,
+        lease: SmsProcessingClaims.Lease,
+    ): Outcome {
+        try {
+            val duplicate = if (plan.deduplicateSmsEnabled) {
+                runCatching { duplicateChecker(settings, record.sender, record.body, record.date) }
+                    .getOrElse { error ->
+                        XLog.w("Observer duplicate lookup failed: type=%s", error.javaClass.simpleName)
+                        SmsDuplicateCheckResult.UNAVAILABLE
+                    }
+            } else {
+                SmsDuplicateCheckResult.NOT_DUPLICATE
+            }
+            if (duplicate == SmsDuplicateCheckResult.DUPLICATE) {
+                processingClaims.complete(lease)
+                return Outcome(
+                    eventId, decision.copy(skipReason = SmsInboxObserverDecision.SkipReason.DUPLICATED), false,
+                )
+            }
+            if (duplicate == SmsDuplicateCheckResult.UNAVAILABLE && !record.receivedDuringObservation) {
+                processingClaims.release(lease)
+                emit("skip", "historical_lookup_unavailable")
+                return Outcome(
+                    eventId,
+                    decision.copy(skipReason = SmsInboxObserverDecision.SkipReason.DUPLICATE_CHECK_UNAVAILABLE),
+                    dispatched = false,
+                    retryable = true,
+                )
+            }
+            val normalizedRecord = if (record.date > 0) record else record.copy(date = currentTimeMillis())
+            val smsMsg = smsEnricher(phoneContext, normalizedRecord)
+            if (!claimObservedSms(record)) {
+                processingClaims.release(lease)
+                return Outcome(eventId, decision, dispatched = false)
+            }
+            if (!processingClaims.isActive(lease)) {
+                emit("skip", "stale_processing_lease")
+                return Outcome(eventId, decision, dispatched = false, retryable = true)
+            }
+            if (Thread.currentThread().isInterrupted) {
+                throw InterruptedException("Observer attempt abandoned")
+            }
+            roleStateLogger(eventId)
+            dispatcher(pluginContext, phoneContext, smsMsg, eventId, plan)
+            processingClaims.complete(lease)
+            synchronized(acceptedSharedClaims) { acceptedSharedClaims.remove(claimKey(record)) }
+            emit("ok", if (duplicate == SmsDuplicateCheckResult.UNAVAILABLE) "degraded_dispatch" else "dispatch")
+            return Outcome(eventId, decision, dispatched = true)
+        } catch (error: Exception) {
+            processingClaims.release(lease)
+            XLog.w("Observer dispatch not accepted: type=%s", error.javaClass.simpleName)
+            emit("skip", "dispatch_retry")
+            return Outcome(eventId, decision, dispatched = false, retryable = true)
         }
+    }
 
-        roleStateLogger(eventId)
-
-        // A scanned record can carry date<=0 on some ROMs; normalize before enriching so
-        // every host sees the same wall-clock substitution instead of per-host policies.
-        val normalizedRecord = if (record.date > 0) {
-            record
-        } else {
-            record.copy(date = System.currentTimeMillis())
-        }
-        val smsMsg = smsEnricher(phoneContext, normalizedRecord)
-
-        if (decision.autoInputEnabled) {
-            XLog.i(
-                message = "Diag observer auto-input: event_id=%s sender_hash=%s read=%s uri=%s simSlot=%d subId=%d",
-                eventId,
-                senderHash(record.sender),
-                record.read,
-                record.triggerUri,
-                record.simSlot,
-                record.subId,
-            )
-        } else {
-            XLog.d(message = "Diag observer auto-input disabled: event_id=%s", eventId)
-        }
-
-        decision.recordSkipReason?.let { reason ->
-            XLog.d(message = "Diag observer record skipped: reason=%s event_id=%s", reason.wireValue, eventId)
-        }
-
-        dispatcher(pluginContext, phoneContext, smsMsg, eventId, plan)
-        emit(result = "ok")
-        return Outcome(eventId = eventId, decision = decision, dispatched = true)
+    private fun emit(result: String, reason: String) {
+        MagiskOtel.event(
+            name = "sms.observe",
+            attributes = mapOf("result" to result, "reason" to reason, "process" to "hook"),
+            statusOk = true,
+        )
     }
 
     private fun buildObservedEventId(smsId: Long, date: Long): String {
@@ -160,10 +153,14 @@ class ObservedSmsHandler<M : SmsMessage>(
         return "sms_observed_${ts.toString(EVENT_ID_RADIX)}_${smsId.toString(EVENT_ID_RADIX)}"
     }
 
-    private fun claimObservedSms(
-        eventId: String,
-        record: ObservedInboxScanRecord,
-    ): Boolean {
+    private fun claimObservedSms(record: ObservedInboxScanRecord): Boolean {
+        val reservationKey = claimKey(record)
+        val now = System.nanoTime() / NANOS_PER_MILLISECOND
+        synchronized(acceptedSharedClaims) {
+            acceptedSharedClaims.entries.removeAll { now - it.value >= OBSERVED_SMS_DEDUP_WINDOW_MS }
+            if (acceptedSharedClaims.containsKey(reservationKey)) return true
+            check(acceptedSharedClaims.size < MAX_TRACKED_SMS_IDS) { "Observer claim capacity exceeded" }
+        }
         val key = SmsMessageDedupKeys.buildObservedKey(
             smsId = record.smsId,
             date = record.date,
@@ -179,23 +176,15 @@ class ObservedSmsHandler<M : SmsMessage>(
             MAX_TRACKED_SMS_IDS,
         )
         if (claim.claimed) {
-            return true
+            synchronized(acceptedSharedClaims) { acceptedSharedClaims[reservationKey] = now }
         }
-        XLog.d(
-            message = "Diag observer dedup skip: event_id=%s key=%s ageMs=%d",
-            eventId,
-            key,
-            claim.ageMs ?: -1L,
-        )
-        return false
+        return claim.claimed
     }
 
-    private fun senderHash(sender: String): String {
-        if (sender.isBlank()) return "none"
-        return Integer.toHexString(sender.hashCode())
-    }
+    private fun claimKey(record: ObservedInboxScanRecord): String = "${record.smsId}:${record.date}"
 
     private companion object {
+        private const val NANOS_PER_MILLISECOND = 1_000_000L
         private const val EVENT_ID_RADIX = 36
         private const val OBSERVED_SMS_DEDUP_WINDOW_MS = 30_000L
         private const val MAX_TRACKED_SMS_IDS = 128

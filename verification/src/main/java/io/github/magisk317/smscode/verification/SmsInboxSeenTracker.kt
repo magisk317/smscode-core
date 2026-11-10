@@ -7,6 +7,10 @@ class SmsInboxSeenTracker(
     private val maxTrackedSmsIds: Int,
     private val recentSmsIds: MutableSet<Long> = Collections.synchronizedSet(LinkedHashSet<Long>()),
 ) {
+    fun forget(smsId: Long) {
+        synchronized(recentSmsIds) { recentSmsIds.remove(smsId) }
+    }
+
     fun markSeen(smsId: Long): Boolean = synchronized(recentSmsIds) {
         if (!recentSmsIds.add(smsId)) {
             return false

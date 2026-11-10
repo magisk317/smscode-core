@@ -2,6 +2,7 @@ package io.github.magisk317.smscode.runtime.verification
 
 import io.github.magisk317.smscode.verification.SmsMessage
 import io.github.magisk317.smscode.verification.SmsParseResult
+import io.github.magisk317.smscode.verification.SmsProcessingClaims
 
 import android.content.Context
 import android.content.Intent
@@ -55,12 +56,16 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
     private val parseResultFactory: (Boolean) -> R,
     private val uiHandler: Handler = Handler(Looper.getMainLooper()),
     private val executorFactory: () -> ScheduledExecutorService = { Executors.newSingleThreadScheduledExecutor() },
+    private val processingClaims: SmsProcessingClaims = SmsProcessingState.claims,
+    private val liveClaims: SmsProcessingClaims = SmsProcessingState.liveClaims,
 ) {
     data class ParseOutcome<M : SmsMessage>(
         val smsMsg: M? = null,
         val duplicated: Boolean = false,
     )
 
+    // Keep terminal rejection/duplicate cases explicit; they must not fall through to side effects.
+    @Suppress("ReturnCount")
     fun parse(): R? {
         val startedAt = System.nanoTime()
         fun emit(result: String, statusOk: Boolean = true, reason: String? = null) {
@@ -84,9 +89,11 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
         }
 
         val executor = executorFactory()
+        var processingLease: SmsProcessingClaims.Lease? = null
+        var liveLease: SmsProcessingClaims.Lease? = null
         return try {
             val settings = settingsLoader(pluginContext)
-            val plan = planFactory(settings)
+            var plan = planFactory(settings)
             val moduleEnabled = moduleEnabledReader(pluginContext)
             val verboseLog = verboseLogReader(pluginContext)
             XLog.i(
@@ -150,6 +157,44 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
                 return null
             }
 
+            if (settings.deduplicateSmsEnabled) {
+                when (val claim = liveClaims.claim(
+                    sender = smsMsg.sender.orEmpty(),
+                    body = smsMsg.body.orEmpty(),
+                    date = smsMsg.date,
+                )) {
+                    is SmsProcessingClaims.ClaimResult.Acquired -> liveLease = claim.lease
+                    SmsProcessingClaims.ClaimResult.Completed -> {
+                        emit(result = "skip", reason = "local_duplicate")
+                        return parseResultFactory(plan.blockSms)
+                    }
+                    SmsProcessingClaims.ClaimResult.InFlight,
+                    SmsProcessingClaims.ClaimResult.CapacityExceeded -> {
+                        emit(result = "retry", reason = "local_claim_busy", statusOk = false)
+                        return null
+                    }
+                }
+                when (val claim = processingClaims.claim(
+                    sender = smsMsg.sender.orEmpty(),
+                    body = smsMsg.body.orEmpty(),
+                    date = smsMsg.date,
+                )) {
+                    is SmsProcessingClaims.ClaimResult.Acquired -> processingLease = claim.lease
+                    SmsProcessingClaims.ClaimResult.Completed,
+                    SmsProcessingClaims.ClaimResult.InFlight -> {
+                        // The observer owns input/record (including its bounded retry), but
+                        // never copy/notification. A live message must keep those actions.
+                        plan = plan.copy(autoInputDelayMs = null, shouldRecord = false)
+                    }
+                    SmsProcessingClaims.ClaimResult.CapacityExceeded -> {
+                        // A pending or full cache is not evidence of successful processing.
+                        // The bounded owner retry may try again; never return a blocking result.
+                        emit(result = "retry", reason = "local_claim_busy", statusOk = false)
+                        return null
+                    }
+                }
+            }
+
             XLog.i(message = "Diag dispatching actions: event_id=%s smsCode=%s notifPlan=%s autoInput=%s",
                 eventId, smsMsg.smsCode, plan.notificationPlan != null, plan.autoInputDelayMs)
 
@@ -163,6 +208,12 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
                     eventId,
                     plan,
                 )
+                // Completion means the dispatcher accepted its work. Action-specific telemetry
+                // remains the authority for actual notification/copy/input/record outcomes.
+                processingLease?.let(processingClaims::complete)
+                processingLease = null
+                liveLease?.let(liveClaims::complete)
+                liveLease = null
                 afterDispatch(
                     executor,
                     pluginContext,
@@ -228,6 +279,8 @@ class CodeWorker<M : SmsMessage, R : SmsParseResult>(
             emit(result = "error", statusOk = false, reason = "UnsupportedOperationException")
             null
         } finally {
+            processingLease?.let(processingClaims::release)
+            liveLease?.let(liveClaims::release)
             executor.shutdown()
         }
     }

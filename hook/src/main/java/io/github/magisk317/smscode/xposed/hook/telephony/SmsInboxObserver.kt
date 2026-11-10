@@ -8,6 +8,7 @@ import android.os.Looper
 import android.provider.Telephony
 import android.util.Log
 import io.github.magisk317.xposed.runtime.contract.logging.LogRoute
+import io.github.magisk317.smscode.runtime.verification.BoundedSmsRetryQueue
 import io.github.magisk317.smscode.runtime.verification.ObservedInboxScanner
 import io.github.magisk317.smscode.runtime.verification.SmsRoleStateResolver
 import io.github.magisk317.smscode.verification.ObservedInboxScanRecord
@@ -16,6 +17,9 @@ import io.github.magisk317.smscode.xposed.hook.telephony.SmsHookCapabilities
 import io.github.magisk317.xposed.logging.XLog
 import io.github.magisk317.xposed.logging.MagiskOtel
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import io.github.magisk317.smscode.runtime.verification.SmsParseActionRunner
 import java.util.concurrent.ScheduledExecutorService
 
 /**
@@ -29,12 +33,35 @@ import java.util.concurrent.ScheduledExecutorService
 class SmsInboxObserver(
     private val pluginContext: Context,
     private val phoneContext: Context,
-    private val recordHandler: (ObservedInboxScanRecord) -> Unit,
+    private val recordHandler: (ObservedInboxScanRecord) -> Boolean,
     private val capabilities: SmsHookCapabilities,
 ) {
     private val smsRoleStateResolver = SmsRoleStateResolver()
     private val queryExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private val smsInboxScanner = createInboxScanner()
+    private val rescanNeeded = AtomicBoolean(false)
+    private val stopped = AtomicBoolean(false)
+    private val retryQueue = BoundedSmsRetryQueue(
+        scheduler = queryExecutor,
+        onFinished = { _, reason, attempts ->
+            emitObserver(
+                result = if (reason == BoundedSmsRetryQueue.FinishReason.ACCEPTED) "ok" else "skip",
+                reason = "recovery_${reason.name.lowercase()}",
+                extra = mapOf("attempts" to attempts.toString()),
+            )
+            if (!stopped.get() && rescanNeeded.compareAndSet(true, false)) {
+                // A full batch can exceed queue capacity. Revisit released rows when a slot
+                // becomes available, even if no further ContentObserver event arrives.
+                runCatching {
+                    queryExecutor.schedule(
+                        { if (!stopped.get()) scanRecentInbox(ROUTING_REPAIR_TRIGGER_URI) },
+                        BoundedSmsRetryQueue.DEFAULT_RETRY_DELAY_MS,
+                        TimeUnit.MILLISECONDS,
+                    )
+                }
+            }
+        },
+    )
     private var routingRepair: ((ObservedInboxScanRecord) -> Boolean)? = null
 
     private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -43,7 +70,9 @@ class SmsInboxObserver(
         }
 
         override fun onChange(selfChange: Boolean, uri: Uri?) {
-            queryExecutor.execute { scanRecentInbox(uri?.toString().orEmpty()) }
+            if (!stopped.get()) runCatching {
+                queryExecutor.execute { scanRecentInbox(uri?.toString().orEmpty()) }
+            }
         }
     }
 
@@ -61,6 +90,8 @@ class SmsInboxObserver(
     }
 
     fun unregister() {
+        stopped.set(true)
+        retryQueue.close()
         runCatching {
             phoneContext.contentResolver.unregisterContentObserver(observer)
             XLog.i("SmsInboxObserver unregistered")
@@ -132,7 +163,17 @@ class SmsInboxObserver(
                 capabilities.escapeBody(record.body),
             )
             logSmsRoleStateForSms(record.smsId, record.triggerUri)
-            recordHandler(record)
+            val accepted = retryQueue.submit("observed:${record.smsId}:${record.date}") {
+                SmsParseActionRunner.DaemonThreadTimeoutDispatcher.run(
+                    actionName = "sms-observer",
+                    timeoutMs = SmsParseActionRunner.DEFAULT_TIMEOUT_MS,
+                ) { recordHandler(record) } == true
+            }
+            if (!accepted) {
+                smsInboxScanner.release(record)
+                rescanNeeded.set(true)
+                emitObserver(result = "skip", reason = "recovery_rejected")
+            }
         }
         emitObserver(
             result = "ok",
