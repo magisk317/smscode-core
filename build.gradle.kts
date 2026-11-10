@@ -26,7 +26,9 @@ val verifyModuleBoundaries = tasks.register("verifyModuleBoundaries") {
     description = "Verify pure Kotlin/JVM and Android module ownership boundaries."
 
     val moduleRoot = project.layout.projectDirectory.asFile
-    inputs.property("runtimeDependencyViolations", runtimeDependencyViolations)
+    // Capture the property itself, not the Kotlin DSL script that owns its getter.
+    val dependencyViolations = runtimeDependencyViolations
+    inputs.property("runtimeDependencyViolations", dependencyViolations)
     inputs.files(
         boundaryModuleNames.flatMap { moduleName ->
             listOf(
@@ -91,7 +93,7 @@ val verifyModuleBoundaries = tasks.register("verifyModuleBoundaries") {
             }
         }
 
-        violations += runtimeDependencyViolations.get()
+        violations += dependencyViolations.get()
         val verificationPackagePath = "src/main/java/io/github/magisk317/smscode/runtime/verification"
         if (moduleRoot.resolve("runtime/$verificationPackagePath").walkTopDown().any { it.isFile }) {
             violations += "Android verification execution belongs to verification-runtime"
