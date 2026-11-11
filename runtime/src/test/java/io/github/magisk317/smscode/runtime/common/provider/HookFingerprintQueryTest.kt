@@ -82,7 +82,11 @@ class HookFingerprintQueryTest {
         assertTrue(failure.elapsedMs >= 0L)
         assertFalse(failure.toString().contains(secret))
         assertFalse(failure.toLogMessage().contains(secret))
-        verify(exactly = 0) { uri.toString() }
+            // The recorded call must stay the lambda's last expression (mockk), so the Unit
+    // coercion diagnostic cannot be shaped away: statement form warns NOT_USED, tail
+    // form warns COERCION. Targeted suppress on this test only.
+    @Suppress("RETURN_VALUE_NOT_USED_COERCION")
+    verify(exactly = 0) { uri.toString() }
     }
 
     @Test
