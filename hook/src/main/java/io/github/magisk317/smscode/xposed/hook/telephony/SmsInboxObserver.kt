@@ -52,13 +52,14 @@ class SmsInboxObserver(
             if (!stopped.get() && rescanNeeded.compareAndSet(true, false)) {
                 // A full batch can exceed queue capacity. Revisit released rows when a slot
                 // becomes available, even if no further ContentObserver event arrives.
+                // Best-effort: a rejection while the executor shuts down is expected.
                 runCatching {
                     queryExecutor.schedule(
                         { if (!stopped.get()) scanRecentInbox(ROUTING_REPAIR_TRIGGER_URI) },
                         BoundedSmsRetryQueue.DEFAULT_RETRY_DELAY_MS,
                         TimeUnit.MILLISECONDS,
                     )
-                }
+                }.onFailure { }
             }
         },
     )
@@ -70,8 +71,11 @@ class SmsInboxObserver(
         }
 
         override fun onChange(selfChange: Boolean, uri: Uri?) {
-            if (!stopped.get()) runCatching {
-                queryExecutor.execute { scanRecentInbox(uri?.toString().orEmpty()) }
+            // Best-effort: a rejection while the executor shuts down is expected.
+            if (!stopped.get()) {
+                runCatching {
+                    queryExecutor.execute { scanRecentInbox(uri?.toString().orEmpty()) }
+                }.onFailure { }
             }
         }
     }

@@ -67,6 +67,7 @@ object HookFingerprintQuery {
         }
         if (result == SmsDuplicateCheckResult.UNAVAILABLE) {
             val elapsedMs = ((System.nanoTime() - startedAt) / NANOS_PER_MILLISECOND).coerceAtLeast(0L)
+            // Best-effort diagnostics: a throwing callback must not escape into telephony.
             runCatching {
                 if (onUnavailable != null) {
                     onUnavailable(
@@ -80,7 +81,7 @@ object HookFingerprintQuery {
                 } else {
                     failure?.let { onFailure?.invoke(it) }
                 }
-            }
+            }.onFailure { }
         }
         return result
     }
