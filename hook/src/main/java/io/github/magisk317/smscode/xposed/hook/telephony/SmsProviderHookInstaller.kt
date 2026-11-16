@@ -16,15 +16,45 @@ object SmsProviderHookInstaller {
     const val TARGET_PACKAGE = "com.android.providers.telephony"
     const val TARGET_CLASS = "com.android.providers.telephony.TelephonyProvider"
 
+    /**
+     * The provider that actually serves `content://sms`. Xiaomi network SMS lands
+     * in the database straight through [TARGET_SMS_PROVIDER_CLASS] without ever
+     * passing the telephony dispatch chain, so both classes must be covered:
+     * TelephonyProvider keeps the legacy diagnostics surface, SmsProvider is the
+     * one whose writes can be intercepted.
+     */
+    const val TARGET_SMS_PROVIDER_CLASS = "com.android.providers.telephony.SmsProvider"
+
+    /** Methods whose write can be cancelled before the row lands in the database. */
+    val BLOCKABLE_METHOD_NAMES = listOf("insert", "bulkInsert")
+
+    /** Well-known sms-table columns read for blacklist matching. */
+    const val KEY_ADDRESS = "address"
+    const val KEY_BODY = "body"
+    const val KEY_TYPE = "type"
+    const val KEY_DATE = "date"
+
+    /** Inbox row type per SmsContract; absent type is treated as inbound. */
+    const val SMS_MESSAGE_TYPE_INBOX = 1
+
     data class WriteCall(
         val methodName: String,
         val uri: Uri,
         val provider: ContentProvider?,
         val context: Context?,
         val hookParam: MethodHookParam,
+        val targetClassName: String = TARGET_CLASS,
+        val contentValues: List<ContentValues> = emptyList(),
     )
 
     data class Result(
+        val hookedMethodCount: Int,
+        val classFound: Boolean,
+        val smsProviderHookedMethodCount: Int = 0,
+        val smsProviderClassFound: Boolean = false,
+    )
+
+    private data class ClassInstallResult(
         val hookedMethodCount: Int,
         val classFound: Boolean,
     )
@@ -33,9 +63,25 @@ object SmsProviderHookInstaller {
         classLoader: ClassLoader,
         beforeSmsWrite: (WriteCall) -> Unit,
     ): Result {
+        val telephony = installClass(classLoader, TARGET_CLASS, "telephony_provider", beforeSmsWrite)
+        val smsProvider = installClass(classLoader, TARGET_SMS_PROVIDER_CLASS, "sms_provider", beforeSmsWrite)
+        return Result(
+            hookedMethodCount = telephony.hookedMethodCount,
+            classFound = telephony.classFound,
+            smsProviderHookedMethodCount = smsProvider.hookedMethodCount,
+            smsProviderClassFound = smsProvider.classFound,
+        )
+    }
+
+    private fun installClass(
+        classLoader: ClassLoader,
+        targetClass: String,
+        stableIdPrefix: String,
+        beforeSmsWrite: (WriteCall) -> Unit,
+    ): ClassInstallResult {
         val providerClass = runCatching {
-            HookHelpers.findClass(TARGET_CLASS, classLoader)
-        }.getOrNull() ?: return Result(hookedMethodCount = 0, classFound = false)
+            HookHelpers.findClass(targetClass, classLoader)
+        }.getOrNull() ?: return ClassInstallResult(hookedMethodCount = 0, classFound = false)
 
         var hookedMethodCount = 0
         METHOD_NAMES.forEach { methodName ->
@@ -45,7 +91,7 @@ object SmsProviderHookInstaller {
                     HookEnv.api.hookMethod(
                         method,
                         object : MethodHook() {
-                            override val stableId: String = "telephony_provider.$methodName"
+                            override val stableId: String = "$stableIdPrefix.$methodName"
 
                             override fun beforeHookedMethod(param: MethodHookParam) {
                                 val uri = param.args.getOrNull(0) as? Uri ?: return
@@ -58,6 +104,8 @@ object SmsProviderHookInstaller {
                                         provider = provider,
                                         context = provider?.context,
                                         hookParam = param,
+                                        targetClassName = targetClass,
+                                        contentValues = extractContentValues(methodName, param.args),
                                     ),
                                 )
                             }
@@ -66,8 +114,15 @@ object SmsProviderHookInstaller {
                     hookedMethodCount += 1
                 }
         }
-        return Result(hookedMethodCount = hookedMethodCount, classFound = true)
+        return ClassInstallResult(hookedMethodCount = hookedMethodCount, classFound = true)
     }
+
+    private fun extractContentValues(methodName: String, args: Array<Any?>): List<ContentValues> =
+        when (methodName) {
+            "insert", "update" -> listOfNotNull(args.getOrNull(1) as? ContentValues)
+            "bulkInsert" -> (args.getOrNull(1) as? Array<*>)?.filterIsInstance<ContentValues>().orEmpty()
+            else -> emptyList()
+        }
 
     /**
      * Verbose-gated write diagnostics shared by host hooks. Hosts previously
@@ -126,6 +181,32 @@ object SmsProviderHookInstaller {
         return authority in SMS_AUTHORITIES ||
             uri.toString().contains("content://sms") ||
             uri.toString().contains("content://mms-sms")
+    }
+
+    /** Flattens one sms row into a plain map so the pure helpers stay JVM-testable. */
+    fun contentValuesToMap(values: ContentValues): Map<String, Any?> =
+        values.valueSet().associate { it.key to it.value }
+
+    /** Inbox (or type-less) rows only; outbox/sent/draft writes must never be blocked. */
+    fun isInboundType(type: Any?): Boolean =
+        type == null || ((type as? Number)?.toInt() == SMS_MESSAGE_TYPE_INBOX)
+
+    /** Pure inbound-row extraction over plain maps; see [contentValuesToMap]. */
+    fun extractInboundDrafts(rows: List<Map<String, Any?>>): List<SmsProviderDraft> =
+        rows.filter { isInboundType(it[KEY_TYPE]) }.map { row ->
+            SmsProviderDraft(
+                address = row[KEY_ADDRESS] as? String,
+                body = row[KEY_BODY] as? String,
+                date = (row[KEY_DATE] as? Number)?.toLong(),
+                type = (row[KEY_TYPE] as? Number)?.toInt(),
+            )
+        }
+
+    /** Result substituted into the hooked call when the host decides to block. */
+    fun blockingResultFor(methodName: String): Any? = when (methodName) {
+        "insert" -> null
+        "bulkInsert" -> 0
+        else -> null
     }
 
     private val METHOD_NAMES = listOf("insert", "bulkInsert", "update")

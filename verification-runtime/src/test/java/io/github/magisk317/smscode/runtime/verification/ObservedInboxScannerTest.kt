@@ -6,6 +6,7 @@ import io.github.magisk317.smscode.verification.SmsInboxSeenTracker
 import android.content.Context
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -36,6 +37,7 @@ class ObservedInboxScannerTest {
     private fun scanner(
         smsIdTracker: SmsInboxSeenTracker = SmsInboxSeenTracker(maxTrackedSmsIds = 8),
         codeParser: (String) -> String = { body -> if (body.startsWith("otp")) CODE else "" },
+        clock: () -> Long = { NOW },
         rowLoader: (Long, Long?) -> List<ObservedInboxScanner.InboxRow>,
     ): ObservedInboxScanner = ObservedInboxScanner(
         pluginContext = mockk<Context>(relaxed = true),
@@ -43,7 +45,7 @@ class ObservedInboxScannerTest {
         smsIdTracker = smsIdTracker,
         smsCodeParser = { _, body -> codeParser(body) },
         inboxRowLoader = rowLoader,
-        currentTimeMillis = { NOW },
+        currentTimeMillis = clock,
     )
 
     @Test
@@ -209,4 +211,56 @@ class ObservedInboxScannerTest {
         assertEquals(1, retried.size)
         assertEquals(77L, retried.first().smsId)
     }
+    @Test
+    fun scan_marksOnlyRowsReceivedWhileThisObserverWasRunning() {
+        var now = NOW
+        val scanner = scanner(
+            clock = { now },
+            rowLoader = { _, _ ->
+                listOf(
+                    row(1L, NOW - 1L),
+                    row(2L, NOW),
+                    row(3L, NOW + ONE_SECOND_MS),
+                    row(4L, 0L),
+                    row(5L, NOW + THIRTY_MINUTES_MS),
+                )
+            },
+        )
+        now += ONE_SECOND_MS
+        val records = scanner.scan("content://sms", WINDOW_MS).associateBy { it.smsId }
+        assertFalse(records.getValue(1L).receivedDuringObservation)
+        assertTrue(records.getValue(2L).receivedDuringObservation)
+        assertTrue(records.getValue(3L).receivedDuringObservation)
+        assertFalse(records.getValue(4L).receivedDuringObservation)
+        assertFalse(records.getValue(5L).receivedDuringObservation)
+    }
+
+    @Test
+    fun parserFailureDoesNotConsumeSeenIdAndOtherRowsStillProceed() {
+        var unavailable = true
+        val scanner = scanner(
+            codeParser = { body ->
+                if (body == "first" && unavailable) error("temporary parser failure")
+                CODE
+            },
+            rowLoader = { _, _ -> listOf(row(10L, NOW, body = "first"), row(11L, NOW, body = "second")) },
+        )
+        assertEquals(listOf(11L), scanner.scan("content://sms", WINDOW_MS).map { it.smsId })
+        unavailable = false
+        assertEquals(listOf(10L), scanner.scan("content://sms", WINDOW_MS).map { it.smsId })
+    }
+    @Test
+    fun queueOverflowRowsRemainAvailableForTheNextNotification() {
+        val scanner = scanner(
+            smsIdTracker = SmsInboxSeenTracker(maxTrackedSmsIds = 128),
+            rowLoader = { _, _ -> (1L..32L).map { row(it, NOW) } },
+        )
+        val batch = scanner.scan("content://sms", WINDOW_MS)
+        assertEquals(32, batch.size)
+        // A scan produces up to 32 rows while the retry queue admits at most 20.
+        batch.drop(BoundedSmsRetryQueue.DEFAULT_MAX_PENDING).forEach(scanner::release)
+        val revisited = scanner.scan("content://sms", WINDOW_MS)
+        assertEquals((21L..32L).toList(), revisited.map { it.smsId })
+    }
+
 }

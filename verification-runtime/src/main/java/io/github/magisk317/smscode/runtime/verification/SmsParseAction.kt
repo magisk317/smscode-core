@@ -25,6 +25,7 @@ class SmsParseAction<M>(
     // below the runner's wall-clock timeout so a well-behaved (cancellation-cooperative) suspend
     // point aborts on its own. See the NOTE on [runCancellable] for what this can and can not do.
     private val stepTimeoutMs: Long = DEFAULT_STEP_TIMEOUT_MS,
+    private val resumeLiveActions: (String, String, Long) -> Boolean = SmsProcessingState::shouldResumeLiveActions,
 ) where M : SmsMessage, M : Parcelable {
     data class Outcome<M>(
         val smsMsg: M? = null,
@@ -87,14 +88,22 @@ class SmsParseAction<M>(
             }
             when (duplicateResult) {
                 SmsDuplicateCheckResult.DUPLICATE -> {
-                    XLog.i("Duplicate SMS detected by fingerprint, skip parsing.")
-                    emit(result = "skip", extra = mapOf("reason" to "duplicate"))
-                    return Outcome(duplicated = true)
+                    if (!resumeLiveActions(sender, msgBody, timestamp)) {
+                        XLog.i("Duplicate SMS detected by fingerprint, skip parsing.")
+                        emit(result = "skip", extra = mapOf("reason" to "duplicate"))
+                        return Outcome(duplicated = true)
+                    }
+                    // An observer may have written the record before live delivery gets here.
+                    // CodeWorker will omit input/record but still deliver copy/notification.
+                    emit(result = "resume", extra = mapOf("reason" to "observer_completed"))
                 }
                 SmsDuplicateCheckResult.UNAVAILABLE -> {
-                    XLog.w("SMS duplicate check unavailable, skip parsing.")
-                    emit(result = "skip", extra = mapOf("reason" to "duplicate_check_unavailable"))
-                    return null
+                    // Live delivery must survive an unavailable app-owned provider. CodeWorker
+                    // atomically claims this fingerprint before scheduling any side effects, using
+                    // the same process-local state as the inbox observer. This is a bounded
+                    // availability fallback, not a cross-process exactly-once guarantee.
+                    XLog.w("SMS duplicate check unavailable; using local dispatch deduplication.")
+                    emit(result = "degraded", extra = mapOf("reason" to "duplicate_check_unavailable"))
                 }
                 SmsDuplicateCheckResult.NOT_DUPLICATE -> Unit
             }
