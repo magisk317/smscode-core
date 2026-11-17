@@ -127,12 +127,12 @@ class MiuiBugleReadStateHook(private val host: MiuiBugleReadStateHost) : BaseHoo
             if (parsed.isFailure) {
                 XLog.w(
                     message = "BugleRead: parse threw snip=%s err=%s",
-                    snippet.take(50),
-                    parsed.exceptionOrNull()?.toString()?.take(60) ?: "null",
+                    snippet.take(WARN_SNIPPET_LIMIT),
+                    parsed.exceptionOrNull()?.toString()?.take(LOG_SNIPPET_LIMIT) ?: "null",
                 )
             }
             if (code.isNullOrBlank()) {
-                XLog.d(message = "BugleRead: miss snip=%s", snippet.take(60))
+                XLog.d(message = "BugleRead: miss snip=%s", snippet.take(LOG_SNIPPET_LIMIT))
                 continue
             }
             val unread = callLong(entity, GET_UNREAD_COUNT) ?: 0L
@@ -246,6 +246,8 @@ class MiuiBugleReadStateHook(private val host: MiuiBugleReadStateHost) : BaseHoo
     }
 
     private companion object {
+        const val WARN_SNIPPET_LIMIT = 50
+        const val LOG_SNIPPET_LIMIT = 60
         const val MIUI_SMS_PACKAGE = "com.android.mms"
         const val DAO_IMPL_CLASS = "com.android.mms.storage.bugle.ConversationDao_Impl"
         const val DATABASE_CLASS = "com.android.mms.storage.bugle.BugleDatabase"
