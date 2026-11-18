@@ -21,6 +21,12 @@ import io.github.magisk317.xposed.logging.XLog
  */
 class CodeNotificationReadCoordinator(
     private val smsPackageAllowlist: Set<String> = TelephonySmsNotificationPackages.POSTERS,
+    /**
+     * Tags owned by this module. A notification carrying one of them was posted by the
+     * module itself, not by the SMS app, so it is checked before the allowlist: the
+     * phone-owned path posts under a host package that is on that list (issue #275).
+     */
+    private val selfTags: Set<String> = setOf(PhoneOwnedNotificationDispatcher.SELF_POST_TAG),
     /** Host-supplied verification-code parser (e.g. shared SmsCodeFacade with APP_NOTIFICATION source). */
     private val codeParser: suspend (String) -> String?,
     /** Host-supplied sender; typically `action.actionIntent.send()` wrapped in runCatching. */
@@ -30,6 +36,9 @@ class CodeNotificationReadCoordinator(
 ) {
 
     enum class Decision {
+        /** Posted by this module itself; never a target, never cancelled (issue #275). */
+        SELF_POSTED,
+
         /** Notification matched an allowed SMS poster carrying a code; the read action was sent. */
         MARK_AS_READ_SENT,
 
@@ -48,7 +57,11 @@ class CodeNotificationReadCoordinator(
         title: CharSequence?,
         text: CharSequence?,
         notification: Notification,
+        tag: String? = null,
     ): Decision {
+        if (tag != null && tag in selfTags) {
+            return emit(Decision.SELF_POSTED, packageName)
+        }
         if (packageName !in smsPackageAllowlist) {
             return emit(Decision.REJECTED_PACKAGE, packageName)
         }

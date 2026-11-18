@@ -106,4 +106,48 @@ class CodeNotificationReadCoordinatorTest {
         ) }
         assertEquals(CodeNotificationReadCoordinator.Decision.NO_READ_ACTION, decision)
     }
+
+    @Test
+    fun `own notification is refused before the allowlist and never sent`() {
+        var parseCalls = 0
+        var sent = 0
+        val coordinator = CodeNotificationReadCoordinator(
+            codeParser = { parseCalls++; "123456" },
+            actionSender = { sent++ },
+            readActionLookup = { readAction },
+        )
+        val decision = runBlocking {
+            coordinator.maybeMarkAsRead(
+                packageName = TelephonySmsNotificationPackages.AOSP_PHONE,
+                title = "XposedSmsCode",
+                text = "SMS code: 123456",
+                notification = notification,
+                tag = PhoneOwnedNotificationDispatcher.SELF_POST_TAG,
+            )
+        }
+        assertEquals(CodeNotificationReadCoordinator.Decision.SELF_POSTED, decision)
+        assertEquals(0, parseCalls)
+        assertEquals(0, sent)
+    }
+
+    @Test
+    fun `foreign tag does not short-circuit the allowlist`() {
+        var sent = 0
+        val coordinator = CodeNotificationReadCoordinator(
+            codeParser = { "123456" },
+            actionSender = { sent++ },
+            readActionLookup = { readAction },
+        )
+        val decision = runBlocking {
+            coordinator.maybeMarkAsRead(
+                packageName = TelephonySmsNotificationPackages.GOOGLE_MESSAGING,
+                title = "Google Messages",
+                text = "Your code is 123456",
+                notification = notification,
+                tag = "someone-else",
+            )
+        }
+        assertEquals(CodeNotificationReadCoordinator.Decision.MARK_AS_READ_SENT, decision)
+        assertEquals(1, sent)
+    }
 }

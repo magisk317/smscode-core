@@ -137,6 +137,6 @@ object CodeNotificationActionHandler {
 
     private fun cancelNotification(context: Context, notificationId: Int) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager?
-        manager?.cancel(notificationId)
+        manager?.cancel(PhoneOwnedNotificationDispatcher.SELF_POST_TAG, notificationId)
     }
 }

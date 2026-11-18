@@ -148,7 +148,7 @@ class PhoneOwnedNotificationDispatcher(
         }
 
         val posted = try {
-            manager.notify(notificationId, notification)
+            manager.notify(SELF_POST_TAG, notificationId, notification)
             true
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             XLog.w(
@@ -273,7 +273,7 @@ class PhoneOwnedNotificationDispatcher(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
         repeat(ACCEPTANCE_VERIFY_MAX_ATTEMPTS) { attempt ->
             val active = runCatching { manager.activeNotifications }.getOrNull() ?: return null
-            if (active.any { it.id == notificationId }) return true
+            if (active.any { it.id == notificationId && it.tag == SELF_POST_TAG }) return true
             if (attempt < ACCEPTANCE_VERIFY_MAX_ATTEMPTS - 1) {
                 try {
                     Thread.sleep(ACCEPTANCE_VERIFY_DELAY_MS)
@@ -311,6 +311,13 @@ class PhoneOwnedNotificationDispatcher(
 
     companion object {
         const val INSPECTION_UNAVAILABLE = "inspection_unavailable"
+
+        /**
+         * Tag carried by every notification this module posts. The phone-owned path posts
+         * under the host package, which is also on the SMS allowlist, so the tag is the only
+         * reliable way for a host to recognise its own notification (issue #275).
+         */
+        const val SELF_POST_TAG = "smscode-code"
         private const val ACCEPTANCE_VERIFY_MAX_ATTEMPTS = 4
         private const val ACCEPTANCE_VERIFY_DELAY_MS = 60L
 

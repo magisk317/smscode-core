@@ -142,8 +142,9 @@ object CodeNotificationDeliveryHelper {
         manager: NotificationManager,
         notificationId: Int,
         notification: Notification,
+        tag: String? = PhoneOwnedNotificationDispatcher.SELF_POST_TAG,
     ) {
-        manager.notify(notificationId, notification)
+        manager.notify(tag, notificationId, notification)
     }
 
     fun logReceiverRejected(

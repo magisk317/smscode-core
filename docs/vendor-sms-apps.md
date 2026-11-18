@@ -35,3 +35,24 @@ which vendor needs work next.
   entries for notification cosmetics.
 - Record every new vendor fact in a dated capture under `device_dumps/devices/<codename>/`
   (one slot per retention key), never in this document alone.
+
+## The module's own notification is never a target (issue #275)
+
+Layer 2 runs as a notification listener, so it also sees the code notification this module posts.
+Phone-owned delivery posts that notification **under the host package** (`com.android.phone`, or
+the SMS app) precisely to escape OEM notification suppression, which is the same package set
+`POSTERS` accepts for the leftover-cancel path. Without a discriminator the listener reads its own
+notification as an unadapted vendor leftover and cancels it: the code notification disappears from
+the bar while the log shows it was posted.
+
+The discriminator is `PhoneOwnedNotificationDispatcher.SELF_POST_TAG`. Every notification this
+module posts carries it, and the coordinator returns `SELF_POSTED` before consulting the allowlist,
+so a self-post is never parsed, never sent and never cancelled.
+
+- Do not replace the tag check with a package exclusion. Both `com.android.phone` and the SMS app's
+  own package are legitimately on the allowlist, so no package-level rule distinguishes them.
+- Anything that cancels or re-posts the code notification must pass the same tag
+  (`NotificationManager.cancel(tag, id)`), or it silently stops matching the notification it means
+  to remove. `CodeNotificationActionHandler` and the hosts' `CancelNotifyAction` both do.
+- `PhoneOwnedNotificationDispatcher.verifyAccepted` matches tag plus id, so the delivery check
+  cannot be satisfied by an unrelated notification that happens to reuse the id.
