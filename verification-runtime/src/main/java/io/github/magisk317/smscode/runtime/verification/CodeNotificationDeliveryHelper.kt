@@ -133,6 +133,14 @@ object CodeNotificationDeliveryHelper {
         // deliberately not applied to the notification.
         if (autoCancelEnabled && retentionTimeMs > 0L) {
             builder.setTimeoutAfter(retentionTimeMs)
+            // Render the remaining retention time as a countdown (issue #274): the system
+            // chronometer shows |now - when|, so a future `when` counts down to the
+            // timeoutAfter removal. `when` is also the drawer sort key, which pins this
+            // notification to the top until it expires; retention <= 0 (sticky) keeps the
+            // plain timestamp below.
+            builder.setUsesChronometer(true)
+            builder.setChronometerCountDown(true)
+            builder.setWhen(System.currentTimeMillis() + retentionTimeMs)
         }
         return builder.build()
     }
